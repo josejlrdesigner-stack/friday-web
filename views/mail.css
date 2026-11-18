@@ -171,3 +171,30 @@ i.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex
 dialog[data-sheet=mail-subs] .btn.small { min-height: 44px; margin: 0; }
 /* four lanes (Priority / Updates / All / Junk) fit a phone-width column */
 .mctl .seg button { padding: 0 2px; }
+
+/* picking emails: the check column is a sweep target (no scrolling there), the rest of the row still scrolls */
+.mrow .mpickcol { position: absolute; left: 0; top: 0; bottom: 0; width: 56px; touch-action: none; z-index: 1; }
+.mrow .pick { position: relative; z-index: 2; touch-action: none; }
+.mrow-wrap.sel .mrow .pick.on { color: var(--ink); }
+.bulk .btn.mbmore { min-width: 44px; padding: 0 10px; }
+.bulk .btn.mbmore svg { width: 19px; height: 19px; }
+
+/* the ⋯ filter + mailbox actions button */
+.mtrig.mfilter { padding: 0 12px; min-width: 44px; justify-content: center; gap: 4px; }
+.mtrig.mfilter svg { width: 18px; height: 18px; }
+
+/* keyboard shortcuts sheet */
+.mkeys { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px; padding: 0 6px; font-size: 13px; font-weight: 600; line-height: 1;
+  color: var(--ink); background: var(--secondary); border-radius: var(--r-chip); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* phone width: Mailboxes and ⋯ stay together (the app's stacked ViewThatFits) */
+.mpair { display: inline-flex; gap: 8px; align-items: center; min-width: 0; max-width: 100%; }
+/* narrow list (phone, or the split view's list column): the edit bar is a count row + one row of icon buttons (names stay for VoiceOver) */
+.mcol, .mstream { container-type: inline-size; }
+@container (max-width: 479px) {
+  .bulk { column-gap: 4px; padding: 8px 12px; }
+  .bulk > .v { flex-basis: 100%; flex-direction: row; align-items: center; gap: 16px; }
+  .bulk .btn.small, .bulk .btn.destructive { font-size: 0; gap: 0; width: 44px; min-width: 44px; padding: 0; justify-content: center; }
+  .bulk .btn.small svg, .bulk .btn.destructive svg { width: 19px; height: 19px; }
+}

@@ -21,12 +21,22 @@
     "hand.raised.slash": '<path d="M8 12.5V6a1.5 1.5 0 0 1 3 0v5M11 10.5V4.5a1.5 1.5 0 0 1 3 0v6M14 11V6a1.5 1.5 0 0 1 3 0v8c0 4-2.5 7-6 7-2.4 0-4-1.2-5.4-3.4l-2-3.4a1.4 1.4 0 0 1 2.3-1.6L8 14.5"/><path d="M3 3l18 18"/>',
     "envelope.badge.shield.half.filled": '<path d="M13 19H4.5A1.5 1.5 0 0 1 3 17.5v-11A1.5 1.5 0 0 1 4.5 5h15A1.5 1.5 0 0 1 21 6.5V11"/><path d="M3.5 6l8.5 6 8.5-6"/><path d="M18 13.5l3 1.2V17c0 2-1.3 3.4-3 4-1.7-.6-3-2-3-4v-2.3z"/><path d="M18 13.5V21" />',
     "arrow.up.right.square": '<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M9.5 14.5l6-6M10 8.5h5.5V14"/>',
+    "line.3.horizontal.decrease": '<path d="M4 7h16M7 12h10M10 17h4"/>',
+    "line.3.horizontal.decrease.circle.fill": '<circle cx="12" cy="12" r="9.5" fill="currentColor" stroke="none"/><path d="M7 9h10M9 12h6M11 15h2" stroke="#fff"/>',
+    "tray.full": '<path d="M3 13l3-8h12l3 8v6H3zM3 13h5l1.5 2.5h5L16 13h5"/><path d="M8 8h8M7.5 10.5h9"/>',
+    "checkmark.circle": '<circle cx="12" cy="12" r="9.5"/><path d="M7.5 12.3l3 3 6-6.3"/>',
+    "flag.slash": '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/><path d="M3 3l18 18"/>',
+    keyboard: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h1M9.5 9.5h1M13 9.5h1M16.5 9.5h1M6 12.5h1M9.5 12.5h1M13 12.5h1M16.5 12.5h1M8 15.5h8"/>',
   });
+  const MAC = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
 
   // ------------------------------------------------------------ state (CommsView @State)
   const M = {
     acct: null, folder: "INBOX", lane: "All", query: "",
     selecting: false, picked: new Set(),
+    show: "All mail",             // the ⋯ menu's filter: All mail · Unread only · Flagged only
+    anchor: null, cursor: null, base: new Set(),   // Shift-click / Shift+arrow ranges grow from the anchor; base = what was picked before the range
+    scrollTo: null,
     menu: null, menuAt: null, swipe: null,
     local: [],                    // commands being written right now (shown before GitHub confirms)
     asText: new Set(), loadImg: { has: () => true, add() {} },   // the app opens email with images loaded (MessageView loadImages = true)
@@ -58,22 +68,30 @@
     const toJunk = (m) => { if (m) { m.folder = junkName(m.accountID); m.junk = true; m.pending = true; } };
     const junkFolder = (m) => { const j = roleName(m.accountID, "junk"); return j ? m.folder === j : m.folder.toLowerCase() === "junk"; };
     for (const m of byId.values()) m.junk = m.junk === true || junkFolder(m);       // MailStore.isInJunk
+    const inTrash = (m) => { const t = roleName(m.accountID, "trash"); return !!t && m.folder === t; };
     for (const c of [...F.queue(), ...M.local]) {
       const m = byId.get(c.mailID);
+      // one email (mailID) or many at once (mailIDs[]): every one of them changes on screen right away
+      const ms = [...(c.mailIDs || []), ...(c.mailID ? [c.mailID] : [])].map((id) => byId.get(id)).filter(Boolean);
       switch (c.kind) {
-        case "mail_junk": for (const id of [...(c.mailIDs || []), c.mailID].filter(Boolean)) toJunk(byId.get(id)); break;
-        case "mail_notjunk": for (const id of [...(c.mailIDs || []), c.mailID].filter(Boolean)) { const x = byId.get(id); if (x) { x.folder = "INBOX"; x.junk = false; x.pending = true; } } break;
+        case "mail_junk": for (const x of ms) toJunk(x); break;
+        case "mail_notjunk": for (const x of ms) { x.folder = "INBOX"; x.junk = false; x.pending = true; } break;
         case "mail_unsubscribe": if (m) {
           const e = m.from.email.toLowerCase();
           pendingUnsub[e] = pendingUnsub[e] || c.at || F.nowSec();
           if (c.alsoJunk) for (const x of byId.values()) if (x.from.email.toLowerCase() === e && !x.junk) toJunk(x);
         } break;
-        case "mail_seen": if (m) m.seen = c.on !== false; break;
-        case "mail_flag": if (m) { m.flagged = c.on !== false; m.pending = true; } break;
-        case "mail_archive": if (m) { const f = roleName(m.accountID, "archive"); if (f) { m.folder = f; m.pending = true; } else byId.delete(c.mailID); } break;
+        case "mail_seen": for (const x of ms) x.seen = c.on !== false; break;
+        case "mail_flag": for (const x of ms) { x.flagged = c.on !== false; x.pending = true; } break;
+        case "mail_archive": for (const x of ms) { const f = roleName(x.accountID, "archive"); if (f) { x.folder = f; x.junk = false; x.pending = true; } else byId.delete(x.id); } break;
         case "mail_trash": case "mail_delete":
-          if (m) { const f = roleName(m.accountID, "trash"); if (c.kind === "mail_trash" && f && f !== m.folder) { m.folder = f; m.pending = true; } else byId.delete(c.mailID); } break;
-        case "mail_move": if (m) { if (!c.accountID || c.accountID === m.accountID) { m.folder = c.folder; m.junk = junkFolder(m); m.pending = true; } else byId.delete(c.mailID); } break;
+          for (const x of ms) { const f = roleName(x.accountID, "trash"); if (c.kind === "mail_trash" && f && f !== x.folder) { x.folder = f; x.junk = false; x.pending = true; } else byId.delete(x.id); } break;
+        case "mail_move": for (const x of ms) { if (!c.accountID || c.accountID === x.accountID) { x.folder = c.folder; x.junk = junkFolder(x); x.pending = true; } else byId.delete(x.id); } break;
+        case "mail_mark_all_read": { const f = c.folder || "INBOX";
+          for (const x of byId.values()) if (!x.seen && x.folder === f && (!c.accountID || x.accountID === c.accountID)) x.seen = true; } break;
+        case "mail_empty":
+          for (const x of [...byId.values()]) if ((!c.accountID || x.accountID === c.accountID) && (c.role === "junk" ? x.junk : c.role === "trash" && inTrash(x))) byId.delete(x.id);
+          break;
         case "mail_body": askedBody.add(c.mailID); break;
         case "mail_folder": askedFolder.add(c.accountID + "|" + c.folder); break;
         case "mail_create_folder": if (folders[c.accountID] && !folders[c.accountID].some((f) => f.name === c.name)) folders[c.accountID].push({ name: c.name, role: null, pending: true }); break;
@@ -195,16 +213,21 @@
   }
   function current(X) {
     if (M.query.trim()) return localSearch(X, M.query);
+    let list = [];
     if (M.folder === "INBOX") {
-      if (M.lane === "Junk") return junkMessages(X).filter((m) => !M.acct || m.accountID === M.acct);
-      let list = inboxOf(X).filter((m) => !M.acct || m.accountID === M.acct);
-      if (M.lane === "Priority") list = list.filter((m) => !m.isUpdate);
-      if (M.lane === "Updates") list = list.filter((m) => m.isUpdate);
-      return list;
-    }
-    if (M.acct) return X.messages.filter((m) => m.accountID === M.acct && m.folder === M.folder);
-    return [];
+      if (M.lane === "Junk") list = junkMessages(X).filter((m) => !M.acct || m.accountID === M.acct);
+      else {
+        list = inboxOf(X).filter((m) => !M.acct || m.accountID === M.acct);
+        if (M.lane === "Priority") list = list.filter((m) => !m.isUpdate);
+        if (M.lane === "Updates") list = list.filter((m) => m.isUpdate);
+      }
+    } else if (M.acct) list = X.messages.filter((m) => m.accountID === M.acct && m.folder === M.folder);
+    if (M.show === "Unread only") list = list.filter((m) => !m.seen);
+    if (M.show === "Flagged only") list = list.filter((m) => m.flagged);
+    return list;
   }
+  /** The rows on screen, top to bottom (one per conversation). */
+  const visibleIds = (X) => threads(current(X)).map((t) => t[0].id);
   function folderTitle(X) {
     if (M.folder === "INBOX") return "Mail";
     for (const a of X.accounts) { const f = X.folders[a.id]?.find((x) => x.name === M.folder); if (f) return displayName(f.name); }
@@ -283,13 +306,17 @@
   }
   const quietly = (p) => p.catch(() => {});
   const what = (ms) => (ms.length === 1 ? `“${ms[0].subject}”` : `${ms.length} emails`);
-  const archiveAll = (ms) => send(ms.map((m) => ["mail_archive", { mailID: m.id }]), `Archived ${what(ms)}`);
-  function trashAll(X, ms) {
+  /** One email → {mailID}; several → {mailIDs[]} so the iPhone does them all in ONE command (one server connection per folder). */
+  const ids = (ms) => (ms.length === 1 ? { mailID: ms[0].id } : { mailIDs: ms.map((m) => m.id) });
+  const archiveAll = async (ms) => { if (ms.length) return send([["mail_archive", ids(ms)]], `Archived ${what(ms)}`); };
+  async function trashAll(X, ms) {
+    if (!ms.length) return;
     const permanent = ms.every((m) => isInTrash(X, m));
-    return send(ms.map((m) => [permanent ? "mail_delete" : "mail_trash", { mailID: m.id }]), `${permanent ? "Deleted forever" : "Deleted"} ${what(ms)}`);
+    return send([[permanent ? "mail_delete" : "mail_trash", ids(ms)]], `${permanent ? "Deleted forever" : "Deleted"} ${what(ms)}`);
   }
-  const setSeen = (ms, on) => send(ms.map((m) => ["mail_seen", { mailID: m.id, on }]));
+  const setSeen = async (ms, on) => { if (ms.length) return send([["mail_seen", { ...ids(ms), on }]]); };
   const setFlag = (m, on) => send([["mail_flag", { mailID: m.id, on }]]);
+  const setFlagMany = async (ms, on) => { if (ms.length) return send([["mail_flag", { ...ids(ms), on }]]); };
   /** Delete from Trash is forever, so it asks first; anywhere else it goes to Trash. */
   async function deleteThread(X, th) {
     if (th.every((m) => isInTrash(X, m))) {
@@ -402,6 +429,24 @@
         ...(b?.html ? [mi(M.asText.has(m.id) ? "Show formatted" : "Show plain text", "mail-astext", { icon: "doc.plaintext" })] : []),
         ...(!M.loadImg.has(m.id) ? [mi("Load images", "mail-load-images", { icon: "photo" })] : [])];
     }
+    if (key === "filter") {      // CommsView.moreMenu: Apple Mail's filter button + mailbox actions
+      const showIcon = (o) => (M.show === o ? "checkmark" : o === "Unread only" ? "envelope.badge" : o === "Flagged only" ? "flag" : "tray.full");
+      return [{ header: "Show" }, ...["All mail", "Unread only", "Flagged only"].map((o) => mi(o, "mail-show", { icon: showIcon(o), data: { value: o } })),
+        { divider: true },
+        mi("Mark all as read", "mail-mark-all-read", { icon: "envelope.open" }),
+        mi("Select emails", "mail-select-on", { icon: "checkmark.circle" }),
+        mi("Keyboard shortcuts", "mail-shortcuts", { icon: "keyboard" }),
+        { divider: true },
+        mi("Empty Junk…", "mail-empty", { icon: "xmark.bin", destructive: true, data: { role: "junk" } }),
+        mi("Empty Trash…", "mail-empty", { icon: "trash", destructive: true, data: { role: "trash" } })];
+    }
+    if (key === "bulk-more") {   // bulkBar's "…" menu
+      if (!M.picked.size) return [];
+      return [mi("Mark unread", "mail-bulk-unread", { icon: "envelope.badge" }),
+        mi("Flag", "mail-bulk-flag", { icon: "flag", data: { on: 1 } }),
+        mi("Unflag", "mail-bulk-flag", { icon: "flag.slash", data: { on: 0 } }),
+        ...(M.lane === "Junk" && M.folder === "INBOX" ? [] : [mi("Junk and block senders", "mail-bulk-junkblock", { icon: "hand.raised" })])];
+    }
     if (key.startsWith("row:")) {
       const m = X.byId.get(key.slice(4)); if (!m) return [];
       return [mi("Reply", "mail-row-reply", { data: { id: m.id } }), mi(m.seen ? "Mark unread" : "Mark read", "mail-row-seen", { data: { id: m.id } }),
@@ -440,7 +485,7 @@
       <div class="swipe r">${sw("mail-move", "Move", "folder", "ink2")}${sw("mail-flag", m.flagged ? "Unflag" : "Flag", "flag", "attention")}${isInJunk(m) ? sw("mail-row-notjunk", "Not Junk", "tray.and.arrow.up", "action") : sw("mail-row-junk", "Junk", "xmark.bin", "ink2")}${sw("mail-row-delete", "Delete", "trash", "danger")}</div>
       <button type="button" class="mrow" data-act="mail-row" data-id="${esc(m.id)}" ${M.selecting ? `aria-pressed="${picked}"` : ""}
         aria-label="${esc(`${m.seen ? "" : "Unread. "}From ${display(m.from)}. ${m.subject}. ${timeLabel(m.date)}`)}">
-        ${M.selecting ? `<span class="pick ${picked ? "on" : ""}">${icon(picked ? "checkmark.circle.fill" : "circle")}</span>` : ""}
+        ${M.selecting ? `<span class="mpickcol" aria-hidden="true"></span><span class="pick ${picked ? "on" : ""}">${icon(picked ? "checkmark.circle.fill" : "circle")}</span>` : ""}
         <span class="av" style="color:${c};background:${rgba(c, 0.13)}">${esc(initials(m))}</span>
         <span class="v g2 grow">
           <span class="h g8"><span class="from ell ${unread ? "w6" : ""}">${esc(display(m.from))}</span>
@@ -497,13 +542,14 @@
 
   function bulkBar(X) {
     const all = threads(current(X)).map((t) => t[0].id), n = M.picked.size, none = !n;
-    return `<div class="bulk h g8"><div class="v"><span class="t13 w6 ink tnum">${n} selected</span>
+    return `<div class="bulk h g8"><div class="v"><span class="t13 w6 ink tnum bcount">${n} selected</span>
         <button type="button" class="btn link t13" style="min-height:24px;padding:0" data-act="mail-pick-all">${n === all.length && n ? "Select none" : "Select all"}</button></div>
       ${ui.btn({ label: "Read", icon: "envelope.open", kind: "small", act: "mail-bulk-read", disabled: none })}
       ${ui.btn({ label: "Move", icon: "folder", kind: "small", act: "mail-bulk-move", disabled: none })}
       ${ui.btn({ label: "Archive", icon: "archivebox", kind: "small", act: "mail-bulk-archive", disabled: none })}
       ${M.lane === "Junk" && M.folder === "INBOX" ? ui.btn({ label: "Not Junk", icon: "tray.and.arrow.up", kind: "small", act: "mail-bulk-notjunk", disabled: none })
         : ui.btn({ label: "Junk", icon: "xmark.bin", kind: "small", act: "mail-bulk-junk", disabled: none })}
+      <button type="button" class="btn small mbmore" data-act="mail-menu" data-menu="bulk-more" aria-haspopup="menu" aria-expanded="${M.menu === "bulk-more"}" aria-label="More actions for the selected emails" ${none ? "disabled" : ""}>${icon("ellipsis.circle")}</button>
       <span class="sp"></span>${ui.btn({ label: "Delete", icon: "trash", kind: "destructive", act: "mail-bulk-delete", disabled: none })}</div>`;
   }
 
@@ -527,10 +573,13 @@
     const acctLabel = `<span class="h g4">${(a ? [a] : X.accounts).map((x) => `<i class="dot" style="background:${x.color}"></i>`).join("")}</span><span class="ell">${esc(a?.label || "All accounts")}</span>${icon("chevron.down", 'class="cd"')}`;
     const chan = a ? `<span class="ell">${esc(M.folder === "INBOX" ? "Inbox" : displayName((X.folders[a.id] || []).find((f) => f.name === M.folder)?.name || M.folder))}</span>${icon("chevron.down", 'class="cd"')}`
       : `${icon("tray.2")}<span class="ell">Mailboxes</span>${icon("chevron.down", 'class="cd"')}`;
+    const filtered = M.show !== "All mail";
+    const filterTrigger = trigger("filter", `${icon(filtered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")}${filtered ? `<span class="ell">${M.show === "Unread only" ? "Unread" : "Flagged"}</span>` : ""}`,
+      "mfilter", "Filter and mailbox actions" + (filtered ? `: showing ${M.show.toLowerCase()}` : ""));
     const controls = `<div class="mctl v g8">
       ${ui.search("mail-q", "Search all mail", M.query, "mail-q")}
       ${M.folder === "INBOX" && !M.query.trim() ? ui.seg("mail-lane", ["Priority", "Updates", "All", "Junk"], M.lane) : ""}
-      <div class="flow">${trigger("acct", acctLabel, "", `Account: ${a?.label || "All accounts"}`)}${a ? trigger("chan", chan) : trigger("boxes", chan, "", "Mailboxes: Sent, Trash, Archive and folders")}</div></div>`;
+      <div class="flow">${trigger("acct", acctLabel, "", `Account: ${a?.label || "All accounts"}`)}<span class="mpair">${a ? trigger("chan", chan) : trigger("boxes", chan, "", "Mailboxes: Sent, Trash, Archive and folders")}${filterTrigger}</span></div></div>`;
     return `<div class="mhead">${header}</div>${controls}<div class="mlist" id="mail-list">${listHTML(X)}</div>${M.selecting ? bulkBar(X) : ""}`;
   }
 
@@ -635,6 +684,7 @@
         pane.addEventListener("scroll", () => { M.paneTop = pane.scrollTop; closeMenuOnScroll(); }, { passive: true });
       }
       placeMenu(root);
+      if (M.scrollTo) { root.querySelector(`#mail-list .mrow-wrap[data-id="${CSS.escape(M.scrollTo)}"]`)?.scrollIntoView({ block: "nearest" }); M.scrollTo = null; }
       // opening a message marks it read and asks the iPhone for its body if it isn't here yet
       const X = model(), id = selectedId(), m = X && id ? X.byId.get(id) : null;
       if (m) {
@@ -671,23 +721,69 @@
     else if (M.swipe && !e.target.closest?.(".swipe,.mrow")) { M.swipe = null; F.render(); }
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && M.menu && !document.querySelector("dialog[open]")) { const k = M.menu; M.menu = null; F.render(); F.$(`[data-menu="${CSS.escape(k)}"]`)?.focus(); }
+    if (e.key === "Escape" && M.menu && !document.querySelector("dialog[open]")) { e.preventDefault(); const k = M.menu; M.menu = null; F.render(); F.$(`[data-menu="${CSS.escape(k)}"]`)?.focus(); }
   });
   let lastWide = wide();
   addEventListener("resize", () => { if (wide() !== lastWide) { lastWide = wide(); if (F.S.tab === "mail") F.render(); } else if (M.menu) closeMenuOnScroll(); });
 
-  // ------------------------------------------------------------ swipe actions (touch) + long press / right click = context menu
-  let drag = null, suppressClick = false;
+  // ------------------------------------------------------------ swipe actions (touch) · long press = select mode · finger sweep down the check column · right click = context menu
+  let drag = null, sweep = null, suppressClick = false;
   const OPEN = { l: 148, r: 296 };
+  const holdClick = (ms) => { suppressClick = true; setTimeout(() => (suppressClick = false), ms); };
+  /** Long press (like iPhone Mail's list): select mode with this row picked; then taps toggle and a sweep picks a run. */
+  function longPress(id) { M.swipe = null; M.menu = null; M.selecting = true; M.picked = new Set([id]); setAnchor(id); holdClick(700); F.render(); }
   document.addEventListener("pointerdown", (e) => {
     const row = e.target.closest?.("#mail-list .mrow");
-    if (!row || M.selecting) return;
+    if (!row) return;
+    if (M.selecting) {
+      if (e.button > 0 || e.shiftKey || e.metaKey || e.ctrlKey) return;
+      const r = row.getBoundingClientRect();
+      if (e.target.closest(".mpickcol,.pick") || e.clientX - r.left < 56) startSweep(row.dataset.id, e);
+      return;
+    }
     if (e.pointerType === "mouse") return;
     const wrap = row.parentElement, base = M.swipe?.id === row.dataset.id ? (M.swipe.side === "l" ? OPEN.l : -OPEN.r) : 0;
     drag = { row, wrap, id: row.dataset.id, x0: e.clientX, y0: e.clientY, base, dx: base, on: false, pid: e.pointerId };
-    drag.lp = setTimeout(() => { if (drag && !drag.on) { const d = drag; drag = null; suppressClick = true; setTimeout(() => (suppressClick = false), 700); openRowMenu(d.id, d.x0, d.y0); } }, 550);
+    drag.lp = setTimeout(() => { if (drag && !drag.on) { const d = drag; drag = null; longPress(d.id); } }, 550);
   });
+  // shift-click shouldn't select page text
+  document.addEventListener("mousedown", (e) => { if (e.shiftKey && e.target.closest?.("#mail-list .mrow")) e.preventDefault(); });
+
+  /** Sweep: the first row decides (pick or un-pick); every row between it and the finger follows. Painted in place so the gesture never loses its element. */
+  function startSweep(id, e) {
+    const X = model(); if (!X) return;
+    const list = visibleIds(X), i = list.indexOf(id); if (i < 0) return;
+    sweep = { pid: e.pointerId, list, start: i, last: i, base: new Set(M.picked), on: !M.picked.has(id) };
+    suppressClick = true;
+    applySweep();
+  }
+  function applySweep() {
+    const s = sweep, a = Math.min(s.start, s.last), b = Math.max(s.start, s.last), p = new Set(s.base);
+    for (const id of s.list.slice(a, b + 1)) { if (s.on) p.add(id); else p.delete(id); }
+    M.picked = p; M.anchor = s.list[s.start]; M.cursor = s.list[s.last]; M.base = s.base;
+    paintPicks();
+  }
+  function paintPicks() {
+    const sel = selectedId();
+    for (const w of document.querySelectorAll("#mail-list .mrow-wrap")) {
+      const on = M.picked.has(w.dataset.id), p = w.querySelector(".pick");
+      w.classList.toggle("sel", on || w.dataset.id === sel);
+      w.querySelector(".mrow")?.setAttribute("aria-pressed", String(on));
+      if (p && p.classList.contains("on") !== on) { p.classList.toggle("on", on); p.innerHTML = icon(on ? "checkmark.circle.fill" : "circle"); }
+    }
+    const n = document.querySelector(".bulk .bcount"); if (n) n.textContent = `${M.picked.size} selected`;
+  }
   document.addEventListener("pointermove", (e) => {
+    if (sweep && e.pointerId === sweep.pid) {
+      e.preventDefault();
+      const w = document.elementFromPoint(e.clientX, e.clientY)?.closest?.("#mail-list .mrow-wrap");
+      const i = w ? sweep.list.indexOf(w.dataset.id) : -1;
+      if (i >= 0 && i !== sweep.last) { sweep.last = i; applySweep(); }
+      // near the top or bottom edge of the list, keep scrolling so a long sweep can reach rows off screen
+      const sc = document.getElementById("mail-col") || document.getElementById("screen");
+      if (sc) { const r = sc.getBoundingClientRect(); if (e.clientY > r.bottom - 48) sc.scrollTop += 12; else if (e.clientY < r.top + 48) sc.scrollTop -= 12; }
+      return;
+    }
     if (!drag || e.pointerId !== drag.pid) return;
     const mx = e.clientX - drag.x0, my = e.clientY - drag.y0;
     if (!drag.on) {
@@ -701,6 +797,7 @@
     drag.row.style.transform = `translateX(${drag.dx}px)`;
   });
   const endDrag = async (e) => {
+    if (sweep && e && e.pointerId === sweep.pid) { sweep = null; holdClick(400); F.render(); return; }
     if (!drag || (e && e.pointerId !== drag.pid)) return;
     clearTimeout(drag.lp);
     const d = drag; drag = null;
@@ -720,7 +817,11 @@
   document.addEventListener("click", (e) => { if (suppressClick && e.target.closest?.("#mail-list")) { e.stopPropagation(); e.preventDefault(); suppressClick = false; } }, true);
   document.addEventListener("contextmenu", (e) => {
     const row = e.target.closest?.("#mail-list .mrow");
-    if (!row || M.selecting) return;
+    if (!row) return;
+    if (sweep) { e.preventDefault(); return; }
+    // Android fires contextmenu for a finger long press: that's select mode, same as our own timer
+    if (drag && !drag.on && drag.id === row.dataset.id) { e.preventDefault(); clearTimeout(drag.lp); const id = drag.id; drag = null; longPress(id); return; }
+    if (M.selecting) return;
     e.preventDefault();
     let { clientX: x, clientY: y } = e;
     if (!x && !y) { const r = row.getBoundingClientRect(); x = r.left + 24; y = r.bottom; }
@@ -734,7 +835,7 @@
 
   F.on("mail-menu", (el) => { const k = el.dataset.menu; M.swipe = null; M.menu = M.menu === k ? null : k; F.render(); });
   F.on("mail-settings", () => { if (F.openSettings) F.openSettings("mail"); else F.toast("Email accounts and your signature are set up in F.R.I.D.A.Y. on your iPhone."); });
-  F.on("mail-select", () => { M.selecting = !M.selecting; M.picked.clear(); M.swipe = null; F.render(); });
+  F.on("mail-select", () => { if (M.selecting) endSelect(); else { M.picked.clear(); startSelecting(); } F.render(); });
   F.on("mail-compose", () => {
     const X = X0(), a = M.acct || X?.accounts[0]?.id;
     if (!a) { F.toast("Sign in to your email in F.R.I.D.A.Y. on your iPhone first."); return; }
@@ -755,10 +856,35 @@
     const n = r?.text?.trim(); if (!n) return;
     await send([["mail_create_folder", { accountID: a.id, name: n }]], `Your iPhone will create the folder ${n}`);
   });
-  F.on("mail-row", (el) => {
-    const id = el.dataset.id;
+  // ------------------------------------------------------------ picking emails like a desktop mail client
+  /** Ranges start here; base = what was already picked, kept when the range grows or shrinks. */
+  function setAnchor(id) { M.anchor = id; M.cursor = id; M.base = new Set(M.picked); }
+  function startSelecting() { if (!M.selecting) { M.selecting = true; M.swipe = null; } }
+  /** Cmd-click (Mac) / Ctrl-click (Windows): this row in or out. The open email joins the first pick, like Mail. */
+  function togglePick(X, id) {
+    const list = visibleIds(X), open = selectedId();
+    if (!M.picked.size && open && open !== id && list.includes(open)) M.picked.add(open);
+    startSelecting();
+    if (M.picked.has(id)) M.picked.delete(id); else M.picked.add(id);
+    setAnchor(id);
+  }
+  /** Shift-click / Shift+arrow: everything from the anchor to this row (plus what was picked before). */
+  function pickRange(X, id) {
+    const list = visibleIds(X);
+    if (!M.anchor || !list.includes(M.anchor)) { const open = selectedId(); setAnchor(list.includes(open) ? open : list[0]); }
+    const i = list.indexOf(M.anchor), j = list.indexOf(id);
+    if (i < 0 || j < 0) return;
+    startSelecting();
+    M.picked = new Set([...M.base, ...list.slice(Math.min(i, j), Math.max(i, j) + 1)]);
+    M.cursor = id;
+  }
+  F.on("mail-row", (el, e) => {
+    const id = el.dataset.id, X = X0();
     if (M.swipe) { M.swipe = null; F.render(); return; }
-    if (M.selecting) { if (M.picked.has(id)) M.picked.delete(id); else M.picked.add(id); F.render(); return; }
+    if (e?.shiftKey && X) { pickRange(X, id); F.render(); return; }
+    if ((e?.metaKey || e?.ctrlKey) && X) { togglePick(X, id); F.render(); return; }
+    if (M.selecting) { if (M.picked.has(id)) M.picked.delete(id); else M.picked.add(id); setAnchor(id); F.render(); return; }
+    setAnchor(id);
     openId(id);
   });
   F.on("mail-row-seen", (el) => { const X = X0(), m = X.byId.get(el.dataset.id); if (m) return setSeen(threadFor(X, m.id), !m.seen); });
@@ -778,8 +904,11 @@
   });
   // bulk (edit mode, like iPhone Mail)
   const pickedMessages = (X) => threads(current(X)).filter((t) => M.picked.has(t[0].id)).flat();
-  const endSelect = () => { M.picked.clear(); M.selecting = false; };
+  const endSelect = () => { M.picked.clear(); M.selecting = false; M.menu = null; M.anchor = M.cursor = null; M.base = new Set(); };
   F.on("mail-pick-all", () => { const all = threads(current(X0())).map((t) => t[0].id); M.picked = M.picked.size === all.length ? new Set() : new Set(all); F.render(); });
+  F.on("mail-bulk-unread", () => { const ms = pickedMessages(X0()); ms.forEach((m) => M.autoSeen.add(m.id)); endSelect(); return setSeen(ms, false); });
+  F.on("mail-bulk-flag", (el) => { const ms = pickedMessages(X0()); endSelect(); return setFlagMany(ms, el.dataset.on === "1"); });
+  F.on("mail-bulk-junkblock", () => { const X = X0(), ms = pickedMessages(X); endSelect(); return markJunk(X, ms, true); });
   F.on("mail-bulk-read", () => { const ms = pickedMessages(X0()); endSelect(); return setSeen(ms, true); });
   F.on("mail-bulk-archive", () => { const ms = pickedMessages(X0()); endSelect(); return archiveAll(ms); });
   F.on("mail-bulk-move", () => openMove(pickedMessages(X0()), endSelect));
@@ -802,6 +931,120 @@
   F.on("mail-unblock", (el) => { closeMenus(); return unblock([el.dataset.email]); });
   F.on("mail-unsub", (el) => { const X = X0(), m = X.byId.get(el.dataset.id); closeMenus(); if (m) return confirmUnsubscribe(X, m); });
   F.on("mail-subs", () => { closeMenus(); openSubscriptions(); });
+
+  // ------------------------------------------------------------ the "⋯" menu (CommsView.moreMenu)
+  F.on("mail-show", (el) => {
+    M.show = el.dataset.value; M.menu = null;
+    const X = X0(); if (X) { const vis = new Set(visibleIds(X)); M.picked = new Set([...M.picked].filter((id) => vis.has(id))); }   // nothing hidden stays picked
+    F.render();
+  });
+  F.on("mail-select-on", () => { M.menu = null; startSelecting(); F.render(); });
+  F.on("mail-shortcuts", () => { M.menu = null; F.render(); openShortcuts(); });
+  /** MailStore.markAllRead: the unread mail in this mailbox (and account), with Undo. */
+  F.on("mail-mark-all-read", () => {
+    const X = X0(); M.menu = null; if (!X) return F.render();
+    const list = X.messages.filter((m) => !m.seen && m.folder === M.folder && (!M.acct || m.accountID === M.acct));
+    if (!list.length) return F.render();
+    return send([["mail_mark_all_read", { ...(M.acct ? { accountID: M.acct } : {}), folder: M.folder }]], `Marked ${list.length} email${list.length === 1 ? "" : "s"} as read`,
+      () => { list.forEach((m) => M.autoSeen.add(m.id)); return send([["mail_seen", { mailIDs: list.map((m) => m.id), on: false }]]); });
+  });
+  /** Empty Junk… / Empty Trash…: permanent, so it asks first (the app's confirmationDialog wording). */
+  F.on("mail-empty", async (el) => {
+    const X = X0(), role = el.dataset.role, a = M.acct ? account(X, M.acct) : null, word = role === "junk" ? "Junk" : "Trash";
+    M.menu = null; F.render();
+    const ok = await F.alert({ title: `Empty ${word}` + (a ? ` in ${a.label}` : " in every account") + "?", message: "Everything in it is deleted forever on the server. This can't be undone.",
+      buttons: [{ label: `Empty ${word}`, kind: "destructive", value: true }, { label: "Cancel", kind: "cancel" }] });
+    if (!ok) return;
+    await send([["mail_empty", { ...(a ? { accountID: a.id } : {}), role }]], `${word} emptied`);
+  });
+
+  /** The shortcuts, listed like the app's Form rows. */
+  function openShortcuts() {
+    const cmd = MAC ? "⌘" : "Ctrl+", sh = MAC ? "⇧" : "Shift+", ctl = MAC ? "⌃" : "";
+    const k = (...keys) => keys.map((x) => `<kbd>${esc(x)}</kbd>`).join('<span class="t13 muted"> or </span>');
+    const row = (label, keys) => `<div class="frow"><span class="lbl">${esc(label)}</span><span class="mkeys">${keys}</span></div>`;
+    const sec = (title, rows, foot = "") => `<div class="fsec"><div class="fhead">${esc(title)}</div><div class="fgroup">${rows.join("")}</div>${foot ? `<p class="ffoot">${esc(foot)}</p>` : ""}</div>`;
+    const body = `<div class="narrow form">
+      ${sec("Move around", [row("Next email", k("↓", "J")), row("Previous email", k("↑", "K")), row("Search", k("/", cmd + "F")), row("Close email or clear selection", k("Esc"))])}
+      ${sec("Pick emails", [row("Pick one more", k(`${MAC ? "⌘" : "Ctrl"}-click`)), row("Pick a range", k("Shift-click")), row("Grow the selection", k(sh + "↓", sh + "↑")), row("Select all", k(cmd + "A"))],
+        "On a phone or tablet: press and hold an email, then tap or drag a finger down the circles.")}
+      ${sec("Act on the open or picked emails", [row("Delete", k(MAC ? "⌫" : "Delete")), row("Archive", MAC ? k("E", ctl + cmd + "A") : k("E")), row("Mark read or unread", k("U", sh + cmd + "U")),
+        row("Flag or unflag", k("L", sh + cmd + "L")), row("Junk", k("!", sh + cmd + "J"))])}
+      ${sec("Write", [row("Reply", k("R")), row("Reply all", k("A")), row("Forward", k("F")), row("New email", k("C", cmd + "N"))])}</div>`;
+    return F.sheet({ title: "Keyboard shortcuts", trailing: { label: "Done", act: "sheet-close" }, body, id: "mail-keys" });
+  }
+
+  // ------------------------------------------------------------ keyboard (CommsView.keyboardShortcuts) — never while typing
+  function keyTargets(X) {
+    if (M.selecting && M.picked.size) return pickedMessages(X);
+    const id = selectedId(), m = id && X.byId.get(id);
+    return m ? threadFor(X, id) : [];
+  }
+  /** After acting on the emails: nothing picked, no email open (as in the app). */
+  const doneActing = () => { endSelect(); closeMessage(); F.render(); };
+  function moveOpen(X, step) {
+    const list = visibleIds(X); if (!list.length) return;
+    const i = list.indexOf(selectedId()), j = i < 0 ? (step > 0 ? 0 : list.length - 1) : i + step;
+    if (j < 0 || j >= list.length) return;
+    setAnchor(list[j]); M.scrollTo = list[j]; openId(list[j]);
+  }
+  function growPick(X, step) {
+    const list = visibleIds(X); if (!list.length) return;
+    if (!M.anchor || !list.includes(M.anchor)) {
+      const open = selectedId();
+      if (!list.includes(open)) { setAnchor(list[0]); pickRange(X, list[0]); M.scrollTo = list[0]; F.render(); return; }
+      setAnchor(open);
+    }
+    const from = list.includes(M.cursor) ? M.cursor : M.anchor, j = list.indexOf(from) + step;
+    if (j < 0 || j >= list.length) { pickRange(X, from); F.render(); return; }
+    pickRange(X, list[j]); M.scrollTo = list[j];
+    if (wide()) openId(list[j]); else F.render();      // on a phone the list stays in view
+  }
+  const typing = (t) => !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+  document.addEventListener("keydown", async (e) => {
+    if (e.defaultPrevented || F.S.tab !== "mail" || M.menu || document.querySelector("dialog[open]") || typing(e.target) || e.isComposing) return;
+    const X = model(); if (!X || !X.accounts.length) return;
+    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key, mod = e.metaKey || e.ctrlKey, open = X.byId.get(selectedId());
+    const act = (fn) => { e.preventDefault(); return fn(); };
+    const onTargets = (fn) => act(() => { const t = keyTargets(X); if (t.length) return fn(t); });
+    const toggleRead = () => onTargets((t) => { const on = !t[0].seen; if (!on) t.forEach((m) => M.autoSeen.add(m.id)); return quietly(setSeen(t, on)); });
+    const toggleFlag = () => onTargets((t) => quietly(setFlagMany(t, !t[0].flagged)));
+    const junk = () => onTargets((t) => { doneActing(); return markJunk(X, t); });
+    const archive = () => onTargets((t) => { doneActing(); return archiveAll(t); });
+    const compose = () => act(() => { const a = M.acct || X.accounts[0]?.id; if (a) openCompose({ accountID: a, to: "", subject: "", body: "" }); });
+    const search = () => act(() => { const s = document.getElementById("mail-q"); s?.focus(); s?.select?.(); });
+    if (mod && !e.altKey) {
+      if (key === "a" && e.metaKey && e.ctrlKey) return archive();
+      if (key === "a" && !e.shiftKey) return act(() => { const all = visibleIds(X); if (!all.length) return; startSelecting(); M.picked = new Set(all); setAnchor(all[0]); M.cursor = all[all.length - 1]; F.render(); });
+      if (key === "n" && !e.shiftKey) return compose();
+      if (key === "f" && !e.shiftKey) return search();
+      if (key === "u" && e.shiftKey) return toggleRead();
+      if (key === "l" && e.shiftKey) return toggleFlag();
+      if (key === "j" && e.shiftKey) return junk();
+      if ((key === "Backspace" || key === "Delete") && !e.shiftKey) return onTargets((t) => { doneActing(); return deleteThread(X, t); });
+      return;
+    }
+    if (e.altKey) return;
+    if (key === "ArrowDown" || key === "ArrowUp") { const step = key === "ArrowDown" ? 1 : -1; return act(() => (e.shiftKey ? growPick(X, step) : moveOpen(X, step))); }
+    if (key === "!") return junk();
+    if (e.shiftKey) return;
+    switch (key) {
+      case "j": return act(() => moveOpen(X, 1));
+      case "k": return act(() => moveOpen(X, -1));
+      case "Backspace": case "Delete": return onTargets((t) => { doneActing(); return deleteThread(X, t); });
+      case "e": return archive();
+      case "u": return toggleRead();
+      case "l": return toggleFlag();
+      case "r": case "a": if (open) return act(() => openCompose(replyDraft(X, open, key === "a", { quote: X.bodies[open.id]?.text || "" }))); return;
+      case "f": if (open) return act(() => { const b = X.bodies[open.id]; openCompose(forwardDraft(open, b?.text || "", b?.attachments || [])); }); return;
+      case "c": return compose();
+      case "/": return search();
+      case "Escape":
+        if (M.selecting) return act(() => { endSelect(); F.render(); });
+        if (open || selectedId()) return act(() => { M.menu = null; closeMessage(); });
+        return;
+    }
+  });
 
   // ------------------------------------------------------------ actions: one email
   const selected = () => { const X = X0(); return { X, m: X?.byId.get(selectedId()) }; };
@@ -872,7 +1115,7 @@
       working = true; sh.update();
       const dest = account(X, aid), same = messages.every((m) => m.accountID === aid);
       try {
-        await send(messages.map((m) => ["mail_move", { mailID: m.id, folder, accountID: aid }]),
+        await send([["mail_move", { ...ids(messages), folder, accountID: aid }]],
           `Moved ${what(messages)} to ${folder === "INBOX" ? "Inbox" : folder}` + (same ? "" : ` in ${dest?.label || ""}`));
         sh.close(); done?.();
         F.render();

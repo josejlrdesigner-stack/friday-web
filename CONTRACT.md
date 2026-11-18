@@ -55,6 +55,9 @@ Mail (the message is `mailID` = the message's `id` from friday-mail.json; never 
 `mail_send{accountID, to, cc, subject, body, inReplyTo?, references?, replyingTo?, byFriday?}` · `mail_archive{mailID}` · `mail_trash{mailID}` · `mail_delete{mailID}` (permanent, from Trash) ·
 `mail_move{mailID, folder, accountID?}` · `mail_flag{mailID, on}` · `mail_seen{mailID, on}` · `mail_body{mailID}` · `mail_folder{accountID, folder}` · `mail_refresh{}` (the website's Sync now: check mail right away) · `mail_create_folder{accountID, name}`
 
+Many at once: `mail_archive`, `mail_trash`, `mail_delete`, `mail_flag{on}`, `mail_seen{on}`, `mail_move{folder, accountID?}` also accept `mailIDs[]` instead of `mailID` (one batched server connection per folder on the iPhone/Mac) ·
+`mail_mark_all_read{accountID?, folder?}` · `mail_empty{accountID?, role:"junk"|"trash"}` (permanent; the website asks first; no accountID = every account).
+
 Junk & unsubscribe: `mail_junk{mailIDs[], block?}` (move to each account's Junk; block = future mail from that sender goes to Junk) · `mail_notjunk{mailIDs[]}` (back to Inbox; sender unblocked and marked never-junk) ·
 `mail_unsubscribe{mailID, alsoJunk?, block?}` (iPhone does one-click POST or the mailto email; if the sender only offers a web page, the website opens that https link itself).
 Lists live in `prefs` and sync everywhere: `mailBlocked` and `mailAllowed` (`\n`-joined lowercase emails; the website may edit them directly), `mailUnsubscribed` (JSON text `{email: epochSeconds}`).

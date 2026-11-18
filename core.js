@@ -492,7 +492,12 @@ const F = (() => {
     if (tab === "tasks") { const od = todos().filter((t) => !t.done && t.due && D.start(t.due) < today); return ui.countBadge(od.length, od.some((t) => t.fc?.letter === "A")); }
     if (tab === "mail") {   // unread inbox mail, with read/archive/delete done here counted right away
       const q = queue(), seenNow = new Map(), gone = new Set();
-      for (const c of q) { if (c.kind === "mail_seen") seenNow.set(c.mailID, c.on !== false); if (["mail_archive", "mail_trash", "mail_delete", "mail_move"].includes(c.kind)) gone.add(c.mailID); if (c.kind === "mail_junk") (c.mailIDs || []).forEach((x) => gone.add(x)); }
+      for (const c of q) {
+        const ids = c.mailIDs || (c.mailID ? [c.mailID] : []);
+        if (c.kind === "mail_seen") ids.forEach((x) => seenNow.set(x, c.on !== false));
+        if (["mail_archive", "mail_trash", "mail_delete", "mail_move", "mail_junk"].includes(c.kind)) ids.forEach((x) => gone.add(x));
+        if (c.kind === "mail_mark_all_read") (S.mail?.messages || []).filter((m) => m.folder === (c.folder || "INBOX") && (!c.accountID || m.accountID === c.accountID)).forEach((m) => seenNow.set(m.id, true));
+      }
       const n = (S.mail?.messages || []).filter((m) => m.folder === "INBOX" && !gone.has(m.id) && !(seenNow.has(m.id) ? seenNow.get(m.id) : m.seen)).length;
       return ui.countBadge(n, false);
     }
