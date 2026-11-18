@@ -73,8 +73,8 @@
             <div class="v g2 grow"><span class="t15 w6 ink ell">${esc(a.label)}</span><span class="t13 muted ell">${esc(a.email)}</span></div></div>`).join("")}
           ${iphoneNote("Connect, fix or remove email accounts on your iPhone. Passwords stay in its Keychain.")}</div>` })}
       ${card({ icon: "waveform", title: "Voice (microphone)", ok: false, tag: "iPhone only", status: "iPhone only · the website is text only" })}
-      ${card({ icon: "cpu", title: "Friday: brain, voice, memory", ok: keySaved(), tag: keySaved() ? "Connected" : "Not set up",
-        status: `Claude: ${keySaved() ? "key saved" : "no key"}`, content: `<div class="flow">${ui.btn({ label: "Friday settings", act: "set-friday" })}</div>` })}
+      ${card({ icon: "cpu", title: "Friday: dates, signature, memory", ok: true, tag: "iPhone and iPad",
+        status: "Talking with Friday is on your iPhone and iPad", content: `<div class="flow">${ui.btn({ label: "Friday settings", act: "set-friday" })}</div>` })}
       ${card({ icon: "arrow.triangle.2.circlepath", title: "Sync: iPhone, iPad and website", ok: true,
         status: `Signed in · ${synced ? "synced " + synced : "waiting"}${from ? " · from " + from : ""}`,
         content: `<div class="flow">${ui.btn({ label: "Sync settings", act: "set-sync" })}</div>` })}
@@ -204,21 +204,6 @@
     const p = F.prefs(), cur = p.claudeModel || "claude-opus-5-5";
     const facts = F.S.payload?.friday?.value?.facts || [];
     return `<div class="narrow form">
-      <div class="fsec"><div class="fhead">Brain</div>
-        <div class="fgroup"><div class="frow"><span class="lbl">Who answers here</span><span class="val">Claude</span></div>
-          <div class="frow"><span class="lbl">Apple on-device</span><span class="val">iPhone and iPad only</span></div></div>
-        <p class="ffoot">On the website, Claude answers everything. The free on-device brain and the Auto setting work on your iPhone and iPad.</p></div>
-      <div class="fsec"><div class="fhead">Claude</div>
-        <div class="fgroup">
-          ${keySaved()
-            ? `<div class="frow"><span class="lbl">API key</span><span class="val">Saved ✓ Friday uses Claude now</span></div>
-               <div class="frow"><button type="button" class="rowlink destructive" data-act="fs-key-remove">Remove key</button></div>`
-            : `<div class="frow"><label class="sr" for="fs-key">Anthropic API key</label><input id="fs-key" class="bare" type="password" placeholder="Paste your Anthropic API key" autocomplete="off" spellcheck="false" data-input="fs-key"></div>
-               <div class="frow"><button type="button" class="rowlink" data-act="fs-key-save" id="fs-key-save" disabled>Save key</button></div>`}
-          <div class="frow"><label class="lbl" for="fs-model">Claude model</label>
-            <select id="fs-model" class="bare" data-change="fs-model">${MODELS().map((m) => `<option value="${esc(m.id)}" ${m.id === cur ? "selected" : ""}>${esc(m.label)}</option>`).join("")}</select></div>
-        </div>
-        <p class="ffoot">Create a key at console.anthropic.com (pay-as-you-go, billed separately from your Claude subscription). It's scrambled with your password, reaches your iPhone and iPad too, and is only sent to Anthropic.</p></div>
       <div class="fsec"><div class="fhead">Special dates</div>
         <div class="fgroup">${mdRow("Your birthday", "birthday")}${mdRow("Anniversary", "anniversary")}
           ${p.anniversary ? `<div class="frow"><label class="sr" for="fs-annlabel">What it's for</label><input id="fs-annlabel" class="bare" type="text" placeholder="What it's for (e.g. wedding anniversary)" value="${esc(p.anniversaryLabel || "")}" data-change="fs-text" data-key="anniversaryLabel"></div>` : ""}</div>
@@ -229,7 +214,7 @@
       <div class="fsec"><div class="fhead">What F.R.I.D.A.Y. remembers</div>
         <div class="fgroup">
           ${facts.length ? facts.map((f) => `<div class="frow"><span class="lbl t15">${esc(f.fact)}</span></div>`).join("") : '<div class="frow"><span class="lbl muted">Nothing yet.</span></div>'}
-          <div class="frow"><button type="button" class="rowlink" data-act="fs-newconv">Start a new conversation</button></div>
+          
         </div>
         <p class="ffoot">Stored privately on your iPhone. To forget a fact or erase everything, use Friday settings there.</p></div>
     </div>`;

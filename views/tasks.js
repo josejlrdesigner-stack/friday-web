@@ -414,7 +414,7 @@
       <button type="button" class="plain card actas press" data-act="tk-actas" aria-description="Edit your Act As card">
         <span class="h"><span class="label2 ink2">${esc(`Act as · ${today ? "today" : dayWord(day)}`)}</span><span class="sp"></span>${icon("pencil", 'class="pen"')}</span>
         <span class="actas-text ${a ? "" : "empty"}">${esc(a || "Tap to write one sentence about how you'll show up today.")}</span></button>
-      <div class="flow">${fridayBtn("Plan my day", "tk-plan")}${canClose ? ui.btn({ label: "Close out day", icon: "checklist.checked", act: "tk-closeout" }) : ""}</div>
+      <div class="flow">${canClose ? ui.btn({ label: "Close out day", icon: "checklist.checked", act: "tk-closeout" }) : ""}</div>
     </div>`;
     const groups = ["A", "B", "C", ""].map((letter) => {
       const g = list.filter((t) => (t.fc?.letter || "") === letter);
@@ -663,7 +663,7 @@
     const head = `<div class="tk-clear v g8">
       <div class="h g8 datenav">${navBtn(-1, "tk-week", "Previous week")}<span class="t17 w6 ink grow center">${esc("Week of " + D.md(wk))}</span>${navBtn(1, "tk-week", "Next week")}
         ${thisWeek ? "" : small("This week", "tk-week", { dir: 0 })}</div>
-      <div class="flow">${fridayBtn("Plan my week", "tk-planweek")}${ui.btn({ label: "Edit roles", icon: "person.2", act: "tk-roles" })}</div></div>`;
+      <div class="flow">${ui.btn({ label: "Edit roles", icon: "person.2", act: "tk-roles" })}</div></div>`;
     const roles = p.roles.map((role) => {
       const rocks = w.rocks.filter((r) => r.roleID === role.id);
       const rows = rocks.map((r) => `<div class="tk-row rock">${ui.check(r.done, "tk-rock-done", { id: r.id, wk: weekKey(wk) }, r.title)}
@@ -704,7 +704,7 @@
       return `<div class="tk-row top">${ui.check(!!g.done, "tk-mid-done", { id: g.id }, g.title)}<div class="v g8 grow">${fld(`midGoals.${g.id}.title`, g.title, "Milestone", "t15 w6")}
         <div class="h g8"><button type="button" class="plain linktag" data-act="tk-linkgoal" data-id="${esc(g.id)}">${ui.tag(parent ? "← " + parent.title : "Link a goal")}</button>${fld(`midGoals.${g.id}.target`, g.target || "", "By when", "t13 muted")}</div></div>${del("midGoals", g.id, g.title)}</div>`; }).join("");
     return `<div class="tk-list">
-      <div class="tk-clear flow">${ui.btn({ label: "Organizer", icon: "target", act: "tk-organizer" })}${fridayBtn("Work on these with Friday", "tk-valuesfriday")}</div>
+      <div class="tk-clear flow">${ui.btn({ label: "Organizer", icon: "target", act: "tk-organizer" })}</div>
       ${sec(ui.label2("Mission"), `<div class="tk-row">${fld("mission", p.mission, "What matters most, in a sentence or two", "t15", true)}</div>`)}
       ${sec(ui.label2("Standing Act As card"), `<div class="tk-row">${fld("actAs", p.actAs, "I act as…", "t15", true)}</div>`, { foot: "Shown on every daily page unless you change it for that day." })}
       ${sec(ui.label2("1 · Governing values"), values + addRow("value", "Add a governing value", "tk-pfadd", { coll: "values" }))}

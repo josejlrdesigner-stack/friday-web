@@ -240,9 +240,6 @@
       const m = X.byId.get(selectedId()); if (!m) return [];
       const b = X.bodies[m.id];
       return [...(innerWidth < 380 ? [mi("Reply all", "mail-reply", { icon: "arrowshape.turn.up.left.2", data: { all: 1 } })] : []),
-        { header: "Ask Friday" },
-        mi("Summarize", "mail-summarize", { icon: "text.alignleft" }), mi("Draft a reply", "mail-draft-reply", { icon: "pencil.and.outline" }), mi("Turn into a to-do", "mail-todo", { icon: "checklist" }),
-        { divider: true },
         mi(m.flagged ? "Unflag" : "Flag", "mail-flag", { icon: "flag", data: { id: m.id } }),
         mi("Mark unread", "mail-unread", { icon: "envelope.badge" }),
         mi("Move to…", "mail-move", { icon: "folder", data: { id: m.id } }),
@@ -734,10 +731,6 @@ ${esc(d[field])}</textarea>`;
       ${d.attachmentsLeft.length ? `<p class="t13 muted h g8">${icon("paperclip", 'style="width:14px;height:14px;flex:none"')}<span>${esc(d.attachmentsLeft.join(", "))} stay${d.attachmentsLeft.length === 1 ? "s" : ""} on your iPhone and won't be forwarded from here.</span></p>` : ""}
       <div class="card cbodycard"><textarea class="cbody" id="mail-c-body" data-input="mail-c-field" data-field="body" aria-label="Message">
 ${esc(d.body)}</textarea></div>
-      <div class="card friday p16 v g8"><div class="h g8">${ui.fmark(18)}${ui.label2("Ask Friday to write it", "friday")}</div>
-        <div class="h g8"><input class="cask grow" id="mail-c-ask" data-input="mail-c-ask" placeholder="e.g. say yes, suggest Tuesday" value="${esc(instruction)}" autocomplete="off">
-        ${ui.btn({ label: "Write", labelHTML: writing ? ui.spinner() : null, kind: "primary", act: "mail-c-write", disabled: !instruction.trim() || writing })}</div></div>
-      ${bodyBeforeWrite != null ? `<div>${ui.btn({ label: "Undo Friday's rewrite", icon: "arrow.uturn.backward", kind: "small", act: "mail-c-undo" })}</div>` : ""}
     </div>`;
     const title = () => d.subject.trim() ? d.subject : "New message";
     const sh = F.sheet({ title, leading: { label: "Cancel", act: "mail-c-cancel" }, trailing: () => ({ label: "Send", act: "mail-c-send", disabled: !d.to.trim(), busy: sending }), body, size: "", id: "mail-compose" });

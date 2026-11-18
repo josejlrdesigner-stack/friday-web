@@ -69,13 +69,13 @@
     const week = p.weeks?.[D.key(D.weekStart(now))] || {};
     const rocks = week.rocks || [];
     if (!rocks.some((r) => !r.done) && (weekday === 1 || weekday === 2 || !rocks.length))
-      return { title: "Plan your week", detail: "About 20 minutes: pick one or two Big Rocks for each role and block time for them first.", button: "Plan my week", say: "Plan my week" };
+      return { title: "Plan your week", detail: "About 20 minutes: pick one or two Big Rocks for each role and block time for them first.", button: "Plan my week", go: "week" };
     if (hour >= 17 && !today.closed)
-      return { title: "Close out your day", detail: "Two minutes: mark each task done, forward, in progress, delegated or deleted, so tomorrow starts clean.", button: "Close out", say: "Close out my day" };
+      return { title: "Close out your day", detail: "Two minutes: mark each task done, forward, in progress, delegated or deleted, so tomorrow starts clean.", button: "Close out", go: "closeout" };
     if (!today.planned && hour < 17)
-      return { title: "Plan your day", detail: "About 15 minutes: list everything, mark A, B or C, and block time for your A's at your best hours.", button: "Plan my day", say: "Plan my day" };
+      return { title: "Plan your day", detail: "About 15 minutes: list everything, mark A, B or C, and block time for your A's at your best hours.", button: "Plan my day", go: "day" };
     return { title: "You're on track", detail: today.planned ? "Today is planned. Work your A's first; your deep-work block is for A1." : "Planning tomorrow tonight makes the morning easier.",
-             button: "What's my A1?", say: "What are my A's" };
+             button: "See my A's", go: "day" };
   }
   function guideCard(now) {
     const p = F.planner();
@@ -84,7 +84,7 @@
       return `<section class="card friday-edge guide v g8">
         ${ui.label2("Start here", "friday")}
         <h2 class="t20 w6 ink">Set up your planner</h2>
-        <p class="t15 ink2">Six quick questions, about three minutes. Tap, type or talk. You'll get your values, roles, a 90-day goal, this week's Big Rocks and protected time on your calendar.</p>
+        <p class="t15 ink2">Six quick questions, about three minutes. Tap or type. You'll get your values, roles, a 90-day goal, this week's Big Rocks and protected time on your calendar.</p>
         <div class="flow">${ui.btn({ label: "Start the 6 questions", icon: "arrow.right", kind: "primary", act: "brief-setup", data: { mode: "diagnostic" } })}${ui.btn({ label: "Pick a starter profile", act: "brief-setup", data: { mode: "starter" } })}</div>
       </section>`;
     }
@@ -93,7 +93,7 @@
       ${ui.label2("Your next step", "friday")}
       <h2 class="t20 w6 ink">${esc(s.title)}</h2>
       <p class="t15 ink2">${esc(s.detail)}</p>
-      <div class="flow">${ui.btn({ label: s.button, kind: "primary", act: "brief-say", data: { q: s.say } })}${ui.btn({ label: "Organizer", icon: "target", act: "brief-organizer" })}</div>
+      <div class="flow">${ui.btn({ label: s.button, kind: "primary", act: "brief-go", data: { go: s.go } })}${ui.btn({ label: "Organizer", icon: "target", act: "brief-organizer" })}</div>
     </section>`;
   }
 
@@ -356,7 +356,11 @@
   // ------------------------------------------------------------ actions
   F.on("brief-settings", () => { if (F.openSettings) F.openSettings(); });
   F.on("brief-setup", (el) => F.openSetup?.(el.dataset.mode));
-  F.on("brief-say", (el) => F.openChat?.(el.dataset.q));
+  F.on("brief-go", (el) => {
+    const go = el.dataset.go, today = F.D.key(new Date());
+    if (go === "closeout") return F.openCloseOut?.(today);
+    F.openTasks?.(go === "week" ? "week" : "day", today);
+  });
   F.on("brief-organizer", () => F.openOrganizer?.());
   F.on("brief-tasks", () => { location.hash = "tasks"; });
   F.on("brief-mail", () => { location.hash = "mail"; });

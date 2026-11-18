@@ -378,7 +378,7 @@
   const toggle = (text, on, act, d = {}) => `<label class="org-toggle"><span class="grow">${esc(text)}</span><span class="switch"><input type="checkbox" role="switch" ${on ? "checked" : ""} data-change="${act}" ${Object.entries(d).map(([k, v]) => `data-${k}="${esc(v)}"`).join(" ")}></span></label>`;
   const summaryRow = (ic, title, detail) => `<div class="org-srow">${icon(ic, 'class="org-sic"')}<div class="v g2 grow"><span class="t15 w6 ink">${esc(title)}</span>${detail ? `<span class="t13 muted">${esc(detail)}</span>` : ""}</div></div>`;
   const warnLine = (t) => `<p class="org-warn">${icon("exclamationmark.triangle.fill")}<span>${esc(t)}</span></p>`;
-  const coachBtn = (label) => `<button type="button" class="btn org-coach" data-act="org-coach">${ui.fmark(20)}<span>${esc(label)}</span></button>`;
+  const coachBtn = () => "";   // Friday chat is iPhone/iPad only
   const autosize = (root) => root.querySelectorAll("textarea[data-grow]").forEach((t) => { const max = +t.dataset.grow; t.style.height = "auto"; const lh = 22; t.style.height = Math.min(t.scrollHeight + 2, lh * max + 34) + "px"; });
 
   /** Redraw a sheet but keep what he is typing (value + caret) in the focused field. */
@@ -528,7 +528,7 @@
   F.on("setup-planday", () => {
     const fromHub = W?.fromHub; W?.api.close();
     if (fromHub) H?.api.close();
-    setTimeout(() => F.openChat?.("Plan my day"), 300);
+    setTimeout(() => F.openTasks?.("day", F.D.key(new Date())), 300);
   });
   F.on("setup-organizer", () => { W?.api.close(); if (H?.api.el.open) { H.module = null; hDraw(); } else F.openOrganizer(); });
   F.on("setup-starter", () => openStarter());

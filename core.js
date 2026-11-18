@@ -485,7 +485,7 @@ const F = (() => {
   const onChange = (name, fn) => { changes[name] = fn; };
   const onSubmit = (name, fn) => { forms[name] = fn; };
 
-  const TABS = [["brief", "Brief", "square.grid.2x2"], ["calendar", "Calendar", "calendar"], ["friday"], ["tasks", "Tasks", "checklist"], ["mail", "Mail", "envelope"]];
+  const TABS = [["brief", "Brief", "square.grid.2x2"], ["calendar", "Calendar", "calendar"], ["tasks", "Tasks", "checklist"], ["mail", "Mail", "envelope"]];   // Friday chat: iPhone and iPad only
 
   function tabBadge(tab) {
     const today = D.start(new Date());
