@@ -313,6 +313,21 @@ const F = (() => {
   const icon = (name, attrs = "") => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${attrs}>${ICONS[name] || ICONS.dot}</svg>`;
   const addIcons = (o) => Object.assign(ICONS, o);
 
+  // ------------------------------------------------------------ colour tokens for SVG/canvas drawing
+  // Read the :root custom properties once (style.css is the single source); the hex is only a fallback.
+  let TOK = null;
+  const tok = () => {
+    if (TOK) return TOK;
+    const cs = getComputedStyle(document.documentElement);
+    const v = (name, fb) => { const x = cs.getPropertyValue(name).trim(); return /^#[0-9a-f]{6}$/i.test(x) ? x : fb; };
+    const t = { friday: v("--friday", "#0E7490"), fridayLight: v("--friday-light", "#22B8CF"), gold: v("--gold", "#C99A16"), hairline: v("--hairline", "#E2E4E8"), panel: v("--panel", "#FFFFFF") };
+    if (cs.getPropertyValue("--friday").trim()) TOK = t;   // cache only once style.css has loaded
+    return t;
+  };
+  /** MailAccount.palette — the one shared account palette. Used only for the 8px account dot. */
+  const ACCOUNT_PALETTE = ["#6D28D9", "#57534E", "#9D174D", "#3F3F46", "#86198F", "#475569"];
+  const accountColor = (colorIndex) => { const n = ACCOUNT_PALETTE.length, i = Number(colorIndex) || 0; return ACCOUNT_PALETTE[((i % n) + n) % n]; };
+
   // ------------------------------------------------------------ UI kit (HTML strings; every piece mirrors a SwiftUI component)
   const attrs = (o = {}) => Object.entries(o).filter(([, v]) => v != null && v !== false).map(([k, v]) => (v === true ? k : `${k}="${esc(v)}"`)).join(" ");
   const data = (o = {}) => Object.entries(o).map(([k, v]) => `data-${k}="${esc(v)}"`).join(" ");
@@ -321,7 +336,7 @@ const F = (() => {
     /** btn({label, icon, kind: primary|secondary|small|destructive|icon|link, act, data, disabled, title, wide, type}) */
     btn(o) {
       const cls = ["btn", o.kind === "small" ? "small" : o.kind || "", o.filled ? "filled" : "", o.wide ? "wide" : "", o.cls || ""].join(" ").trim();
-      return `<button type="${o.type || "button"}" class="${cls}" ${o.act ? `data-act="${esc(o.act)}"` : ""} ${data(o.data)} ${attrs({ disabled: o.disabled, "aria-label": o.aria || (o.kind === "icon" ? o.title || o.label : null), title: o.title })}>${o.icon ? icon(o.icon) : ""}${o.kind === "icon" ? "" : (o.labelHTML ?? esc(o.label ?? ""))}</button>`;
+      return `<button type="${o.type || "button"}" class="${cls}" ${o.act ? `data-act="${esc(o.act)}"` : ""} ${data(o.data)} ${attrs({ disabled: o.disabled, "aria-label": o.aria || (o.kind === "icon" ? o.title || o.label : null), title: o.title })}>${o.icon ? icon(o.icon) : ""}${o.kind === "icon" ? "" : (o.labelHTML ?? (o.icon && o.label ? `<span class="btn-l">${esc(o.label)}</span>` : esc(o.label ?? "")))}</button>`;
     },
     label2: (text, cls = "") => `<span class="label2 ${cls}">${esc(text)}</span>`,
     tag: (text, kind = "") => `<span class="tag ${kind}">${esc(text)}</span>`,
@@ -330,11 +345,12 @@ const F = (() => {
     seg: (act, options, selected, extra = {}) => `<div class="seg" role="group">${options.map((o) => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<button type="button" data-act="${esc(act)}" data-value="${esc(v)}" ${data(extra)} aria-pressed="${v === selected}">${esc(l)}</button>`; }).join("")}</div>`,
     search: (id, placeholder, value = "", act = "") => `<label class="search">${icon("magnifyingglass")}<span class="sr">${esc(placeholder)}</span><input id="${esc(id)}" type="search" placeholder="${esc(placeholder)}" value="${esc(value)}" ${act ? `data-input="${esc(act)}"` : ""} autocomplete="off" spellcheck="false"></label>`,
     check: (on, act, d = {}, label = "") => `<button type="button" class="check ${on ? "on" : ""}" data-act="${esc(act)}" ${data(d)} aria-label="${esc((on ? "Mark not done: " : "Check off: ") + label)}"><i></i></button>`,
-    header: ({ eyebrow = "", title, actions = "" }) => `<div class="screen-head"><div class="tb">${eyebrow}<h1>${esc(title)}</h1></div><div class="acts">${actions}</div></div>`,
+    /** ScreenHeader: the one header every tab uses, so every title starts at the same edge. lead = optional icon HTML before the title. */
+    header: ({ eyebrow = "", title, actions = "", lead = "" }) => `<div class="screen-head"><div class="tb">${eyebrow}<div class="tt">${lead}<h1>${esc(title)}</h1></div></div><div class="acts">${actions}</div></div>`,
     /** FridayMark: cyan ring + gold ticks */
     fmark(size = 26) {
-      const s = size, r1 = s / 2 - s * 0.06 - s * 0.025, r2 = s / 2 - s * 0.25 - s * 0.055;
-      return `<svg class="fmark" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" aria-hidden="true"><circle cx="${s / 2}" cy="${s / 2}" r="${r1}" fill="none" stroke="#C99A16" stroke-width="${s * 0.05}" stroke-dasharray="1 ${s * 0.11}"/><circle cx="${s / 2}" cy="${s / 2}" r="${r2}" fill="none" stroke="#0E7490" stroke-width="${s * 0.11}"/><circle cx="${s / 2}" cy="${s / 2}" r="${s * 0.1}" fill="#0E7490"/></svg>`;
+      const s = size, r1 = s / 2 - s * 0.06 - s * 0.025, r2 = s / 2 - s * 0.25 - s * 0.055, k = tok();
+      return `<svg class="fmark" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" aria-hidden="true"><circle cx="${s / 2}" cy="${s / 2}" r="${r1}" fill="none" stroke="${k.gold}" stroke-width="${s * 0.05}" stroke-dasharray="1 ${s * 0.11}"/><circle cx="${s / 2}" cy="${s / 2}" r="${r2}" fill="none" stroke="${k.friday}" stroke-width="${s * 0.11}"/><circle cx="${s / 2}" cy="${s / 2}" r="${s * 0.1}" fill="${k.friday}"/></svg>`;
     },
     switch: (name, on, act = "") => `<span class="switch"><input type="checkbox" role="switch" ${name ? `name="${esc(name)}"` : ""} ${on ? "checked" : ""} ${act ? `data-change="${esc(act)}"` : ""}></span>`,
     errorText: (t) => `<p class="err h g4 top">${icon("exclamationmark.triangle.fill", 'style="width:14px;height:14px;flex:none;margin-top:1px"')}<span>${esc(t)}</span></p>`,
@@ -364,8 +380,8 @@ const F = (() => {
       const l = typeof leading === "function" ? leading() : leading;
       const r = typeof trailing === "function" ? trailing() : trailing;
       const f = typeof foot === "function" ? foot() : foot;
-      d.innerHTML = `<div class="sheetbar">${l ? ui.btn({ label: l.label, act: l.act || "sheet-close", data: l.data }) : ""}<span class="sp"></span>
-          <h2 class="title">${esc(t)}</h2>${r ? ui.btn({ label: r.label, labelHTML: r.busy ? ui.spinner() : null, kind: "primary", act: r.act, data: r.data, disabled: r.disabled || r.busy }) : ""}</div>
+      d.innerHTML = `<div class="sheetbar"><div class="sb-l">${l ? ui.btn({ label: l.label, act: l.act || "sheet-close", data: l.data }) : ""}</div>
+          <h2 class="title">${esc(t)}</h2><div class="sb-r">${r ? ui.btn({ label: r.label, labelHTML: r.busy ? ui.spinner() : null, kind: "primary", act: r.act, data: r.data, disabled: r.disabled || r.busy }) : ""}</div></div>
         <div class="sheetbody">${typeof body === "function" ? body() : body}</div>${f ? `<div class="sheetfoot">${f}</div>` : ""}`;
     };
     draw();
@@ -432,7 +448,7 @@ const F = (() => {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
     const c = { x: w / 2, y: h / 2 }, R = Math.min(w, h) / 2;
     const e = mode === "thinking" ? 0.35 + 0.1 * Math.sin(t * 6) : 0.12 + 0.06 * Math.sin(t * 1.4);
-    const tint = mode === "thinking" ? "#22B8CF" : "#0E7490";
+    const k = tok(), tint = mode === "thinking" ? k.fridayLight : k.friday;
     const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
     // glow
     const gR = R * (0.55 + 0.25 * e), g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, gR);
@@ -440,9 +456,9 @@ const F = (() => {
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y, gR, 0, Math.PI * 2); ctx.fill();
     // outer segmented ring
     const spin = t * 0.25, segs = 36;
-    ctx.strokeStyle = rgba("#C99A16", 0.8); ctx.lineWidth = compact ? 1.5 : 2.5;
+    ctx.strokeStyle = rgba(k.gold, 0.8); ctx.lineWidth = compact ? 1.5 : 2.5;
     for (let i = 0; i < segs; i++) { if (i % 6 === 5) continue; const a0 = spin + i / segs * 2 * Math.PI; ctx.beginPath(); ctx.arc(c.x, c.y, R * 0.95, a0, a0 + 2 * Math.PI / segs * 0.7); ctx.stroke(); }
-    ctx.strokeStyle = "#E2E4E8"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(c.x, c.y, R * 0.88, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = k.hairline; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(c.x, c.y, R * 0.88, 0, Math.PI * 2); ctx.stroke();
     // radial bars
     const bars = compact ? 36 : 72, inner = R * 0.52, maxLen = R * 0.3;
     ctx.lineWidth = compact ? 1.5 : 2.2;
@@ -457,18 +473,18 @@ const F = (() => {
     }
     if (mode === "thinking") {
       const a0 = t * 3.2; ctx.lineCap = "round";
-      ctx.strokeStyle = "#D97706"; ctx.lineWidth = compact ? 2 : 3; ctx.beginPath(); ctx.arc(c.x, c.y, R * 0.8, a0, a0 + 1.1); ctx.stroke();
-      ctx.strokeStyle = rgba("#D97706", 0.6); ctx.lineWidth = compact ? 1.5 : 2; ctx.beginPath(); ctx.arc(c.x, c.y, R * 0.8, a0 + Math.PI, a0 + Math.PI + 0.5); ctx.stroke(); ctx.lineCap = "butt";
+      ctx.strokeStyle = k.fridayLight; ctx.lineWidth = compact ? 2 : 3; ctx.beginPath(); ctx.arc(c.x, c.y, R * 0.8, a0, a0 + 1.1); ctx.stroke();
+      ctx.strokeStyle = rgba(k.fridayLight, 0.6); ctx.lineWidth = compact ? 1.5 : 2; ctx.beginPath(); ctx.arc(c.x, c.y, R * 0.8, a0 + Math.PI, a0 + Math.PI + 0.5); ctx.stroke(); ctx.lineCap = "butt";
     }
     // inner ring + dashed counter-rotating ring
     const breathe = 1 + 0.06 * e;
     ctx.strokeStyle = rgba(tint, 0.9); ctx.lineWidth = compact ? 1.5 : 2; ctx.beginPath(); ctx.arc(c.x, c.y, R * 0.46 * breathe, 0, Math.PI * 2); ctx.stroke();
-    ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(-t * 0.6); ctx.setLineDash([3, 7, 14, 7]); ctx.strokeStyle = rgba("#22B8CF", 0.8); ctx.lineWidth = 1;
+    ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(-t * 0.6); ctx.setLineDash([3, 7, 14, 7]); ctx.strokeStyle = rgba(k.fridayLight, 0.8); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(0, 0, R * 0.38, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); ctx.setLineDash([]);
     // hexagons
     const hex = (r) => { ctx.beginPath(); for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3, x = c.x + r * Math.cos(a), y = c.y + r * Math.sin(a); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.closePath(); };
     const hr = R * 0.2 * (1 + 0.18 * e);
-    ctx.save(); ctx.shadowColor = tint; ctx.shadowBlur = compact ? 4 : 10; hex(hr); ctx.fillStyle = "#fff"; ctx.fill(); ctx.restore();
+    ctx.save(); ctx.shadowColor = tint; ctx.shadowBlur = compact ? 4 : 10; hex(hr); ctx.fillStyle = k.panel; ctx.fill(); ctx.restore();
     hex(hr); ctx.strokeStyle = tint; ctx.lineWidth = compact ? 1.5 : 2.5; ctx.stroke();
     hex(hr * 0.45); ctx.fillStyle = rgba(tint, 0.4 + 0.6 * e); ctx.fill();
   }
@@ -511,7 +527,10 @@ const F = (() => {
     S.tab = ["brief", "calendar", "tasks", "mail"].includes(h) ? h : "brief";
     let scr = $("#screen");
     if (!scr) {
-      root.innerHTML = `<div class="app"><main class="screen" id="screen"></main>
+      root.innerHTML = `<div class="app">
+        <nav class="sidebar" aria-label="Sections"><div class="side-brand">${ui.fmark(26)}<b>F.R.I.D.A.Y.</b></div>
+          <div class="side-rows" id="siderows"></div><div class="side-foot" id="sidefoot"></div></nav>
+        <main class="screen" id="screen"></main>
         <nav class="tabbar" aria-label="Tabs"><div class="tabs" role="tablist" id="tabs"></div></nav></div>`;
       scr = $("#screen");
     }
@@ -525,10 +544,42 @@ const F = (() => {
     $("#tabs").innerHTML = TABS.map(([k, label, ic]) => k === "friday"
       ? `<button type="button" class="tab fri" data-act="open-friday" aria-label="Friday"><span class="core"><canvas id="tabcore" width="34" height="34"></canvas></span>Friday</button>`
       : `<button type="button" class="tab" role="tab" data-act="tab" data-tab="${k}" aria-selected="${S.tab === k}"><span class="ic">${icon(ic, S.tab === k ? 'stroke-width="2.3"' : "")}${tabBadge(k)}</span>${label}</button>`).join("");
-    core($("#tabcore"), { compact: true, mode: S.chatBusy ? "thinking" : "idle" });
+    const mac = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
+    $("#siderows").innerHTML = TABS.map(([k, label, ic], i) => `<button type="button" class="side-row" data-act="tab" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ""}
+        aria-keyshortcuts="${mac === "⌘" ? "Meta" : "Control"}+${i + 1}" title="${label} (${mac}${i + 1})">${icon(ic, S.tab === k ? 'stroke-width="2.3"' : "")}<span class="sl">${label}</span>${tabBadge(k)}</button>`).join("");
+    const synced = S.lastLoad ? D.time(new Date(S.lastLoad)) : "";
+    $("#sidefoot").innerHTML = `<button type="button" class="side-row ${S.syncingNow ? "is-syncing" : ""}" data-act="sync-now" ${S.syncingNow ? "disabled" : ""}>${icon("arrow.triangle.2.circlepath")}
+        <span class="sl">${S.syncingNow ? "Syncing…" : "Sync now"}${synced && !S.syncingNow ? `<span class="sub">Updated ${esc(synced)}</span>` : ""}</span></button>
+      <button type="button" class="side-row" data-act="open-settings">${icon("gearshape")}<span class="sl">Settings</span></button>`;
     v?.after?.(scr);
     for (const s of sheets) s.refresh?.();
+    for (const fn of renderHooks) { try { fn(); } catch (e) { console.error(e); } }
   }
+  const renderHooks = [];
+  /** Run something after every render (e.g. the morning ritual checks whether it's due). */
+  const onRender = (fn) => renderHooks.push(fn);
+
+  /** Habit feedback: a spring on the check that was just tapped; big = an A1 or Big Rock, which also gets a quiet green ring.
+   *  Resolves once the spring has played, so callers can save (and redraw) right after without cutting it off. */
+  function celebrate(el, big = false) {
+    if (!el || !el.isConnected) return Promise.resolve();
+    const wait = new Promise((r) => setTimeout(r, matchMedia("(prefers-reduced-motion: reduce)").matches ? 120 : 360));
+    const target = el.querySelector("i, .smark") || el;
+    target.classList.remove("celebrate"); void target.offsetWidth; target.classList.add("celebrate");
+    setTimeout(() => target.classList.remove("celebrate"), 500);
+    if (!big) return wait;
+    const r = target.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+    for (const cls of ["cel-ring", "cel-ring r2"]) {
+      const ring = document.createElement("span");
+      ring.className = cls; ring.setAttribute("aria-hidden", "true");
+      ring.style.left = x + "px"; ring.style.top = y + "px";
+      (el.closest("dialog[open]") || document.body).appendChild(ring);
+      setTimeout(() => ring.remove(), 900);
+    }
+    return wait;
+  }
+  /** A1 or Big Rock: the to-dos that earn the ring. */
+  const isBig = (t) => !!(t && (t.fc?.bigRock || (t.fc?.letter === "A" && t.fc?.number === 1)));
   /** Redraw only the sheets that asked to follow data changes (call after data loads). */
   function refreshSheets() { for (const s of sheets) s.refresh?.(); }
 
@@ -559,6 +610,13 @@ const F = (() => {
     finally { if (btn && btn.isConnected) { btn.disabled = false; btn.innerHTML = label; } }
   });
   window.addEventListener("hashchange", () => render());
+  // ⌘1…⌘4 / Ctrl+1…4: Brief, Calendar, Tasks, Mail (registered before Mail's own keys, which skip handled events)
+  document.addEventListener("keydown", (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || !/^[1-4]$/.test(e.key) || !$("#screen")) return;
+    if (document.querySelector("dialog[open]")) return;
+    e.preventDefault();
+    location.hash = TABS[+e.key - 1][0];
+  });
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && S.creds && Date.now() - S.lastLoad > 60000) refresh(); });
   // automatic: every 20 seconds while Mail is showing (new email), every 90 seconds elsewhere
   let lastAuto = Date.now();
@@ -659,7 +717,7 @@ const F = (() => {
     mail: () => S.mail, devices: () => S.devices, status: () => S.status,
     cmd, savePlanner, setPref, writeSection, load, refresh, getFile, putFile, friendly,
     // ui
-    toast, sheet, alert, core, addIcons, icon, render, refreshSheets, syncNow, syncButton,
+    toast, sheet, alert, core, addIcons, icon, accountColor, render, refreshSheets, syncNow, syncButton, onRender, celebrate, isBig,
     view, on, onInput, onChange, onSubmit, signOut, boot,
   };
 })();

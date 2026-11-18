@@ -52,7 +52,7 @@ window.FDemo = (() => {
       lists: [{ title: "Task Dump", color: "#767E8A" }, { title: "Work", color: "#2F56C8" }, { title: "Home", color: "#16A34A" }],
       calendars: [{ id: "C1", title: "Personal", source: "iCloud", color: "#2F56C8", writable: true }, { id: "C2", title: "Work", source: "iCloud", color: "#C2410C", writable: true },
                   { id: "C3", title: "Family", source: "iCloud", color: "#16A34A", writable: true }, { id: "C4", title: "Holidays", source: "Other", color: "#9AA1AC", writable: false }],
-      capacity, defense: { focus: true, buffer: true, batch0: true, batch1: false, slump: false }, applied: [] } },
+      capacity, defense: { focus: true, buffer: true, batch0: true, batch1: false, slump: false }, applied: [], failed: {} } },
     queue: { stamp: 1, value: [] }, webchat: { stamp: 1, value: [] },
   });
   const msg = (i, from, email, subject, mins, extra = {}) => ({ id: "M" + i, accountID: "A1", folder: "INBOX", uid: 100 + i, from: { name: from, email }, to: [{ name: "Sample User", email: "me@example.com" }], cc: [], replyTo: null,
@@ -66,11 +66,18 @@ window.FDemo = (() => {
                msg(5, "Sample Colleague", "colleague@example.com", "Notes from today's sync", 420, { accountID: "A2", flagged: true }), msg(6, "Sample Bank", "alerts@example.com", "Statement ready", 900, { isUpdate: true, unsubscribe: "<mailto:optout@example.com?subject=stop>", oneClick: false }),
                msg(7, "Sample Newsletter", "news@example.com", "Last week in product", 1440 * 7, { isUpdate: true, unsubscribe: "<https://news.example.com/unsub?u=1>, <mailto:unsubscribe@news.example.com?subject=unsubscribe>", oneClick: true }),
                msg(8, "Sample Newsletter", "news@example.com", "Two weeks in product", 1440 * 14, { isUpdate: true, unsubscribe: "<https://news.example.com/unsub?u=1>, <mailto:unsubscribe@news.example.com?subject=unsubscribe>", oneClick: true }),
-               msg(9, "Sample Promotions", "deals@promo.example", "You won a prize!!!", 600, { folder: "Junk", junk: true, isUpdate: true, unsubscribe: "<https://promo.example/stop>", oneClick: true })],
+               msg(9, "Sample Promotions", "deals@promo.example", "You won a prize!!!", 600, { folder: "Junk", junk: true, isUpdate: true, unsubscribe: "<https://promo.example/stop>", oneClick: true }),
+               // conversations (MailStore.threadKey): M10/M11 join M1 through References; M12/M13 join by their "Re:" subject; M3 (no "Re:") stays its own
+               msg(10, "Sample User", "me@example.com", "Re: Next steps", 15, { folder: "Sent", seen: true, to: [{ name: "Sample Recruiter", email: "recruiter@example.com" }], references: "<m1@example.com>" }),
+               msg(11, "Sample Recruiter", "recruiter@example.com", "Re: Next steps", 5, { references: "<m1@example.com> <m10@example.com>" }),
+               msg(12, "Sample Friend", "friend@example.com", "RE: Dinner Saturday?", 180),
+               msg(13, "Another Friend", "friend2@example.com", "Re: Dinner Saturday?", 170, { seen: true })],
     bodies: { M1: { text: "Hi,\n\nThanks for your time today. Could you send two times that work next week?\n\nThanks!", html: "<p>Hi,</p><p>Thanks for your time today. Could you send <b>two times</b> that work next week?</p><p>Thanks!</p>", attachments: ["Schedule.pdf"] },
               M2: { text: "This week in product: three short updates and a tip.", html: "<h2>This week in product</h2><p>Three short updates and a tip.</p>", attachments: [] },
               M3: { text: "Are you free Saturday at 7? Same place as last time.", html: null, attachments: [] } },
-    drafts: [], signature: "Sample User",
+    drafts: [{ id: "6F1C2D3E-0000-4000-8000-00000000D001", accountID: "A1", to: "Sample Friend <friend@example.com>", cc: "", subject: "Re: Dinner Saturday?", body: "Sounds good, see you at 7.\n\nSample User",
+               inReplyTo: "<m12@example.com>", references: "<m12@example.com>", replyingTo: "M12", byFriday: false, created: Date.now() / 1000 - 978307200 - 600, files: [] }],
+    signature: "Sample User",
   });
   const devices = () => ({ at: new Date().toISOString(), mac: "Mac mini", devices: [{ name: "iPhone", udid: "AAAAAA", model: "iPhone 17 Pro", reachable: true, state: "available (paired)" }, { name: "iPad", udid: "BBBBBB", model: "iPad Pro 11-inch", reachable: false, state: "unavailable" }] });
   return { payload, mail, devices };

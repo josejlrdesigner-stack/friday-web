@@ -1,19 +1,19 @@
 /* organizer — setup wizard, starter profiles, reset, Organizer hub + modules.
    Ported from DiagnosticSetupView.swift, OrganizerPresets.swift, PlannerReset.swift, OrganizerViews.swift. Tokens from style.css only. */
-.org-wrap { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
-.org-wrap.w720 { max-width: 720px; }
+/* LY-6: no inner max-width; the sheet itself is sized (forms 640, the hub .large 960) */
+.org-wrap { display: flex; flex-direction: column; gap: 16px; }
 .org-sheet .sheetfoot .btn { flex: none; }
 .org-sheet.org-half { height: fit-content; max-height: calc(100dvh - 24px); }
 @media (min-width: 640px) { .org-sheet.org-half { height: fit-content; max-height: min(880px, calc(100dvh - 48px)); } }
 
-/* progress: six capsules (the app draws Capsule().frame(height: 6)) */
+/* progress: six square segments (no capsules) */
 .org-prog { display: flex; gap: 4px; }
-.org-prog i { flex: 1; height: 6px; border-radius: 3px; background: var(--secondary); }
+.org-prog i { flex: 1; height: 6px; border-radius: 0; background: var(--secondary); }
 .org-prog i.done { background: var(--done); }
 .org-prog i.cur { background: var(--ink2); }
 
 /* DiagnosticChip */
-.dchip { appearance: none; border: 1.5px solid transparent; display: flex; align-items: center; gap: 16px; width: 100%; min-height: 52px; padding: 6px 16px;
+.dchip { appearance: none; border: 1.5px solid transparent; display: flex; align-items: center; gap: 16px; width: 100%; min-height: 52px; padding: 4px 16px;
   border-radius: var(--r-control); background: rgba(228, 230, 234, .5); color: var(--ink); text-align: left; cursor: pointer; font-size: 16px; }
 .dchip.on { background: var(--panel); border-color: var(--ink2); }
 .dchip-ic { width: 28px; display: grid; place-items: center; flex: none; color: var(--control); }
@@ -27,7 +27,7 @@
 textarea.input.org-ta { min-height: 44px; }
 .org-ta.actas { width: 100%; border: 0; background: var(--secondary); border-radius: var(--r-control); font-size: 16px; font-style: italic; color: var(--ink); }
 .org-ta.actas:focus { outline: none; box-shadow: 0 0 0 3px rgba(47, 86, 200, .18); }
-.org-ta.goal { font-weight: 600; padding: 12px 16px; }
+.org-ta.goal { font-weight: 600; padding: 8px 16px; }
 .org-fb { padding: 8px 16px; resize: none; }
 textarea.input.org-fb { min-height: 44px; line-height: 1.4; overflow-y: auto; }
 textarea.org-fb.actas { font-style: italic; background: var(--panel); border: 1px solid var(--control); }
@@ -43,11 +43,11 @@ textarea.org-fb.actas { font-style: italic; background: var(--panel); border: 1p
 .org-block.g12 { gap: 8px; }
 .card.edge-friday { border: 1px solid var(--friday-edge); }
 .org-wk { width: 64px; flex: none; }
-.org-warn { display: flex; gap: 6px; align-items: flex-start; color: var(--attention); font-size: 13px; font-weight: 500; }
-.org-warn svg { width: 14px; height: 14px; flex: none; margin-top: 1px; color: var(--attention); }
+.org-warn { display: flex; gap: 4px; align-items: flex-start; color: var(--attention); font-size: 13px; font-weight: 500; }
+.org-warn svg { width: 14px; height: 14px; flex: none; margin-top: 1px; color: var(--attention-icon); }
 
 /* Toggle row (FridaySwitch) */
-.org-toggle { display: flex; align-items: center; gap: 12px; min-height: 44px; font-size: 15px; color: var(--ink); cursor: pointer; }
+.org-toggle { display: flex; align-items: center; gap: 16px; min-height: 44px; font-size: 15px; color: var(--ink); cursor: pointer; }
 
 /* finish page */
 .org-bigcheck { width: 40px; height: 40px; color: var(--done); }
@@ -106,17 +106,13 @@ hr.org-div { border: 0; border-top: 1px solid var(--divider); margin: 4px 0; wid
 .org-qbtn.on { background: var(--qt); color: var(--qc); }
 
 /* Task Engine */
-.org-pbadge { min-width: 36px; min-height: 28px; display: inline-grid; place-items: center; border-radius: 6px; font-size: 13px; font-weight: 700;
-  font-variant-numeric: tabular-nums; margin: 8px 0; flex: none; }
-.org-pbadge.A { color: var(--ink); background: var(--selected-edge); }
-.org-pbadge.B { color: var(--ink); background: var(--secondary); }
-.org-pbadge.C { color: var(--muted); background: var(--divider); }
+.org-pbadge { margin: 8px 0; }   /* PriorityBadge: shared .pbadge in style.css */
 .org-mark { min-height: 32px; }
 .org-markc { width: 32px; flex: none; text-align: center; font-size: 17px; font-weight: 700; }
 
 /* Energy: DatePicker row + Stepper */
-.org-prow { display: flex; align-items: center; gap: 12px; min-height: 44px; }
-.org-time { appearance: none; border: 0; background: var(--secondary); border-radius: var(--r-control); min-height: 36px; padding: 0 10px; font-size: 16px; color: var(--ink); }
+.org-prow { display: flex; align-items: center; gap: 16px; min-height: 44px; }
+.org-time { appearance: none; border: 0; background: var(--secondary); border-radius: var(--r-control); min-height: 36px; padding: 0 8px; font-size: 16px; color: var(--ink); }
 .org-time:focus { outline: none; box-shadow: 0 0 0 3px rgba(47, 86, 200, .25); }
 .org-step { display: flex; align-items: center; background: var(--secondary); border-radius: var(--r-control); flex: none; }
 .org-step button { appearance: none; border: 0; background: none; width: 47px; min-height: 44px; display: grid; place-items: center; cursor: pointer; color: var(--ink); }

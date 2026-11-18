@@ -4,15 +4,17 @@
 /* day grid: 1 column compact, 2 medium, 3 wide (LazyVGrid in CalendarTab) */
 .caldays { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; }
 @media (min-width: 640px) { .caldays { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 1000px) { .caldays { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* LY-10: 3 columns only when the content is ≥ ~980 wide (with the sidebar that's a 1200px window) */
+@media (min-width: 1200px) { .caldays { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .calday-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
-.btn.small.plusbtn { min-width: 60px; padding: 0 12px; }
+.btn.small.plusbtn { min-width: 60px; padding: 0 16px; }
 .btn.small.plusbtn svg { width: 15px; height: 15px; stroke-width: 2.4; }
 .freeday { min-height: 44px; padding: 0 8px 0 16px; background: var(--secondary); border-radius: var(--r-card); }
 .freeday .btn.small { background: transparent; }
 
 /* EventRow */
 .evrow { border-radius: var(--r-card); padding: 8px; container-type: inline-size; }
+.evrow, .plain.evrow, .allday, .plain.allday { background: var(--secondary); }   /* neutral row (beats button.plain); calendar colour only in the 4px bar */
 .evrow-in { display: flex; align-items: center; gap: 16px; min-width: 0; }
 .evtime { width: 70px; flex: none; display: flex; flex-direction: column; gap: 2px; font-size: 13px; white-space: nowrap; }
 .evtime .s { font-weight: 600; color: var(--ink); }
@@ -38,14 +40,14 @@
 .calfilter { appearance: none; border: 0; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; min-width: 44px; min-height: 44px;
   padding: 0 8px; border-radius: var(--r-control); background: var(--secondary); color: var(--ink); font-size: 13px; font-weight: 600; white-space: nowrap; }
 .calfilter svg { width: 15px; height: 15px; }
-.calfilter.some { background: var(--attention-tint); color: var(--attention); }
+.calfilter.some { background: var(--selected-edge); color: var(--ink); }   /* some calendars hidden: neutral emphasis, not a warning */
 .panel-head .calfilter .lbl { display: inline; }
 @media (max-width: 380px) { .panel-head .calfilter .lbl { display: none; } }
 
 /* CalendarFilterView */
 .calgroup { padding: 16px; }
 .calf-row { padding: 8px 0; min-height: 44px; cursor: pointer; }
-.dot { width: 11px; height: 11px; border-radius: 50%; flex: none; display: inline-block; }
+.calf-row .dot, .evsheet .dot { width: 11px; height: 11px; }   /* shared .dot lives in style.css */
 
 /* AccessOffRow */
 .accessoff { display: flex; flex-direction: column; gap: 4px; }
@@ -59,4 +61,4 @@
 .evsheet .evlink { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--action); text-decoration: none; font-size: 16px; }
 .evsheet .evdel { background: var(--danger-tint); }
 .evsheet .evdel .rowlink { display: inline-flex; align-items: center; justify-content: center; gap: 8px; color: var(--danger-text); font-size: 15px; font-weight: 600; text-align: center; }
-.failedcard ul { margin: 0; padding-left: 25px; display: flex; flex-direction: column; gap: 6px; }
+.failedcard ul { margin: 0; padding-left: 24px; display: flex; flex-direction: column; gap: 8px; }

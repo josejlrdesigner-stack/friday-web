@@ -1,5 +1,5 @@
 /* Settings — ConnectionsView.swift cards, SettingsView/SyncSetupView forms. */
-.set-col { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.set-col { display: flex; flex-direction: column; gap: 16px; }   /* LY-6: the .large sheet sets the width */
 .set-card { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
 .set-planner { gap: 8px; }
 .set-ic { width: 40px; height: 40px; flex: none; display: grid; place-items: center; background: var(--secondary); border-radius: var(--r-control); color: var(--ink); }
@@ -8,9 +8,8 @@
 .set-card .tag { flex: none; }
 .set-div { border: 0; border-top: 1px solid var(--divider); margin: 4px 0; width: 100%; }
 .set-count { color: var(--muted); font-weight: 600; }
-.set-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
 .set-acct { min-height: 44px; }
-.set-warn, .set-banner { padding: 12px 16px; }
+.set-warn, .set-banner { padding: 16px; }
 .set-warn svg, .set-banner > svg { width: 18px; height: 18px; flex: none; color: var(--attention-icon); margin-top: 1px; }
 .set-banner .spin { color: var(--ink2); }
 .set-syncbtn { min-height: 52px; font-size: 17px; }
@@ -18,8 +17,10 @@
 .set-empty { padding: 8px 0; }
 .set-card .rows .row { min-height: 52px; }
 .fgroup .frow .val { text-align: right; }
-.fgroup .frow .lbl.t15 { font-size: 15px; overflow-wrap: anywhere; padding: 6px 0; }
+.fgroup .frow .lbl.t15 { font-size: 15px; overflow-wrap: anywhere; padding: 8px 0; }
 .fgroup .fs-date { flex: none; text-align: right; color: var(--ink); min-height: 40px; }
 .fgroup .fs-clear { color: var(--control); }
 .fgroup .frow .btn.link { min-height: 44px; }
-.fgroup .frow .err { padding: 6px 0; }
+.fgroup .frow .err { padding: 8px 0; }
+.set-toggle { min-height: 44px; }
+.set-toggle .btn.small { flex: none; }

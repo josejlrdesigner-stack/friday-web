@@ -24,7 +24,8 @@ Sections are `{stamp, value}`; newer stamp wins per section. **Owners**: the app
   lists:[{title, color}], calendars:[{id, title, source, color, writable}],
   capacity:{ "YYYY-MM-DD": {n, fits, room, free, needed, aCount, basis:"profile"|"pace"|"standard", reasons:[string]} },  // next 14 days
   defense:{ focus:bool, buffer:bool, batch0:bool, batch1:bool, slump:bool },
-  applied:[commandId] }
+  applied:[commandId],
+  failed:{ commandId: "message to show" } }    // commands the iPhone ran but couldn't carry out (also listed in applied)
 Todo = {id, title, list, listColor, due|null, dueHasTime, notes, letter, number, quadrant, role, bigRock, inProgress, delegate, goal, important, repeats, repeatRule}
 ```
 
@@ -40,7 +41,7 @@ Todo = {id, title, list, listColor, due|null, dueHasTime, notes, letter, number,
 
 ## Commands (`queue`, web → app). Every command: `{id, at, kind, …}`. The app runs each once (ids recorded in `snapshot.applied`).
 
-To-dos: `add_todo{title, list?, due?"YYYY-MM-DD", time?"HH:mm", notes?, letter?, number?, quadrant?, role?, bigRock?, goal?, important?, repeat?}` ·
+To-dos: `add_todo{title, list?, due?"YYYY-MM-DD", time?"HH:mm", notes?, letter?, number?, quadrant?, role?, bigRock?, goal?, important?, repeat?, inProgress?, delegate?}` (inProgress = the "•" status, delegate = name for "D"; set at creation because a follow-up `set_franklin` would need the new to-do's id. Mail's "Make a task" sends these) ·
 `update_todo{todoID, title?, list?, hasDue?, due?, time?, notes?, important?, repeat?("never"|"daily"|"weekdays"|"weekly"|"biweekly"|"monthly"|"yearly"), fc?{letter,number,quadrant,role,bigRock,inProgress,delegate,goal}}` ·
 `complete_todo{todoID}` · `uncomplete_todo{todoID}` · `delete_todo{todoID}` · `move_todo{todoID, due|null}` · `set_franklin{todoID, meta{…}}` ·
 `forward_todos{ids[], due|null, inProgress?, keepLetter?}` · `renumber{ids[], letter}`
@@ -51,19 +52,19 @@ Events: `add_event{title, start, end, allDay?, location?, notes?, calendar?, rep
 
 Calendar defense (planner setup): `apply_defense{peak:"HH:mm", focusMinutes, bufferMinutes, batchTimes:["HH:mm"], slump:"HH:mm"|null, focus, buffer, batch, cWindow}` · `remove_defense{keys:[…]}`
 
-Mail (the message is `mailID` = the message's `id` from friday-mail.json; never put it in the command's own `id`):
-`mail_send{accountID, to, cc, subject, body, inReplyTo?, references?, replyingTo?, byFriday?}` · `mail_archive{mailID}` · `mail_trash{mailID}` · `mail_delete{mailID}` (permanent, from Trash) ·
-`mail_move{mailID, folder, accountID?}` · `mail_flag{mailID, on}` · `mail_seen{mailID, on}` · `mail_body{mailID}` · `mail_folder{accountID, folder}` · `mail_refresh{}` (the website's Sync now: check mail right away) · `mail_create_folder{accountID, name}`
+Mail. **Which email**: every mail action takes `mailID` (the message's `id` from friday-mail.json; never the command's own `id`) or `mailIDs[]` for many at once, **and always** the matching `messageID` / `messageIDs[]` (the message's `messageID` field; parallel to the ids, `""` when unknown) so the iPhone still finds an email that moved since (WebBridge.findMail: by id, else by Message-ID anywhere loaded).
+Actions: `mail_archive` · `mail_trash` · `mail_delete` (permanent, from Trash) · `mail_flag{on}` · `mail_seen{on}` · `mail_move{folder, accountID?}` · `mail_junk{block?}` (to each account's Junk; block = that sender's future mail goes there too) · `mail_notjunk` (back to Inbox; sender unblocked and marked never-junk) · `mail_body` (download the whole email; it then appears in `bodies`) · `mail_unsubscribe{alsoJunk?, block?}` — each with `mailID`+`messageID` or `mailIDs[]`+`messageIDs[]`. Many at once = one batched server connection per folder.
+Sending: `mail_send{accountID, to, cc, subject, body, inReplyTo?, references?, replyingTo?, byFriday?, draftID?}` (draftID = the draft's `id` when sending one of `drafts`; the iPhone deletes that draft) · `mail_draft_delete{draftID}` (Discard a draft). There is no "save draft" command: the website's Cancel offers Discard / Keep editing only.
+Mailbox: `mail_folder{accountID, folder}` (load a folder) · `mail_refresh{}` (Sync now) · `mail_create_folder{accountID, name}` · `mail_empty{accountID?, role:"junk"|"trash"}` (permanent; the website asks first; no accountID = every account) · `mail_mark_all_read{accountID?, folder?}` (still accepted; the website's "Mark all as read" now sends `mail_seen{mailIDs, messageIDs, on:true}` for exactly the emails on screen — lane, filter, folder, account — and Undo sends `on:false` for the same ids).
 
-Many at once: `mail_archive`, `mail_trash`, `mail_delete`, `mail_flag{on}`, `mail_seen{on}`, `mail_move{folder, accountID?}` also accept `mailIDs[]` instead of `mailID` (one batched server connection per folder on the iPhone/Mac) ·
-`mail_mark_all_read{accountID?, folder?}` · `mail_empty{accountID?, role:"junk"|"trash"}` (permanent; the website asks first; no accountID = every account).
-
-Junk & unsubscribe: `mail_junk{mailIDs[], block?}` (move to each account's Junk; block = future mail from that sender goes to Junk) · `mail_notjunk{mailIDs[]}` (back to Inbox; sender unblocked and marked never-junk) ·
-`mail_unsubscribe{mailID, alsoJunk?, block?}` (iPhone does one-click POST or the mailto email; if the sender only offers a web page, the website opens that https link itself).
-Lists live in `prefs` and sync everywhere: `mailBlocked` and `mailAllowed` (`\n`-joined lowercase emails; the website may edit them directly), `mailUnsubscribed` (JSON text `{email: epochSeconds}`).
+Junk lists live in `prefs` and are **written by the iPhone only**: `mailBlocked`, `mailAllowed` (`\n`-joined lowercase emails), `mailUnsubscribed` (JSON text `{email: epochSeconds}`; a **negative** value = "their unsubscribe page was opened, not confirmed yet"). The website changes them with commands:
+`mail_block{email}` · `mail_unblock{email}` · `mail_allow_remove{email}` (take off the never-junk list) · `mail_unsub_confirm{email}` (he finished on their page: stamp becomes positive).
+Unsubscribe: the iPhone does one-click POST or the mailto email and records the date. If the sender only offers a web page, the website opens that https link itself **and still queues `mail_unsubscribe`**, so the iPhone records the negative stamp (and junks/blocks if asked). While negative, the website shows "You opened their unsubscribe page — finished there?" with **Yes, done** (`mail_unsub_confirm`) and **Open it again**; it isn't counted as unsubscribed (tags, suggestions) until confirmed.
 Rules: allowed beats blocked; never block one of his own account addresses; nothing is junked or unsubscribed without his tap (suggestions only: ≥3 mailing-list emails from a sender, none opened).
 
-Failures: `snapshot.failed` = `{commandId: "message to show"}` for commands the iPhone couldn't carry out.
+Website overlay (how pending mail commands show): every mail command is laid over friday-mail.json at once, and **kept until friday-mail.json is newer than the command** (`mail.at > command.at`), even after `snapshot.applied` lists it, so rows never flash back. A command taken back from the queue (Undo) or listed in `snapshot.failed` is not laid over. The website remembers what each command it queued was about (localStorage, commandId → {kind, subject, to, …}) so a failure can say what didn't happen ("Not sent" card with Edit and try again; "Your iPhone couldn't archive “…”: reason"), each with Dismiss (remembered in localStorage). A `mail_body` with no body after 45 s (or in `failed`) shows "Couldn't get this email from your iPhone" with Try again.
+
+Conversations (website = app, MailStore.threadKey): per account; root = the first `<…>` token in `references`; else a subject starting `re:`/`fw:`/`fwd:`/`aw:` (optionally `[n]`) → `"s:"` + the subject without those prefixes (unless empty or "(no subject)"); else the message's own `messageID`; else its `id`.
 
 Memory: `remember{fact}` (the iPhone adds it to Friday's memory and logs "Remembered: …").
 

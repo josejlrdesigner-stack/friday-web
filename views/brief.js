@@ -44,8 +44,7 @@
     const inbox = (m.messages || []).filter((x) => x.folder === inboxName(x.accountID) || x.folder === "INBOX").sort((a, b) => b.date - a.date);
     return { m, inbox, accounts: m.accounts, drafts: m.drafts || [] };
   }
-  const MAIL_PALETTE = ["#6D28D9", "#57534E", "#9D174D", "#3F3F46", "#86198F", "#475569"];
-  const accColor = (a) => MAIL_PALETTE[((a?.colorIndex ?? 0) % MAIL_PALETTE.length + MAIL_PALETTE.length) % MAIL_PALETTE.length];
+  const accColor = (a) => F.accountColor(a?.colorIndex);   // shared palette; shown only as the 8px account dot
 
   // ------------------------------------------------------------ header
   function header(now) {
@@ -53,12 +52,9 @@
     const [greet, ic] = h < 5 ? ["Late night", "moon.stars.fill"] : h < 12 ? ["Good morning", "sunrise.fill"]
       : h < 17 ? ["Good afternoon", "sun.max.fill"] : h < 21 ? ["Good evening", "sunset.fill"] : ["Late night", "moon.stars.fill"];
     const dateLine = now.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) + " · " + D.time(now);
-    return `<div class="h bottom g16 brief-head">
-      <div class="v g4 grow">${ui.label2(dateLine)}
-        <div class="h g8">${F.icon(ic, 'class="greet-ic"')}<h1 class="t24 w6 ink">${esc(greet)}, ${esc(firstName())}</h1></div>
-      </div>
-      <div class="h g8">${F.syncButton()}${ui.btn({ icon: "gearshape", kind: "icon", filled: true, act: "brief-settings", aria: "Settings and connections" })}</div>
-    </div>`;
+    // the shared ScreenHeader (LY-2/LY-8): same edge, same 24pt title as every other tab
+    return ui.header({ eyebrow: ui.label2(dateLine), lead: F.icon(ic, 'class="greet-ic"'), title: `${greet}, ${firstName()}`,
+      actions: F.syncButton() + ui.btn({ icon: "gearshape", kind: "icon", filled: true, act: "brief-settings", aria: "Settings and connections" }) });
   }
 
   // ------------------------------------------------------------ PlannerGuideCard
@@ -130,22 +126,22 @@
     return { label, minutes, count: n };
   }
   const loadTitle = (l) => (l === "open" ? "Open day" : l === "all-day commitment" ? "All-day commitment" : l[0].toUpperCase() + l.slice(1) + " day");
-  const loadColors = (l) => (l === "open" || l === "light" ? ["var(--ink2)", "var(--control)"] : l === "moderate" ? ["var(--ink)", "var(--ink2)"] : ["var(--warm)", "var(--warm)"]);
+  const loadColors = (l) => (l === "open" || l === "light" ? ["var(--ink2)", "var(--control)"] : l === "moderate" ? ["var(--ink)", "var(--ink2)"] : ["var(--attention)", "var(--attention-icon)"]);
 
   let ringPlayed = false;   // the arc fills once on appear, not on every 60-second refresh
   function loadRing(fraction, fill, size) {
     const s = 100, c = 50;
-    const r0 = c - s * 0.025 - 0.5;                 // hairline + gold ticks (padding s*0.025)
+    const r0 = c - s * 0.025 - 0.5;                 // hairline + neutral ticks (padding s*0.025)
     const r1 = c - s * 0.12 - s * 0.03;             // booked track (padding s*0.12, line s*0.06)
-    const r2 = c - s * 0.22 - 0.5;                  // cyan dashed inner ring (padding s*0.22)
+    const r2 = c - s * 0.22 - 0.5;                  // neutral dashed inner ring (padding s*0.22)
     const circ = 2 * Math.PI * r1, pct = Math.round(fraction * 100);
     return `<div class="loadring" style="width:${size}px;height:${size}px" role="img" aria-label="${pct} percent of the day booked">
       <svg viewBox="0 0 100 100" aria-hidden="true">
         <circle cx="50" cy="50" r="${r0}" fill="none" stroke="var(--hairline)" stroke-width="${100 / size}"/>
-        <g class="spin-cw"><circle cx="50" cy="50" r="${r0}" fill="none" stroke="var(--gold)" stroke-opacity=".75" stroke-width="2.5" stroke-dasharray="0.8 5"/></g>
+        <g class="spin-cw"><circle cx="50" cy="50" r="${r0}" fill="none" stroke="var(--control)" stroke-opacity=".5" stroke-width="2.5" stroke-dasharray="0.8 5"/></g>
         <circle cx="50" cy="50" r="${r1}" fill="none" stroke="var(--divider)" stroke-width="6"/>
         ${fraction > 0 ? `<circle class="booked ${ringPlayed ? "" : "anim"}" cx="50" cy="50" r="${r1}" fill="none" stroke="${fill}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${circ * fraction} ${circ}" transform="rotate(-90 50 50)" style="--circ:${circ}"/>` : ""}
-        <g class="spin-ccw"><circle cx="50" cy="50" r="${r2}" fill="none" stroke="var(--friday-light)" stroke-width="${100 / size}" stroke-dasharray="15 5"/></g>
+        <g class="spin-ccw"><circle cx="50" cy="50" r="${r2}" fill="none" stroke="var(--selected-edge)" stroke-width="${100 / size}" stroke-dasharray="15 5"/></g>
       </svg>
       <div class="lr-text"><span class="pct" style="font-size:${size * 0.2}px">${pct}%</span><span class="bk" style="font-size:${Math.max(10, size * 0.1)}px">booked</span></div>
     </div>`;
@@ -275,11 +271,11 @@
     const yest = D.same(d, D.add(new Date(), -1));
     const time = D.same(d, new Date()) ? D.time(d) : yest ? "Yesterday" : D.md(d);
     return `<button type="button" class="plain press msgrow" data-act="brief-msg" data-id="${esc(msg.id)}" aria-label="${esc(`${unread ? "Unread. " : ""}From ${from}. ${msg.subject}. ${time}`)}">
-      <span class="av" style="color:${c};background:${K().hexRGBA(c, 0.13)}">${esc(initials)}</span>
+      <span class="av">${esc(initials)}</span>
       <span class="v g2 grow">
         <span class="h g8"><span class="t15 ink ell ${unread ? "w6" : ""}">${esc(from)}</span>${msg.flagged ? F.icon("flag.fill", 'class="mflag"') : ""}<span class="sp"></span><span class="t13 muted nowrap">${esc(time)}</span>${unread ? '<span class="udot"></span>' : ""}</span>
         <span class="t15 subj ${msg.seen ? "ink2" : "ink"}">${esc(msg.subject || "")}</span>
-        ${showAccount && acc ? `<span><span class="tag" style="color:${c};background:${K().hexRGBA(c, 0.12)}">${esc(acc.label)}</span></span>` : ""}
+        ${showAccount && acc ? `<span><span class="tag acct"><i class="dot d8" style="background:${c}"></i>${esc(acc.label)}</span></span>` : ""}
       </span>
     </button>`;
   }
@@ -372,6 +368,7 @@
   F.on("brief-toggle", async (el) => {
     const t = F.todos().find((x) => x.id === el.dataset.id); if (!t) return;
     el.classList.toggle("on", !t.done);   // instant feedback while the change is saved
+    if (!t.done) await F.celebrate(el, F.isBig(t));   // spring (+ ring for A1/Big Rock), then save
     await F.cmd(t.done ? "uncomplete_todo" : "complete_todo", { todoID: t.id }, (t.done ? "Not done: " : "Done: ") + t.title);
   });
 })();

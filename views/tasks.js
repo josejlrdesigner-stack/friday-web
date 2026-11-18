@@ -244,8 +244,11 @@
 
   // row actions (FranklinRow)
   const setFranklin = (t, meta) => F.cmd("set_franklin", { todoID: t.id, meta: fullFC(meta) });
-  async function complete(t, day) {
+  async function complete(t, day, el = null) {
     const was = t.done;
+    const mk = !was && el?.querySelector(".smark");
+    if (mk) { mk.className = "smark done"; mk.innerHTML = icon("checkmark"); }   // turns green at once
+    if (!was) await F.celebrate(el || document.querySelector(`[data-act="tk-done"][data-id="${CSS.escape(t.id)}"]`), F.isBig(t));   // spring (+ ring for A1/Big Rock), then save
     await F.cmd(was ? "uncomplete_todo" : "complete_todo", { todoID: t.id }, (was ? "Not done: " : "Done: ") + t.title);
     if (!was) await log("✓ " + t.title, day);
   }
@@ -316,7 +319,7 @@
       { items: [{ label: m.bigRock ? "Not a Big Rock" : "Make it a Big Rock", icon: "mountain.2", run: () => setFranklin(t, { ...m, bigRock: !m.bigRock }) }] },
     ];
   }
-  F.on("tk-done", (el) => { const r = T.rows.get(el.dataset.id); if (r) return complete(r.t, r.day); });
+  F.on("tk-done", (el) => { const r = T.rows.get(el.dataset.id); if (r) return complete(r.t, r.day, el); });
   F.on("tk-edit", (el) => { const r = T.rows.get(el.dataset.id); if (r) openTodoEdit(r.t); });
   F.on("tk-more", (el) => { const r = T.rows.get(el.dataset.id); if (r) menu(el, statusMenu(r.t, r.day)); });
   F.on("tk-prio", (el) => { const r = T.rows.get(el.dataset.id); if (r) menu(el, priorityMenu(r.t, r.gc)); });
@@ -344,7 +347,6 @@
     const s = F.snap();
     const open = openTodos();
     const actions = [ui.btn({ label: "Organizer", icon: "target", act: "tk-organizer", title: "Values, roles, time matrix, rules, focus time, and setup" }),
-      T.page === "lists" && !T.query ? ui.btn({ label: "Edit lists", icon: "list.bullet", act: "tk-editlists" }) : "",
       ui.btn({ label: "To-do", icon: "plus", kind: "primary", act: "tk-new" })].join("");
     const top = `<div class="tk-top">
       ${ui.header({ eyebrow: ui.label2(`${open.length} open`), title: "Tasks", actions })}
@@ -469,11 +471,11 @@
   function eventsOn(day) { const a = D.start(day), b = D.add(a, 1); return F.events().filter((e) => e.start < b && e.end > a); }
   function eventRow(e, now) {
     const past = e.end < now, live = e.start <= now && e.end > now;
-    return `<button type="button" class="plain evrow press" data-act="tk-event" data-id="${esc(e.id)}" style="background:${rgba(e.color, past ? 0.03 : 0.07)}">
-      <span class="v g2 evtime"><span class="t13 w6 ${past ? "muted" : "ink"}">${esc(D.time(e.start))}</span><span class="t13 muted">${esc(D.time(e.end))}</span></span>
-      <span class="evbar" style="background:${rgba(e.color, past ? 0.35 : 1)}"></span>
-      <span class="v g2 grow"><span class="t13 w6 ${past ? "muted" : "ink"} evtime2">${esc(D.time(e.start) + " – " + D.time(e.end))}</span>
-        <span class="flow"><span class="t15 w6 ${past ? "muted" : "ink"}">${esc(e.title)}</span>${past ? ui.tag("Ended") : ""}${live ? ui.tag("NOW", "warm") : ""}</span>
+    return `<button type="button" class="plain tk-evrow press" data-act="tk-event" data-id="${esc(e.id)}">
+      <span class="v g2 tk-evtime"><span class="t13 w6 ${past ? "muted" : "ink"}">${esc(D.time(e.start))}</span><span class="t13 muted">${esc(D.time(e.end))}</span></span>
+      <span class="tk-evbar" style="background:${rgba(e.color, past ? 0.35 : 1)}"></span>
+      <span class="v g2 grow"><span class="t13 w6 ${past ? "muted" : "ink"} tk-evtime2">${esc(D.time(e.start) + " – " + D.time(e.end))}</span>
+        <span class="flow"><span class="t15 w6 ${past ? "muted" : "ink"}">${esc(e.title)}</span>${past ? ui.tag("Ended") : ""}${live ? ui.tag("NOW", "ink") : ""}</span>
         <span class="t13 muted">${esc(e.location ? `${e.location} · ${e.calendar}` : e.calendar)}</span></span>
       ${icon("chevron.right", 'class="chev"')}</button>`;
   }
@@ -486,7 +488,7 @@
     const pct = Math.round(mins / 600 * 100);
     const head = `${ui.label2("Schedule")}<span class="sp"></span><span class="t12 w5 ${pct > 80 ? "c-warm" : "ink2"}">${pct > 80 ? `${pct}% booked · leave 15–20% open` : `${pct}% booked · ${100 - pct}% margin`}</span>`;
     const rows = evs.map((e) => `<div class="tk-row">${e.allDay
-      ? `<button type="button" class="plain allday press" data-act="tk-event" data-id="${esc(e.id)}" style="background:${rgba(e.color, 0.1)}"><span class="evbar short" style="background:${esc(e.color)}"></span><span class="t13 muted">All day</span><span class="t15 w6 ink">${esc(e.title)}</span></button>`
+      ? `<button type="button" class="plain tk-allday press" data-act="tk-event" data-id="${esc(e.id)}"><span class="tk-evbar short" style="background:${esc(e.color)}"></span><span class="t13 muted">All day</span><span class="t15 w6 ink">${esc(e.title)}</span></button>`
       : eventRow(e, now)}</div>`).join("");
     return sec(head, `<div class="tk-row">${ui.btn({ label: "Event", icon: "plus", kind: "small", act: "tk-addevent" })}</div>${rows}${evs.length ? "" : textRow("Nothing on the calendar. Block time for your A tasks and Big Rocks first.")}`);
   }
@@ -648,7 +650,9 @@
       if (folded) return `<section class="tk-sec"><div class="tk-head">${head}</div></section>`;
       return sec(head, items.map((t) => franklinRow(t, t.due ? D.start(t.due) : today0(), gc)).join("") + (items.length ? "" : textRow(`Nothing open in ${l.title}.`)) + addRow("list:" + l.title, `Add to ${l.title}`, "tk-listadd", { list: l.title }));
     }).join("");
-    return `<div class="tk-list">${body || sec("", textRow("No lists yet. Tap Edit lists to add one."))}</div>`;
+    // LY-7: "Edit lists" lives in the Lists page's own header, not the tab header
+    const head = `<div class="tk-pagehead">${ui.label2(`${ls.length} list${ls.length === 1 ? "" : "s"}`)}${ui.btn({ label: "Edit lists", icon: "list.bullet", kind: "small", act: "tk-editlists" })}</div>`;
+    return `${head}<div class="tk-list">${body || sec("", textRow("No lists yet. Tap Edit lists to add one."))}</div>`;
   }
   F.on("tk-fold", (el) => { const n = el.dataset.list; T.folded.has(n) ? T.folded.delete(n) : T.folded.add(n); F.render(); });
   F.onSubmit("tk-listadd", async (f, form) => {
@@ -930,7 +934,7 @@
       title: "Lists", trailing: { label: "Done", act: "tk-sheet-primary" },
       body: () => `<div class="narrow form">
         <div class="fsec"><div class="fgroup">${lists().map((l, i) => `<div class="frow lsrow">
-            <label class="cdot" style="background:${esc(l.color)}"><span class="sr">${esc("Color for " + l.title)}</span><input type="color" value="${esc(/^#[0-9a-f]{6}$/i.test(l.color) ? l.color : "#767e8a")}" data-x="color" data-list="${esc(l.title)}"></label>
+            <label class="list-swatch" style="background:${esc(l.color)}"><span class="sr">${esc("Color for " + l.title)}</span><input type="color" value="${esc(/^#[0-9a-f]{6}$/i.test(l.color) ? l.color : "#767e8a")}" data-x="color" data-list="${esc(l.title)}"></label>
             <input id="ls-n-${i}" class="bare" value="${esc(names[l.title] ?? l.title)}" placeholder="List name" data-x="name" data-list="${esc(l.title)}" autocomplete="off" enterkeyhint="done">
             <span class="t15 muted" aria-label="${esc(listCount(l.title) + " open to-dos")}">${listCount(l.title)}</span>
             <button type="button" class="btn destructive lsdel" data-x="del" data-list="${esc(l.title)}" aria-label="${esc("Delete list " + l.title)}">${icon("trash")}</button></div>`).join("") || '<div class="frow"><span class="muted">No lists yet.</span></div>'}</div>

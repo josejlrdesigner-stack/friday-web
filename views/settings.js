@@ -4,7 +4,6 @@
 "use strict";
 (() => {
   const { ui, esc, D } = F;
-  const PALETTE = ["#6D28D9", "#57534E", "#9D174D", "#3F3F46", "#86198F", "#475569"];   // MailAccount.palette
   F.addIcons({
     iphone: '<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 5.5h3"/>',
     "arrow.down.circle": '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v8.5M8.5 12.5L12 16l3.5-3.5"/>',
@@ -17,7 +16,7 @@
 
   // ------------------------------------------------------------ Settings (ConnectionsView)
   F.openSettings = () => {
-    const s = F.sheet({ title: "Settings", trailing: { label: "Done", act: "sheet-close" }, body: settingsBody, id: "settings" });
+    const s = F.sheet({ title: "Settings", trailing: { label: "Done", act: "sheet-close" }, body: settingsBody, id: "settings", size: "large" });
     s.el.classList.add("settings");
     s.refresh = () => s.update();
     return s;
@@ -44,6 +43,13 @@
         ${ui.btn({ label: "Pick a starter profile", act: "set-setup", data: { mode: "starter" } })}
         ${ui.btn({ label: "Organizer", icon: "target", act: "set-organizer" })}
       </div>
+      <hr class="set-div">
+      <div class="h g16 set-toggle">
+        <label class="v g2 grow" for="set-ritual"><span class="t15 w6 ink">Morning ritual</span>
+          <span class="t13 muted">Once a day after 4 am: your Act As line, 90-day goal, A1 and streak.</span></label>
+        ${ui.btn({ label: "Show now", kind: "small", act: "set-ritual-now" })}
+        <span class="switch"><input id="set-ritual" type="checkbox" role="switch" data-change="set-ritual" ${F.prefs().ritualOff === "1" ? "" : "checked"}></span>
+      </div>
       ${setUp ? `<hr class="set-div">
         <div class="flow">${ui.btn({ label: "Start from zero", kind: "destructive", act: "set-reset" })}</div>
         <p class="t13 muted">Clears values, roles, goals, Big Rocks and setup answers, including anything a starter profile added. Your to-dos and calendar events stay. A backup is saved first.</p>` : ""}
@@ -69,7 +75,7 @@
       ${card({ icon: "checklist", title: "To-dos (Reminders)", ok: !!access.reminders, status: access.reminders ? `Connected · ${lists} list${lists === 1 ? "" : "s"}` : "Not connected",
         content: access.reminders ? "" : iphoneNote("Allow reminders access in F.R.I.D.A.Y. on your iPhone.") })}
       ${card({ icon: "envelope", title: "Email", ok: accts.length > 0, status: accts.length ? `${accts.length} account${accts.length === 1 ? "" : "s"} connected` : "No accounts yet",
-        content: `<div class="v g8">${accts.map((a) => `<div class="h g8 set-acct"><span class="set-dot" style="background:${PALETTE[(a.colorIndex || 0) % PALETTE.length]}"></span>
+        content: `<div class="v g8">${accts.map((a) => `<div class="h g8 set-acct"><span class="dot d8" style="background:${F.accountColor(a.colorIndex)}"></span>
             <div class="v g2 grow"><span class="t15 w6 ink ell">${esc(a.label)}</span><span class="t13 muted ell">${esc(a.email)}</span></div></div>`).join("")}
           ${iphoneNote("Connect, fix or remove email accounts on your iPhone. Passwords stay in its Keychain.")}</div>` })}
       ${card({ icon: "waveform", title: "Voice (microphone)", ok: false, tag: "iPhone only", status: "iPhone only · the website is text only" })}
@@ -88,6 +94,11 @@
   F.on("set-calendars", () => (F.openCalendarFilter ? F.openCalendarFilter() : later("Choosing calendars")));
   F.on("set-friday", () => F.openFridaySettings());
   F.on("set-sync", () => openSync());
+  F.onChange("set-ritual", async (el) => {
+    try { await F.setPref("ritualOff", el.checked ? "0" : "1"); F.toast(el.checked ? "Morning ritual is on" : "Morning ritual is off"); }
+    catch (e) { el.checked = !el.checked; F.toast("Couldn't save that: " + F.friendly(e.message)); }
+  });
+  F.on("set-ritual-now", (el) => { el.closest("dialog")?._api?.close(); F.openRitual?.(); });
 
   // ------------------------------------------------------------ Update the app (legacy syncView / statusHTML / requestUpdate)
   function updateCard() {

@@ -648,11 +648,11 @@
     if (H?.api.el.open) { H.module = modOf(module)?.key || null; hDraw(); return H.api; }
     H = { module: modOf(module)?.key || null, focus: null, energy: null, drafts: {}, saved: null };
     H.api = F.sheet({
-      id: "organizer",
+      id: "organizer", size: "large",
       title: () => (H.module ? modOf(H.module).name : "Organizer"),
       leading: () => (H.module ? { label: "Organizer", act: "org-home" } : null),
       trailing: () => (H.module ? null : { label: "Done", act: "sheet-close" }),
-      body: () => `<div class="org-wrap w720">${H.module ? moduleView(modOf(H.module)) : hubView()}</div>`,
+      body: () => `<div class="org-wrap">${H.module ? moduleView(modOf(H.module)) : hubView()}</div>`,
       onClose: () => { H = null; },
     });
     H.api.el.classList.add("org-sheet");
@@ -867,7 +867,7 @@
   const rule = (k, def) => { const v = F.prefs()[k]; return v == null ? def : v === "1" || v === "true"; };
   function engineModule() {
     return section("A-B-C-1-2-3", [["A", "Vital: must happen today"], ["B", "Important: could slip a day"], ["C", "Nice to do"]].map(([l, t]) =>
-        `<div class="h g16"><span class="org-pbadge ${l}">${l}1</span><span class="t15 ink">${esc(t)}</span></div>`).join("")
+        `<div class="h g16"><span class="pbadge org-pbadge ${l}">${l}1</span><span class="t15 ink">${esc(t)}</span></div>`).join("")
         + '<p class="t13 muted">Then number within each letter in the order you\'ll do them: A1, A2, A3.</p>',
         "Work top down: every A before any B, and A1 before A2.")
       + section("End-of-day marks", [["✓", "Done", "c-done"], ["→", "Forwarded to another day", "ink2"], ["•", "In progress, carries over", "ink2"],

@@ -36,13 +36,13 @@
     const start = D.time(e.start), end = D.time(e.end);
     const sub = e.location ? `${e.location} · ${e.calendar || ""}` : (e.calendar || "");
     return `<button type="button" class="plain press evrow ${past ? "past" : ""}" data-act="cal-open-event" data-id="${esc(e.id)}"
-        style="background:${hexRGBA(col, past ? 0.03 : 0.07)}" aria-label="${esc(`${e.title}, ${start} to ${end}${sub ? ", " + sub : ""}`)}">
+        aria-label="${esc(`${e.title}, ${start} to ${end}${sub ? ", " + sub : ""}`)}">
       <span class="evrow-in">
         <span class="evtime"><span class="s">${esc(start)}</span><span class="e">${esc(end)}</span></span>
         <span class="evbar" style="background:${past ? hexRGBA(col, 0.35) : esc(col)}"></span>
         <span class="evmain">
           <span class="evstack">${esc(start + " – " + end)}</span>
-          <span class="evtitle"><span class="t">${esc(e.title)}</span>${past ? ui.tag("Ended") : ""}${live ? ui.tag("NOW", "warm") : ""}${e.pending && failedMap()[e.id] ? ui.tag("Not added", "attention") : ""}</span>
+          <span class="evtitle"><span class="t">${esc(e.title)}</span>${past ? ui.tag("Ended") : ""}${live ? ui.tag("NOW", "ink") : ""}${e.pending && failedMap()[e.id] ? ui.tag("Not added", "attention") : ""}</span>
           <span class="evsub">${esc(sub)}</span>
         </span>
         ${F.icon("chevron.right", 'class="chev"')}
@@ -52,10 +52,10 @@
   /** AllDayChips */
   function allDayChips(events) {
     if (!events.length) return "";
-    return `<div class="v g8">${events.map((e) => { const col = evColor(e); return `<button type="button" class="plain press allday" data-act="cal-open-event" data-id="${esc(e.id)}" style="background:${hexRGBA(col, 0.1)}">
+    return `<div class="v g8">${events.map((e) => { const col = evColor(e); return `<button type="button" class="plain press allday" data-act="cal-open-event" data-id="${esc(e.id)}">
       <span class="bar" style="background:${esc(col)}"></span><span class="t13 muted">All day</span><span class="t15 w6 ink ell">${esc(e.title)}</span></button>`; }).join("")}</div>`;
   }
-  /** CalendarFilterButton: "Calendars" (+ "2/5" when some are hidden; amber then). */
+  /** CalendarFilterButton: "Calendars" (+ "2/5" when some are hidden; neutral emphasis then). */
   function filterButton(labeled = false) {
     const all = F.calendars(), hidden = new Set(F.prefsHiddenCalendars());
     const total = all.length, shown = all.filter((c) => !hidden.has(c.id)).length;
