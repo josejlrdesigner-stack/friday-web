@@ -1,8 +1,8 @@
 /* Per-screen styles are appended to views/<screen>.css files and imported here. */
-@import url("brief.css?v=20261118114543");
-@import url("calendar.css?v=20261118114543");
-@import url("tasks.css?v=20261118114543");
-@import url("organizer.css?v=20261118114543");
-@import url("mail.css?v=20261118114543");
-@import url("friday.css?v=20261118114543");
-@import url("settings.css?v=20261118114543");
+@import url("brief.css?v=20261118115612");
+@import url("calendar.css?v=20261118115612");
+@import url("tasks.css?v=20261118115612");
+@import url("organizer.css?v=20261118115612");
+@import url("mail.css?v=20261118115612");
+@import url("friday.css?v=20261118115612");
+@import url("settings.css?v=20261118115612");

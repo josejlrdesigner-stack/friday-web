@@ -345,7 +345,8 @@
         <canvas class="mcore" data-core width="140" height="140" style="width:140px;height:140px"></canvas>
         <h2 class="t24 w6 ink">${X ? "No email connected yet" : "No email from your iPhone yet"}</h2>
         <p class="t15 ink2">${X ? "Connect iCloud, Gmail or your Bluehost mailbox on your iPhone and F.R.I.D.A.Y. can read, sort, draft and send for you."
-          : "Sign in to your email in F.R.I.D.A.Y. on your iPhone. It sends your recent email here, and anything you do here is carried out by your iPhone."}</p></div>`;
+          : (F.snap() && !F.snap().access) ? "Your iPhone has just been updated. Open F.R.I.D.A.Y. on your iPhone once; it sends your recent email here a minute later, and anything you do here is carried out by your iPhone."
+          : "Open F.R.I.D.A.Y. on your iPhone; it sends your recent email here a minute later, and anything you do here is carried out by your iPhone."}</p></div>`;
     }
     const a = account(X, M.acct);
     const acctLabel = `<span class="h g4">${(a ? [a] : X.accounts).map((x) => `<i class="dot" style="background:${x.color}"></i>`).join("")}</span><span class="ell">${esc(a?.label || "All accounts")}</span>${icon("chevron.down", 'class="cd"')}`;

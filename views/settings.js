@@ -51,7 +51,9 @@
   }
 
   function settingsBody() {
-    const s = F.snap(), access = s?.access || {}, mail = F.mail(), accts = mail?.accounts || [];
+    const s = F.snap(), mail = F.mail(), accts = mail?.accounts || [];
+    // older iPhone versions didn't report access; if its tasks and calendar arrive, they're connected
+    const access = { calendar: s?.access ? s.access.calendar : (s?.events || []).length > 0, reminders: s?.access ? s.access.reminders : (s?.todos || []).length + (s?.done || []).length > 0 };
     const cals = F.calendars(), hidden = new Set(F.prefsHiddenCalendars()), shown = cals.filter((c) => !hidden.has(c.id)).length;
     const lists = F.lists().length;
     const from = s ? `${esc(s.device || "your iPhone")}` : "";
