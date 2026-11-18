@@ -24,7 +24,7 @@
     dlg: null, busy: false, who: "", local: [], writes: Promise.resolve(),
     session: null, context: "brief", openingHandled: false, lastOpening: null, setupOffered: false, mode: "idle",
   };
-  const NO_KEY = "Add your Anthropic API key in Friday settings on your iPhone to use Claude. It syncs here, scrambled.";
+  const NO_KEY = "Add your Anthropic API key to use Friday here: tap the gear above, then Claude › API key. It also reaches your iPhone, scrambled.";
   const SETUP_LINE = "Hi Boss. Your planner isn't set up yet. Want me to walk you through it? Six quick questions, about three minutes. Say yes, or tell me what you need.";
 
   const stored = () => (F.S.payload?.webchat?.value || []);

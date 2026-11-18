@@ -210,11 +210,15 @@
         <p class="ffoot">On the website, Claude answers everything. The free on-device brain and the Auto setting work on your iPhone and iPad.</p></div>
       <div class="fsec"><div class="fhead">Claude</div>
         <div class="fgroup">
-          <div class="frow"><span class="lbl">API key</span><span class="val">${keySaved() ? "Saved on your iPhone" : "Not added yet"}</span></div>
+          ${keySaved()
+            ? `<div class="frow"><span class="lbl">API key</span><span class="val">Saved ✓ Friday uses Claude now</span></div>
+               <div class="frow"><button type="button" class="rowlink destructive" data-act="fs-key-remove">Remove key</button></div>`
+            : `<div class="frow"><label class="sr" for="fs-key">Anthropic API key</label><input id="fs-key" class="bare" type="password" placeholder="Paste your Anthropic API key" autocomplete="off" spellcheck="false" data-input="fs-key"></div>
+               <div class="frow"><button type="button" class="rowlink" data-act="fs-key-save" id="fs-key-save" disabled>Save key</button></div>`}
           <div class="frow"><label class="lbl" for="fs-model">Claude model</label>
             <select id="fs-model" class="bare" data-change="fs-model">${MODELS().map((m) => `<option value="${esc(m.id)}" ${m.id === cur ? "selected" : ""}>${esc(m.label)}</option>`).join("")}</select></div>
         </div>
-        <p class="ffoot">${keySaved() ? "" : "Add the key once on your iPhone: Settings › Friday settings › Claude. "}Create a key at console.anthropic.com (pay-as-you-go, billed separately from your Claude subscription). It syncs here scrambled and is only sent to Anthropic.</p></div>
+        <p class="ffoot">Create a key at console.anthropic.com (pay-as-you-go, billed separately from your Claude subscription). It's scrambled with your password, reaches your iPhone and iPad too, and is only sent to Anthropic.</p></div>
       <div class="fsec"><div class="fhead">Special dates</div>
         <div class="fgroup">${mdRow("Your birthday", "birthday")}${mdRow("Anniversary", "anniversary")}
           ${p.anniversary ? `<div class="frow"><label class="sr" for="fs-annlabel">What it's for</label><input id="fs-annlabel" class="bare" type="text" placeholder="What it's for (e.g. wedding anniversary)" value="${esc(p.anniversaryLabel || "")}" data-change="fs-text" data-key="anniversaryLabel"></div>` : ""}</div>
@@ -237,4 +241,22 @@
   F.on("fs-md-add", (el) => { const d = new Date(); return save(el.dataset.key, `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`); });
   F.on("fs-md-clear", (el) => save(el.dataset.key, null));
   F.on("fs-newconv", () => { if (F.newConversation) { F.newConversation(); F.toast("New conversation started."); } });
+
+  // Claude key (SettingsView "Claude" section): saved into the synced, encrypted claude section; the iPhone puts it in its Keychain.
+  F.onInput("fs-key", (el) => { const b = document.getElementById("fs-key-save"); if (b) b.disabled = !el.value.trim(); });
+  F.on("fs-key-save", async () => {
+    const v = document.getElementById("fs-key")?.value.trim();
+    if (!v) return;
+    await F.writeSection("claude", () => v);
+    F.toast("Key saved. Friday uses Claude now.");
+    F.render(); F.refreshSheets();
+  });
+  F.on("fs-key-remove", async () => {
+    const ok = await F.alert({ title: "Remove your Claude key?", message: "Friday on the website stops working until you add a key again. Your iPhone falls back to its built-in brain.",
+      buttons: [{ label: "Remove key", kind: "destructive", value: true }, { label: "Cancel", kind: "cancel" }] });
+    if (!ok) return;
+    await F.writeSection("claude", () => "");
+    F.toast("Key removed.");
+    F.render(); F.refreshSheets();
+  });
 })();
