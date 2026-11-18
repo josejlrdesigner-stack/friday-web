@@ -1,0 +1,128 @@
+/* organizer — setup wizard, starter profiles, reset, Organizer hub + modules.
+   Ported from DiagnosticSetupView.swift, OrganizerPresets.swift, PlannerReset.swift, OrganizerViews.swift. Tokens from style.css only. */
+.org-wrap { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.org-wrap.w720 { max-width: 720px; }
+.org-sheet .sheetfoot .btn { flex: none; }
+.org-sheet.org-half { height: fit-content; max-height: calc(100dvh - 24px); }
+@media (min-width: 640px) { .org-sheet.org-half { height: fit-content; max-height: min(880px, calc(100dvh - 48px)); } }
+
+/* progress: six capsules (the app draws Capsule().frame(height: 6)) */
+.org-prog { display: flex; gap: 4px; }
+.org-prog i { flex: 1; height: 6px; border-radius: 3px; background: var(--secondary); }
+.org-prog i.done { background: var(--done); }
+.org-prog i.cur { background: var(--ink2); }
+
+/* DiagnosticChip */
+.dchip { appearance: none; border: 1.5px solid transparent; display: flex; align-items: center; gap: 16px; width: 100%; min-height: 52px; padding: 6px 16px;
+  border-radius: var(--r-control); background: rgba(228, 230, 234, .5); color: var(--ink); text-align: left; cursor: pointer; font-size: 16px; }
+.dchip.on { background: var(--panel); border-color: var(--ink2); }
+.dchip-ic { width: 28px; display: grid; place-items: center; flex: none; color: var(--control); }
+.dchip.on .dchip-ic { color: var(--ink); }
+.dchip-ic svg { width: 24px; height: 24px; }
+.dchip-t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+/* text fields */
+.org-ta, textarea.input.org-ta, textarea.input.org-fb { resize: none; }
+.org-ta { padding: 16px; min-height: 44px; line-height: 1.4; overflow-y: auto; }
+textarea.input.org-ta { min-height: 44px; }
+.org-ta.actas { width: 100%; border: 0; background: var(--secondary); border-radius: var(--r-control); font-size: 16px; font-style: italic; color: var(--ink); }
+.org-ta.actas:focus { outline: none; box-shadow: 0 0 0 3px rgba(47, 86, 200, .18); }
+.org-ta.goal { font-weight: 600; padding: 12px 16px; }
+.org-fb { padding: 8px 16px; resize: none; }
+textarea.input.org-fb { min-height: 44px; line-height: 1.4; overflow-y: auto; }
+textarea.org-fb.actas { font-style: italic; background: var(--panel); border: 1px solid var(--control); }
+
+/* DisclosureGroup "Why this question?" */
+.org-dg-h { appearance: none; border: 0; background: none; padding: 0; width: 100%; min-height: 44px; display: flex; align-items: center; cursor: pointer; text-align: left; }
+.org-dg-chev { width: 15px; height: 15px; color: var(--ink2); transition: transform .2s; }
+.org-dg.open .org-dg-chev { transform: rotate(90deg); }
+.org-dg-b { padding-top: 4px; }
+
+/* cards */
+.org-block { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.org-block.g12 { gap: 8px; }
+.card.edge-friday { border: 1px solid var(--friday-edge); }
+.org-wk { width: 64px; flex: none; }
+.org-warn { display: flex; gap: 6px; align-items: flex-start; color: var(--attention); font-size: 13px; font-weight: 500; }
+.org-warn svg { width: 14px; height: 14px; flex: none; margin-top: 1px; color: var(--attention); }
+
+/* Toggle row (FridaySwitch) */
+.org-toggle { display: flex; align-items: center; gap: 12px; min-height: 44px; font-size: 15px; color: var(--ink); cursor: pointer; }
+
+/* finish page */
+.org-bigcheck { width: 40px; height: 40px; color: var(--done); }
+.org-srow { display: flex; align-items: flex-start; gap: 16px; }
+.org-sic { width: 18px; height: 18px; color: var(--ink2); flex: none; margin: 1px 3px 0; stroke-width: 2.1; }
+.org-pair { display: flex; flex-wrap: wrap; gap: 8px; }
+.org-pair .btn { flex: 1 1 auto; }
+
+/* starter profiles + module cards */
+button.plain.org-pcard, button.plain.org-mcard { display: flex; gap: 16px; padding: 16px; width: 100%; background: var(--panel); border-radius: var(--r-card); }
+.org-pcard { align-items: flex-start; }
+.org-mcard { align-items: center; }
+.org-tile { width: 44px; height: 44px; flex: none; border-radius: var(--r-control); background: var(--secondary); display: grid; place-items: center; color: var(--ink2); }
+.org-tile svg { width: 20px; height: 20px; stroke-width: 2; }
+.org-pchev { margin-top: 16px; }
+
+/* pyramid */
+.org-pyr { display: flex; flex-direction: column; gap: 4px; }
+.org-pyr-row { display: flex; align-items: center; min-height: 36px; padding: 0 16px; background: var(--secondary); border-radius: var(--r-chip); font-size: 13px; font-weight: 600; }
+.num { font-variant-numeric: tabular-nums; }
+hr.org-div { border: 0; border-top: 1px solid var(--divider); margin: 4px 0; width: 100%; }
+
+/* coach button */
+.org-coach .fmark { flex: none; }
+/* system back button ("‹ Organizer") */
+.btn.link.org-back { padding: 0 4px 0 0; gap: 2px; font-size: 17px; font-weight: 400; }
+@media (max-width: 639px) { .org-back-t { display: none; } .btn.link.org-back { min-width: 44px; } }
+.btn.link.org-back svg { width: 22px; height: 22px; stroke-width: 2.4; }
+
+/* module pieces */
+.org-rrow { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.btn.icon.org-trash { color: var(--danger-text); }
+.org-add { display: flex; gap: 8px; align-items: center; }
+.org-add .input { flex: 1; }
+.org-menu { position: relative; display: inline-flex; align-items: center; min-height: 44px; align-self: flex-start; cursor: pointer; }
+.org-menu select { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; font-size: 16px; }
+.org-menu:focus-within .tag { box-shadow: 0 0 0 3px rgba(47, 86, 200, .35); }
+.org-rock { min-height: 44px; }
+.org-rock .check { margin-left: -9px; }
+.strike { text-decoration: line-through; text-decoration-color: var(--muted); }
+
+/* Time Matrix */
+.org-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.org-quad { appearance: none; border: 0; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+  padding: 16px; min-height: 120px; border-radius: var(--r-card); }
+.org-quad.focus { box-shadow: inset 0 0 0 2px var(--ink2); }
+.q1 { --qc: var(--danger-text); --qt: var(--danger-tint); }
+.q2 { --qc: var(--done-text); --qt: var(--done-tint); }
+.q3 { --qc: var(--attention); --qt: var(--attention-tint); }
+.q4 { --qc: var(--muted); --qt: var(--secondary); }
+.org-quad { background: var(--qt); }
+.org-quad .qc { color: var(--qc); }
+.org-sort { padding: 4px 0; }
+.org-qbtn { appearance: none; border: 0; cursor: pointer; min-width: 44px; min-height: 44px; border-radius: var(--r-control); background: var(--secondary);
+  color: var(--ink2); font-size: 13px; font-weight: 600; padding: 0 8px; }
+.org-qbtn.on { background: var(--qt); color: var(--qc); }
+
+/* Task Engine */
+.org-pbadge { min-width: 36px; min-height: 28px; display: inline-grid; place-items: center; border-radius: 6px; font-size: 13px; font-weight: 700;
+  font-variant-numeric: tabular-nums; margin: 8px 0; flex: none; }
+.org-pbadge.A { color: var(--ink); background: var(--selected-edge); }
+.org-pbadge.B { color: var(--ink); background: var(--secondary); }
+.org-pbadge.C { color: var(--muted); background: var(--divider); }
+.org-mark { min-height: 32px; }
+.org-markc { width: 32px; flex: none; text-align: center; font-size: 17px; font-weight: 700; }
+
+/* Energy: DatePicker row + Stepper */
+.org-prow { display: flex; align-items: center; gap: 12px; min-height: 44px; }
+.org-time { appearance: none; border: 0; background: var(--secondary); border-radius: var(--r-control); min-height: 36px; padding: 0 10px; font-size: 16px; color: var(--ink); }
+.org-time:focus { outline: none; box-shadow: 0 0 0 3px rgba(47, 86, 200, .25); }
+.org-step { display: flex; align-items: center; background: var(--secondary); border-radius: var(--r-control); flex: none; }
+.org-step button { appearance: none; border: 0; background: none; width: 47px; min-height: 44px; display: grid; place-items: center; cursor: pointer; color: var(--ink); }
+.org-step button:disabled { color: var(--faint); cursor: default; }
+.org-step button svg { width: 16px; height: 16px; stroke-width: 2.4; }
+.org-step i { width: 1px; height: 18px; background: var(--faint); opacity: .5; }
+/* Segmented's minimumScaleFactor(0.8): the three buffer choices shrink before they truncate */
+.org-block .seg button { padding: 0 2px; }
+@media (max-width: 639px) { .org-block .seg button { font-size: 12px; } }
