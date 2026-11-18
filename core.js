@@ -492,7 +492,7 @@ const F = (() => {
     if (tab === "tasks") { const od = todos().filter((t) => !t.done && t.due && D.start(t.due) < today); return ui.countBadge(od.length, od.some((t) => t.fc?.letter === "A")); }
     if (tab === "mail") {   // unread inbox mail, with read/archive/delete done here counted right away
       const q = queue(), seenNow = new Map(), gone = new Set();
-      for (const c of q) { if (c.kind === "mail_seen") seenNow.set(c.mailID, c.on !== false); if (["mail_archive", "mail_trash", "mail_delete", "mail_move"].includes(c.kind)) gone.add(c.mailID); }
+      for (const c of q) { if (c.kind === "mail_seen") seenNow.set(c.mailID, c.on !== false); if (["mail_archive", "mail_trash", "mail_delete", "mail_move"].includes(c.kind)) gone.add(c.mailID); if (c.kind === "mail_junk") (c.mailIDs || []).forEach((x) => gone.add(x)); }
       const n = (S.mail?.messages || []).filter((m) => m.folder === "INBOX" && !gone.has(m.id) && !(seenNow.has(m.id) ? seenNow.get(m.id) : m.seen)).length;
       return ui.countBadge(n, false);
     }
@@ -555,7 +555,36 @@ const F = (() => {
   });
   window.addEventListener("hashchange", () => render());
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && S.creds && Date.now() - S.lastLoad > 60000) refresh(); });
-  setInterval(() => { if (document.visibilityState === "visible" && S.creds && !document.querySelector("dialog[open]")) refresh(); }, 90000);
+  // automatic: every 20 seconds while Mail is showing (new email), every 90 seconds elsewhere
+  let lastAuto = Date.now();
+  setInterval(() => {
+    if (document.visibilityState !== "visible" || !S.creds || document.querySelector("dialog[open]")) return;
+    if (Date.now() - lastAuto >= (S.tab === "mail" ? 20000 : 90000)) { lastAuto = Date.now(); refresh(); }
+  }, 5000);
+
+  /** The Sync now button: reloads at once and asks the iPhone to check mail now; watches up to 2 minutes for its answer. */
+  async function syncNow() {
+    if (S.syncingNow) return;
+    S.syncingNow = true; render();
+    const before = S.mail?.at || 0, snapBefore = snap()?.at || 0;
+    try {
+      await load();
+      if (!DEMO && !queue().some((c) => c.kind === "mail_refresh")) await cmd("mail_refresh");
+      toast("Asked your iPhone for new mail…");
+      const started = Date.now();
+      while (Date.now() - started < 120000) {
+        await new Promise((r) => setTimeout(r, DEMO ? 800 : 8000));
+        await load().catch(() => {});
+        if ((S.mail?.at || 0) > before || (snap()?.at || 0) > snapBefore || DEMO) { toast("Up to date"); return; }
+        render();
+      }
+      toast("Your iPhone hasn't answered yet. It catches up the next time F.R.I.D.A.Y. is open or checks in.");
+    } finally { S.syncingNow = false; render(); }
+  }
+  on("sync-now", () => syncNow());
+  /** The button, for any screen header. */
+  const syncButton = () => ui.btn({ kind: "icon", filled: true, act: "sync-now", aria: "Sync now", title: "Sync now",
+    labelHTML: null, icon: "arrow.triangle.2.circlepath", cls: S.syncingNow ? "is-syncing" : "", disabled: S.syncingNow });
 
   async function refresh() {
     try { await load(); } catch (e) { if (e.message === "need-password" || e.message === "wrong-password") return signOut(); }
@@ -625,7 +654,7 @@ const F = (() => {
     mail: () => S.mail, devices: () => S.devices, status: () => S.status,
     cmd, savePlanner, setPref, writeSection, load, refresh, getFile, putFile, friendly,
     // ui
-    toast, sheet, alert, core, addIcons, icon, render, refreshSheets,
+    toast, sheet, alert, core, addIcons, icon, render, refreshSheets, syncNow, syncButton,
     view, on, onInput, onChange, onSubmit, signOut, boot,
   };
 })();

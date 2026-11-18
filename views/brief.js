@@ -57,7 +57,7 @@
       <div class="v g4 grow">${ui.label2(dateLine)}
         <div class="h g8">${F.icon(ic, 'class="greet-ic"')}<h1 class="t24 w6 ink">${esc(greet)}, ${esc(firstName())}</h1></div>
       </div>
-      ${ui.btn({ icon: "gearshape", kind: "icon", filled: true, act: "brief-settings", aria: "Settings and connections" })}
+      <div class="h g8">${F.syncButton()}${ui.btn({ icon: "gearshape", kind: "icon", filled: true, act: "brief-settings", aria: "Settings and connections" })}</div>
     </div>`;
   }
 

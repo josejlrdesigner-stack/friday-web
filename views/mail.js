@@ -16,6 +16,11 @@
     "chevron.up.chevron.down": '<path d="M8 9l4-4 4 4M8 15l4 4 4-4"/>',
     "checkmark.circle.fill": '<circle cx="12" cy="12" r="9.5" fill="currentColor" stroke="none"/><path d="M7.5 12.3l3 3 6-6.3" stroke="#fff" stroke-width="2.2"/>',
     circle: '<circle cx="12" cy="12" r="9.5"/>',
+    "tray.and.arrow.up": '<path d="M3 13h5l1 2h6l1-2h5v6.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5z"/><path d="M12 3.5v8.5M8.5 7L12 3.5 15.5 7"/>',
+    "hand.raised": '<path d="M8 12.5V6a1.5 1.5 0 0 1 3 0v5M11 10.5V4.5a1.5 1.5 0 0 1 3 0v6M14 11V6a1.5 1.5 0 0 1 3 0v8c0 4-2.5 7-6 7-2.4 0-4-1.2-5.4-3.4l-2-3.4a1.4 1.4 0 0 1 2.3-1.6L8 14.5"/>',
+    "hand.raised.slash": '<path d="M8 12.5V6a1.5 1.5 0 0 1 3 0v5M11 10.5V4.5a1.5 1.5 0 0 1 3 0v6M14 11V6a1.5 1.5 0 0 1 3 0v8c0 4-2.5 7-6 7-2.4 0-4-1.2-5.4-3.4l-2-3.4a1.4 1.4 0 0 1 2.3-1.6L8 14.5"/><path d="M3 3l18 18"/>',
+    "envelope.badge.shield.half.filled": '<path d="M13 19H4.5A1.5 1.5 0 0 1 3 17.5v-11A1.5 1.5 0 0 1 4.5 5h15A1.5 1.5 0 0 1 21 6.5V11"/><path d="M3.5 6l8.5 6 8.5-6"/><path d="M18 13.5l3 1.2V17c0 2-1.3 3.4-3 4-1.7-.6-3-2-3-4v-2.3z"/><path d="M18 13.5V21" />',
+    "arrow.up.right.square": '<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M9.5 14.5l6-6M10 8.5h5.5V14"/>',
   });
 
   // ------------------------------------------------------------ state (CommsView @State)
@@ -28,6 +33,7 @@
     summary: {}, aiError: {}, working: null,
     autoSeen: new Set(), askedBody: new Set(),
     listTop: 0, paneTop: 0, paneFor: null,
+    prefLocal: {},                // junk lists being saved right now (shown before GitHub confirms)
   };
   const PALETTE = ["#6D28D9", "#57534E", "#9D174D", "#3F3F46", "#86198F", "#475569"];
   const ORDER = ["inbox", "sent", "drafts", "archive", "all", "flagged", "junk", "trash"];
@@ -47,16 +53,27 @@
     for (const m of md.messages || []) byId.set(m.id, { ...m, date: D.fromEpoch(m.date), from: m.from || { name: "", email: "(unknown)" }, to: m.to || [], cc: m.cc || [], pending: false });
     const roleName = (aid, role) => folders[aid]?.find((f) => f.role === role)?.name || null;
     const failed = F.snap()?.failed || {};
-    const sending = [], askedFolder = new Set(), askedBody = new Set();
+    const sending = [], askedFolder = new Set(), askedBody = new Set(), pendingUnsub = {};
+    const junkName = (aid) => roleName(aid, "junk") || "Junk";
+    const toJunk = (m) => { if (m) { m.folder = junkName(m.accountID); m.junk = true; m.pending = true; } };
+    const junkFolder = (m) => { const j = roleName(m.accountID, "junk"); return j ? m.folder === j : m.folder.toLowerCase() === "junk"; };
+    for (const m of byId.values()) m.junk = m.junk === true || junkFolder(m);       // MailStore.isInJunk
     for (const c of [...F.queue(), ...M.local]) {
       const m = byId.get(c.mailID);
       switch (c.kind) {
+        case "mail_junk": for (const id of [...(c.mailIDs || []), c.mailID].filter(Boolean)) toJunk(byId.get(id)); break;
+        case "mail_notjunk": for (const id of [...(c.mailIDs || []), c.mailID].filter(Boolean)) { const x = byId.get(id); if (x) { x.folder = "INBOX"; x.junk = false; x.pending = true; } } break;
+        case "mail_unsubscribe": if (m) {
+          const e = m.from.email.toLowerCase();
+          pendingUnsub[e] = pendingUnsub[e] || c.at || F.nowSec();
+          if (c.alsoJunk) for (const x of byId.values()) if (x.from.email.toLowerCase() === e && !x.junk) toJunk(x);
+        } break;
         case "mail_seen": if (m) m.seen = c.on !== false; break;
         case "mail_flag": if (m) { m.flagged = c.on !== false; m.pending = true; } break;
         case "mail_archive": if (m) { const f = roleName(m.accountID, "archive"); if (f) { m.folder = f; m.pending = true; } else byId.delete(c.mailID); } break;
         case "mail_trash": case "mail_delete":
           if (m) { const f = roleName(m.accountID, "trash"); if (c.kind === "mail_trash" && f && f !== m.folder) { m.folder = f; m.pending = true; } else byId.delete(c.mailID); } break;
-        case "mail_move": if (m) { if (!c.accountID || c.accountID === m.accountID) { m.folder = c.folder; m.pending = true; } else byId.delete(c.mailID); } break;
+        case "mail_move": if (m) { if (!c.accountID || c.accountID === m.accountID) { m.folder = c.folder; m.junk = junkFolder(m); m.pending = true; } else byId.delete(c.mailID); } break;
         case "mail_body": askedBody.add(c.mailID); break;
         case "mail_folder": askedFolder.add(c.accountID + "|" + c.folder); break;
         case "mail_create_folder": if (folders[c.accountID] && !folders[c.accountID].some((f) => f.name === c.name)) folders[c.accountID].push({ name: c.name, role: null, pending: true }); break;
@@ -69,7 +86,90 @@
     const failedOther = (F.S.payload?.queue?.value || []).filter((c) => c.kind?.startsWith("mail_") && c.kind !== "mail_send" && c.kind !== "mail_body" && failed[c.id] && F.nowSec() - (c.at || 0) < 86400)
       .map((c) => failed[c.id]);
     const messages = [...byId.values()].sort((a, b) => b.date - a.date);
-    return { md, accounts, folders, messages, byId, bodies: md.bodies || {}, drafts: md.drafts || [], sending, failedSends, failedOther, askedFolder, askedBody, roleName };
+    return { md, accounts, folders, messages, byId, bodies: md.bodies || {}, drafts: md.drafts || [], sending, failedSends, failedOther, askedFolder, askedBody, roleName, pendingUnsub };
+  }
+
+  // ------------------------------------------------------------ junk, blocked senders and unsubscribe (MailStore, bottom)
+  // Lists live in prefs so they sync everywhere: mailBlocked / mailAllowed ("\n"-joined lowercase emails), mailUnsubscribed (JSON {email: epochSeconds}).
+  const pref = (k) => (k in M.prefLocal ? M.prefLocal[k] : F.prefs()[k]);
+  const listOf = (s) => String(s || "").split("\n").map((x) => x.trim().toLowerCase()).filter(Boolean);
+  const mapOf = (s) => { try { const o = JSON.parse(s || "{}"); return o && typeof o === "object" && !Array.isArray(o) ? o : {}; } catch { return {}; } };
+  const blockedSenders = () => listOf(pref("mailBlocked"));
+  const allowedSenders = () => listOf(pref("mailAllowed"));
+  const isBlocked = (email) => { const e = (email || "").toLowerCase(); return !allowedSenders().includes(e) && blockedSenders().includes(e); };
+  /** When he unsubscribed from a sender: the synced list, or an unsubscribe still waiting for the iPhone. */
+  function unsubscribedOn(X, email) {
+    const e = (email || "").toLowerCase(), s = mapOf(pref("mailUnsubscribed"))[e] ?? X?.pendingUnsub?.[e];
+    return s ? new Date(s * 1000) : null;
+  }
+  /** Edit the three lists in one write; the screen shows the change at once. fn gets {blocked, allowed, unsub} to change in place. */
+  async function editLists(fn) {
+    const KEYS = { blocked: "mailBlocked", allowed: "mailAllowed", unsub: "mailUnsubscribed" };
+    const apply = (get) => {
+      const o = { blocked: listOf(get(KEYS.blocked)), allowed: listOf(get(KEYS.allowed)), unsub: mapOf(get(KEYS.unsub)) };
+      const before = { blocked: o.blocked.join("\n"), allowed: o.allowed.join("\n"), unsub: JSON.stringify(o.unsub) };
+      fn(o);
+      const uniq = (l) => [...new Set(l.map((x) => x.toLowerCase()).filter(Boolean))].join("\n");
+      const after = { blocked: uniq(o.blocked), allowed: uniq(o.allowed), unsub: JSON.stringify(o.unsub) };
+      const out = {};
+      for (const k of Object.keys(KEYS)) if (after[k] !== before[k]) out[KEYS[k]] = after[k];
+      return out;
+    };
+    const mine = apply(pref);
+    if (!Object.keys(mine).length) return;
+    Object.assign(M.prefLocal, mine); F.render();
+    try { await F.writeSection("prefs", (v) => { v = v || {}; Object.assign(v, apply((k) => v[k])); return v; }); }
+    catch (e) { F.toast("Couldn't save that: " + F.friendly(e.message)); }
+    finally { for (const [k, v] of Object.entries(mine)) if (M.prefLocal[k] === v) delete M.prefLocal[k]; F.render(); }
+  }
+  /** Never block one of his own account addresses. */
+  const blockable = (X, emails) => { const own = new Set(X.accounts.map((a) => a.email.toLowerCase())); return emails.map((e) => e.toLowerCase()).filter((e) => e.includes("@") && !own.has(e)); };
+  const block = (X, emails) => { const l = blockable(X, emails); if (l.length) return editLists((o) => { o.allowed = o.allowed.filter((e) => !l.includes(e)); o.blocked.push(...l); }); };
+  const unblock = (emails) => { const l = emails.map((e) => e.toLowerCase()); return editLists((o) => { o.blocked = o.blocked.filter((e) => !l.includes(e)); }); };
+  const forgetAllowed = (email) => editLists((o) => { o.allowed = o.allowed.filter((e) => e !== email.toLowerCase()); });
+  const isInJunk = (m) => !!m?.junk;
+  const junkMessages = (X) => X.messages.filter(isInJunk);
+  const senderName = (m) => m.from.name || m.from.email;
+
+  /** Every sender that offers unsubscribe, most mail first. Opened = how many he has read. */
+  function subscriptions(X) {
+    const groups = new Map();
+    for (const m of X.messages) {
+      if (!(m.unsubscribe || "").trim()) continue;
+      const e = m.from.email.toLowerCase();
+      if (!groups.has(e)) groups.set(e, []);
+      groups.get(e).push(m);
+    }
+    return [...groups.entries()].map(([email, ms]) => {
+      const newest = ms.reduce((a, b) => (b.date > a.date ? b : a));
+      return { email, name: newest.from.name || email, count: ms.length, opened: ms.filter((m) => m.seen).length, last: newest.date, sample: newest };
+    }).sort((a, b) => b.count - a.count || b.last - a.last);
+  }
+  /** Mailing lists he gets a lot of and never opens: suggestions only. Nothing happens until he taps. */
+  const junkSuggestions = (X) => subscriptions(X).filter((s) => s.count >= 3 && s.opened === 0 && !unsubscribedOn(X, s.email) && !isBlocked(s.email) && !allowedSenders().includes(s.email));
+
+  /** The links in a List-Unsubscribe header: "<https://…>, <mailto:…>". Only https, http and mailto. */
+  function unsubscribeLinks(header) {
+    const out = [];
+    for (const r of String(header || "").matchAll(/<([^>]*)>/g)) {
+      try { const u = new URL(r[1].trim()); if (["https:", "http:", "mailto:"].includes(u.protocol)) out.push(u); } catch {}
+    }
+    return out;
+  }
+  /** How this email unsubscribes: the iPhone does one-click or the mailto email; otherwise only the sender's own page is left. */
+  function unsubscribePlan(m) {
+    const links = unsubscribeLinks(m.unsubscribe);
+    if (!links.length) return { kind: "none" };
+    const https = links.find((u) => u.protocol === "https:"), mailto = links.find((u) => u.protocol === "mailto:");
+    if ((m.oneClick && https) || mailto) return { kind: "phone" };
+    const page = https || links.find((u) => u.protocol === "http:");
+    return page ? { kind: "page", url: page.href } : { kind: "none" };
+  }
+  /** Only ever opens a web page (https or http), in a new tab that can't reach back. */
+  function openPage(url) {
+    let u; try { u = new URL(url); } catch { return; }
+    if (u.protocol !== "https:" && u.protocol !== "http:") return;
+    window.open(u.href, "_blank", "noopener,noreferrer");
   }
 
   const account = (X, id) => X.accounts.find((a) => a.id === id) || null;
@@ -96,6 +196,7 @@
   function current(X) {
     if (M.query.trim()) return localSearch(X, M.query);
     if (M.folder === "INBOX") {
+      if (M.lane === "Junk") return junkMessages(X).filter((m) => !M.acct || m.accountID === M.acct);
       let list = inboxOf(X).filter((m) => !M.acct || m.accountID === M.acct);
       if (M.lane === "Priority") list = list.filter((m) => !m.isUpdate);
       if (M.lane === "Updates") list = list.filter((m) => m.isUpdate);
@@ -121,16 +222,64 @@
   }
 
   // ------------------------------------------------------------ commands (several in one write, like core's cmd)
-  async function send(list, toastText) {
+  async function send(list, toastText, undo) {
     const cs = list.map(([kind, p]) => ({ id: F.uuid(), at: F.nowSec(), kind, ...p }));
     M.local.push(...cs); M.menu = null; M.swipe = null;
     F.render();
     try {
       const applied = new Set(F.snap()?.applied || []);
       await F.writeSection("queue", (v) => [...(v || []).filter((x) => !applied.has(x.id)), ...cs]);
-      if (toastText) F.toast(toastText);
+      if (toastText) F.toast(toastText, undo ? { undo: () => undo(cs) } : {});
     } catch (e) { F.toast("Couldn't do that: " + F.friendly(e.message)); throw e; }
     finally { M.local = M.local.filter((c) => !cs.includes(c)); F.render(); }
+    return cs;
+  }
+
+  /** MailStore.markJunk: to each account's Junk; block = that sender's future mail goes there too. Undo like the app. */
+  async function markJunk(X, ms, blockSender = false) {
+    const list = ms.filter((m) => !isInJunk(m));
+    if (!list.length) return;
+    const senders = [...new Set(list.map((m) => m.from.email.toLowerCase()))];
+    if (blockSender) block(X, senders);
+    const from = new Map(list.map((m) => [m.id, m.folder]));
+    await send([["mail_junk", { mailIDs: list.map((m) => m.id), block: !!blockSender }]], `Moved ${what(list)} to Junk` + (blockSender ? " · sender blocked" : ""), async (cs) => {
+      const applied = new Set(F.snap()?.applied || []), waiting = cs.filter((c) => !applied.has(c.id)).map((c) => c.id);
+      if (waiting.length) await F.writeSection("queue", (v) => (v || []).filter((c) => !waiting.includes(c.id)));       // the iPhone hasn't moved them yet: take the request back
+      else {                                                                                                            // already moved: bring them back from Junk
+        const Y = model(), back = Y ? Y.messages.filter((m) => isInJunk(m) && list.some((o) => o.accountID === m.accountID && o.messageID && o.messageID === m.messageID)) : [];
+        if (back.length) await send(back.map((m) => ["mail_move", { mailID: m.id, folder: from.get(list.find((o) => o.messageID === m.messageID)?.id) || "INBOX", accountID: m.accountID }]));
+      }
+      if (blockSender) await unblock(senders);
+      F.render();
+    });
+  }
+  /** MailStore.notJunk: back to the inbox; that sender is unblocked and never treated as junk again. */
+  async function notJunk(ms) {
+    if (!ms.length) return;
+    const senders = [...new Set(ms.map((m) => m.from.email.toLowerCase()))];
+    editLists((o) => { o.blocked = o.blocked.filter((e) => !senders.includes(e)); o.allowed.push(...senders); });
+    await send([["mail_notjunk", { mailIDs: ms.map((m) => m.id) }]], ms.length === 1 ? "Moved back to your inbox" : `Moved ${ms.length} emails back to your inbox`);
+  }
+
+  /** UnsubscribeConfirm: the one confirmation, then it happens with no further steps. */
+  async function confirmUnsubscribe(X, m) {
+    const domain = m.from.email.split("@").pop() || "the sender";
+    const r = await F.alert({ title: `Unsubscribe from ${senderName(m)}?`, message: `F.R.I.D.A.Y. asks ${domain} to stop sending you email.`,
+      buttons: [{ label: "Unsubscribe", value: "plain" }, { label: "Unsubscribe and move their mail to Junk", value: "junk" }, { label: "Cancel", kind: "cancel" }] });
+    if (r) await unsubscribe(X, m, r === "junk");
+  }
+  /** The iPhone does one-click or the mailto email (it records the date when it's done). A sender that only takes requests
+   *  on its own page: that page opens here, and the iPhone still records it and moves their mail if asked. */
+  async function unsubscribe(X, m, alsoJunk) {
+    const plan = unsubscribePlan(m), name = senderName(m);
+    if (plan.kind === "none") { F.toast("Couldn't unsubscribe: This email doesn't offer an unsubscribe link."); return; }
+    if (plan.kind === "page") {
+      openPage(plan.url);
+      editLists((o) => { o.unsub[m.from.email.toLowerCase()] = Math.round(F.nowSec()); });
+      await send([["mail_unsubscribe", { mailID: m.id, alsoJunk: !!alsoJunk }]], "Finish unsubscribing on their page");
+      return;
+    }
+    await send([["mail_unsubscribe", { mailID: m.id, alsoJunk: !!alsoJunk }]], `Asking your iPhone to unsubscribe from ${name}…`);
   }
   const quietly = (p) => p.catch(() => {});
   const what = (ms) => (ms.length === 1 ? `“${ms[0].subject}”` : `${ms.length} emails`);
@@ -217,7 +366,7 @@
         ...X.accounts.map((a) => { const n = inboxOf(X).filter((m) => m.accountID === a.id && !m.seen).length; return mi(a.label + (n ? ` (${n} unread)` : ""), "mail-acct", { icon: M.acct === a.id ? "checkmark" : "envelope", data: { id: a.id } }); })];
     }
     if (key === "boxes") {
-      const out = [];
+      const out = [mi("Subscriptions & blocked senders", "mail-subs", { icon: "envelope.badge.shield.half.filled" }), { divider: true }];
       for (const a of X.accounts) {
         const fl = X.folders[a.id] || [];
         out.push({ header: a.label, dot: a.color });
@@ -234,12 +383,19 @@
       return [mi("Inbox", "mail-folder", { icon: "tray", data: { acct: a.id, folder: "INBOX" } }),
         ...primary.map((f) => mi(displayName(f.name), "mail-folder", { icon: roleIcon(f.role), data: { acct: a.id, folder: f.name } })),
         ...(others.length ? [{ header: "More folders" }, ...others.map((f) => mi(f.name, "mail-folder", { data: { acct: a.id, folder: f.name } }))] : []),
-        { divider: true }, mi("New folder…", "mail-new-folder", { icon: "folder.badge.plus", data: { acct: a.id } })];
+        { divider: true }, mi("Subscriptions & blocked senders", "mail-subs", { icon: "envelope.badge.shield.half.filled" }),
+        mi("New folder…", "mail-new-folder", { icon: "folder.badge.plus", data: { acct: a.id } })];
     }
     if (key === "more") {
       const m = X.byId.get(selectedId()); if (!m) return [];
       const b = X.bodies[m.id];
+      const e = m.from.email.toLowerCase();
+      const junk = [...(isInJunk(m) ? [mi("Not Junk", "mail-notjunk", { icon: "tray.and.arrow.up", data: { id: m.id } })]
+          : [mi("Mark as Junk", "mail-junk", { icon: "xmark.bin", data: { id: m.id } }), mi("Junk and block sender", "mail-junk", { icon: "hand.raised", data: { id: m.id, block: 1 } })]),
+        ...(blockedSenders().includes(e) ? [mi(`Unblock ${m.from.email}`, "mail-unblock", { icon: "hand.raised.slash", data: { email: e } })] : []),
+        ...((m.unsubscribe || "").trim() ? [mi("Unsubscribe", "mail-unsub", { icon: "envelope.badge.shield.half.filled", data: { id: m.id } })] : [])];
       return [...(innerWidth < 380 ? [mi("Reply all", "mail-reply", { icon: "arrowshape.turn.up.left.2", data: { all: 1 } })] : []),
+        ...junk, { divider: true },
         mi(m.flagged ? "Unflag" : "Flag", "mail-flag", { icon: "flag", data: { id: m.id } }),
         mi("Mark unread", "mail-unread", { icon: "envelope.badge" }),
         mi("Move to…", "mail-move", { icon: "folder", data: { id: m.id } }),
@@ -250,7 +406,11 @@
       const m = X.byId.get(key.slice(4)); if (!m) return [];
       return [mi("Reply", "mail-row-reply", { data: { id: m.id } }), mi(m.seen ? "Mark unread" : "Mark read", "mail-row-seen", { data: { id: m.id } }),
         mi(m.flagged ? "Unflag" : "Flag", "mail-flag", { data: { id: m.id } }), mi("Move…", "mail-move", { data: { id: m.id, thread: 1 } }),
-        mi("Archive", "mail-row-archive", { data: { id: m.id } }), mi("Delete", "mail-row-delete", { destructive: true, data: { id: m.id } })];
+        mi("Archive", "mail-row-archive", { data: { id: m.id } }), { divider: true },
+        ...(isInJunk(m) ? [mi("Not Junk", "mail-row-notjunk", { icon: "tray.and.arrow.up", data: { id: m.id } })]
+          : [mi("Mark as Junk", "mail-row-junk", { icon: "xmark.bin", data: { id: m.id } }), mi("Junk and block sender", "mail-row-junk", { icon: "hand.raised", data: { id: m.id, block: 1 } })]),
+        ...((m.unsubscribe || "").trim() ? [mi("Unsubscribe", "mail-unsub", { icon: "envelope.badge.shield.half.filled", data: { id: m.id } })] : []),
+        mi("Delete", "mail-row-delete", { destructive: true, data: { id: m.id } })];
     }
     return [];
   }
@@ -277,7 +437,7 @@
     const sw = (act, label, ic, cls) => `<button type="button" class="sw ${cls}" data-act="${act}" data-id="${esc(m.id)}">${icon(ic)}<span>${esc(label)}</span></button>`;
     return `<div class="mrow-wrap ${sel || picked ? "sel" : ""} ${open}" data-id="${esc(m.id)}">
       <div class="swipe l">${sw("mail-row-seen", m.seen ? "Unread" : "Read", m.seen ? "envelope.badge" : "envelope.open", "action")}${sw("mail-row-archive", "Archive", "archivebox", "ink2")}</div>
-      <div class="swipe r">${sw("mail-move", "Move", "folder", "ink2")}${sw("mail-flag", m.flagged ? "Unflag" : "Flag", "flag", "attention")}${sw("mail-row-delete", "Delete", "trash", "danger")}</div>
+      <div class="swipe r">${sw("mail-move", "Move", "folder", "ink2")}${sw("mail-flag", m.flagged ? "Unflag" : "Flag", "flag", "attention")}${isInJunk(m) ? sw("mail-row-notjunk", "Not Junk", "tray.and.arrow.up", "action") : sw("mail-row-junk", "Junk", "xmark.bin", "ink2")}${sw("mail-row-delete", "Delete", "trash", "danger")}</div>
       <button type="button" class="mrow" data-act="mail-row" data-id="${esc(m.id)}" ${M.selecting ? `aria-pressed="${picked}"` : ""}
         aria-label="${esc(`${m.seen ? "" : "Unread. "}From ${display(m.from)}. ${m.subject}. ${timeLabel(m.date)}`)}">
         ${M.selecting ? `<span class="pick ${picked ? "on" : ""}">${icon(picked ? "checkmark.circle.fill" : "circle")}</span>` : ""}
@@ -302,9 +462,10 @@
         <div class="h g8">${ui.btn({ label: "Edit and try again", kind: "primary", act: "mail-retry", data: { id: c.id } })}</div></div>`;
       for (const c of X.sending) h += `<div class="mcard v g8"><div class="h g8">${ui.spinner()}${ui.label2("Sending from your iPhone…")}<span class="sp"></span><span class="t12 muted">${esc(account(X, c.accountID)?.label || "")}</span></div>
         <p class="t15 w5 ell">To: ${esc(c.to)}</p><p class="t15 ink2 ell">${esc(c.subject)}</p></div>`;
-      for (const d of X.drafts) h += `<div class="mcard v g8 ${d.byFriday ? "friday" : ""}"><div class="h g8">${d.byFriday ? ui.fmark(18) : ""}${ui.label2(d.byFriday ? "Friday's draft · not sent" : "Draft · not sent", d.byFriday ? "friday" : "")}<span class="sp"></span><span class="t12 muted">${esc(account(X, d.accountID)?.label || "")}</span></div>
+      if (M.lane !== "Junk") for (const d of X.drafts) h += `<div class="mcard v g8 ${d.byFriday ? "friday" : ""}"><div class="h g8">${d.byFriday ? ui.fmark(18) : ""}${ui.label2(d.byFriday ? "Friday's draft · not sent" : "Draft · not sent", d.byFriday ? "friday" : "")}<span class="sp"></span><span class="t12 muted">${esc(account(X, d.accountID)?.label || "")}</span></div>
         <p class="t15 w5 ell">To: ${esc(d.to)}</p><p class="t15 ink2 ell">${esc(d.subject)}</p>
         <div class="h g8">${ui.btn({ label: "Review & send", kind: "primary", act: "mail-draft-open", data: { id: d.id } })}</div></div>`;
+      if (M.lane !== "Priority") h += junkHelperHTML(X);
     }
     h += ths.map((th) => rowHTML(X, th, th[0].id === sel)).join("");
     if (!cur.length) {
@@ -314,10 +475,24 @@
         : asked ? `Asking your iPhone for ${folderTitle(X)}… It will show here once your iPhone fetches it.`
         : M.lane === "Priority" && M.folder === "INBOX" ? "Nothing from people waiting. Tap All to see everything."
         : M.lane === "Updates" && M.folder === "INBOX" ? "No newsletters or updates right now."
+        : M.lane === "Junk" && M.folder === "INBOX" ? "No junk right now."
         : `No emails in ${folderTitle(X)}.`;
       h += `<p class="mempty t13 muted ${asked && !q ? "h g8" : ""}">${asked && !q ? ui.spinner() : ""}<span>${esc(t)}</span></p>`;
     }
     return h;
+  }
+
+  /** Top of Updates / All / Junk: the mailing lists he never opens (a suggestion, nothing pre-picked), and the way in to manage them. */
+  function junkHelperHTML(X) {
+    const sugg = junkSuggestions(X);
+    if (sugg.length && M.lane !== "Junk") {
+      return `<div class="mcard v g8">${ui.label2("Clean up")}
+        <p class="t15 w6 ink">${sugg.length} mailing list${sugg.length === 1 ? "" : "s"} you never open</p>
+        <p class="t13 muted mclamp2">${esc(sugg.slice(0, 3).map((s) => s.name).join(", ") + (sugg.length > 3 ? " and more" : ""))}</p>
+        ${ui.btn({ label: "Review and unsubscribe", act: "mail-subs" })}</div>`;
+    }
+    if (M.lane !== "All") return `<div class="mjlink">${ui.btn({ label: "Subscriptions & blocked senders", icon: "envelope.badge.shield.half.filled", kind: "link", act: "mail-subs" })}</div>`;
+    return "";
   }
 
   function bulkBar(X) {
@@ -327,6 +502,8 @@
       ${ui.btn({ label: "Read", icon: "envelope.open", kind: "small", act: "mail-bulk-read", disabled: none })}
       ${ui.btn({ label: "Move", icon: "folder", kind: "small", act: "mail-bulk-move", disabled: none })}
       ${ui.btn({ label: "Archive", icon: "archivebox", kind: "small", act: "mail-bulk-archive", disabled: none })}
+      ${M.lane === "Junk" && M.folder === "INBOX" ? ui.btn({ label: "Not Junk", icon: "tray.and.arrow.up", kind: "small", act: "mail-bulk-notjunk", disabled: none })
+        : ui.btn({ label: "Junk", icon: "xmark.bin", kind: "small", act: "mail-bulk-junk", disabled: none })}
       <span class="sp"></span>${ui.btn({ label: "Delete", icon: "trash", kind: "destructive", act: "mail-bulk-delete", disabled: none })}</div>`;
   }
 
@@ -336,6 +513,7 @@
     const header = ui.header({ eyebrow: ui.label2(`${unread} unread`), title: X ? folderTitle(X) : "Mail",
       actions: ui.btn({ icon: "gearshape", kind: "icon", filled: true, act: "mail-settings", aria: "Settings: email accounts and signature" })
         + (hasAccounts ? ui.btn({ label: M.selecting ? "Done" : "Select", act: "mail-select" }) : "")
+        + F.syncButton()
         + ui.btn({ label: "Compose", icon: "square.and.pencil", kind: "primary", act: "mail-compose", aria: "Compose a new email" }) });
     if (!hasAccounts) {
       return `<div class="mhead">${header}</div><div class="mnone v g16">
@@ -351,7 +529,7 @@
       : `${icon("tray.2")}<span class="ell">Mailboxes</span>${icon("chevron.down", 'class="cd"')}`;
     const controls = `<div class="mctl v g8">
       ${ui.search("mail-q", "Search all mail", M.query, "mail-q")}
-      ${M.folder === "INBOX" && !M.query.trim() ? ui.seg("mail-lane", ["Priority", "Updates", "All"], M.lane) : ""}
+      ${M.folder === "INBOX" && !M.query.trim() ? ui.seg("mail-lane", ["Priority", "Updates", "All", "Junk"], M.lane) : ""}
       <div class="flow">${trigger("acct", acctLabel, "", `Account: ${a?.label || "All accounts"}`)}${a ? trigger("chan", chan) : trigger("boxes", chan, "", "Mailboxes: Sent, Trash, Archive and folders")}</div></div>`;
     return `<div class="mhead">${header}</div>${controls}<div class="mlist" id="mail-list">${listHTML(X)}</div>${M.selecting ? bulkBar(X) : ""}`;
   }
@@ -383,6 +561,15 @@
     return `<html><head>${head}</head><body><pre>${esc(text)}</pre></body></html>`;
   }
 
+  /** UnsubscribeBanner: "This message is from a mailing list. Unsubscribe", like Apple Mail. */
+  function unsubscribeBanner(X, m) {
+    if (!(m.unsubscribe || "").trim()) return "";
+    const d = unsubscribedOn(X, m.from.email);
+    return `<div class="munsub h g8">${icon("envelope.badge.shield.half.filled", 'class="mu-ic"')}
+      ${d ? `<span class="t13 ink2 grow">You unsubscribed ${esc(D.md(d))}. It can take a few days for their mail to stop.</span>`
+        : `<span class="t13 ink2 grow">This message is from a mailing list.</span>${ui.btn({ label: "Unsubscribe", kind: "small", act: "mail-unsub", data: { id: m.id } })}`}</div>`;
+  }
+
   function messageHTML(X, m) {
     const a = account(X, m.accountID), b = X.bodies[m.id], asked = X.askedBody.has(m.id) || M.askedBody.has(m.id);
     const narrow = innerWidth < 380;
@@ -412,6 +599,7 @@
         <h2 class="t20 w6 ink wrap msubj">${esc(m.subject)}</h2>
         ${meta("From", formatAddress(m.from))}${meta("To", m.to.map(display).join(", "))}${m.cc.length ? meta("Cc", m.cc.map(display).join(", ")) : ""}
         ${meta("Date", `${m.date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })} at ${D.time(m.date)}`)}
+        ${unsubscribeBanner(X, m)}
         ${b?.attachments?.length ? `<div class="atts" title="Attachments stay on your iPhone">${b.attachments.map((n) => `<span class="att">${icon("paperclip")}<span class="ell">${esc(n)}</span></span>`).join("")}</div>` : ""}
         ${convoHTML}
         ${M.aiError[m.id] ? ui.errorText(M.aiError[m.id]) : ""}
@@ -490,7 +678,7 @@
 
   // ------------------------------------------------------------ swipe actions (touch) + long press / right click = context menu
   let drag = null, suppressClick = false;
-  const OPEN = { l: 148, r: 222 };
+  const OPEN = { l: 148, r: 296 };
   document.addEventListener("pointerdown", (e) => {
     const row = e.target.closest?.("#mail-list .mrow");
     if (!row || M.selecting) return;
@@ -602,6 +790,18 @@
     if (!ok) return;
     endSelect(); await trashAll(X, ms);
   });
+  F.on("mail-bulk-junk", () => { const X = X0(), ms = pickedMessages(X); endSelect(); return markJunk(X, ms); });
+  F.on("mail-bulk-notjunk", () => { const ms = pickedMessages(X0()); endSelect(); return notJunk(ms); });
+
+  // junk, blocked senders and unsubscribe
+  const closeMenus = () => { M.menu = null; M.swipe = null; F.render(); };
+  F.on("mail-row-junk", (el) => { const X = X0(); closeMenus(); return markJunk(X, threadFor(X, el.dataset.id), !!el.dataset.block); });
+  F.on("mail-row-notjunk", (el) => { const X = X0(); closeMenus(); return notJunk(threadFor(X, el.dataset.id)); });
+  F.on("mail-junk", (el) => { const X = X0(), m = X.byId.get(el.dataset.id); closeMenus(); if (!m) return; closeMessage(); return markJunk(X, [m], !!el.dataset.block); });
+  F.on("mail-notjunk", (el) => { const X = X0(), m = X.byId.get(el.dataset.id); closeMenus(); if (!m) return; closeMessage(); return notJunk([m]); });
+  F.on("mail-unblock", (el) => { closeMenus(); return unblock([el.dataset.email]); });
+  F.on("mail-unsub", (el) => { const X = X0(), m = X.byId.get(el.dataset.id); closeMenus(); if (m) return confirmUnsubscribe(X, m); });
+  F.on("mail-subs", () => { closeMenus(); openSubscriptions(); });
 
   // ------------------------------------------------------------ actions: one email
   const selected = () => { const X = X0(); return { X, m: X?.byId.get(selectedId()) }; };
@@ -689,6 +889,142 @@
     await send([["mail_create_folder", { accountID: el.dataset.acct, name: n }]]);
     d?._mailGo?.(el.dataset.acct, n);
   });
+
+  // ------------------------------------------------------------ SubscriptionsView (every mailing list, mass unsubscribe; blocked senders)
+  function openSubscriptions() {
+    if (!X0()) { F.toast("Open F.R.I.D.A.Y. on your iPhone first; it sends your email here."); return; }
+    const st = { page: "Subscriptions", query: "", picked: new Set(), alsoJunk: false, alsoBlock: false, running: false, progress: 0, total: 0, results: [] };
+    const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+    const subs = (X) => { const q = st.query.trim().toLowerCase(); return subscriptions(X).filter((s) => !q || s.name.toLowerCase().includes(q) || s.email.includes(q)); };
+    const subRow = (X, s) => {
+      const on = st.picked.has(s.email), done = unsubscribedOn(X, s.email), blocked = isBlocked(s.email);
+      return `<div class="frow subrow">
+        <button type="button" class="subpick" data-act="subs-pick" data-email="${esc(s.email)}" aria-pressed="${on}">
+          <span class="pick ${on ? "on" : ""}">${icon(on ? "checkmark.circle.fill" : "circle")}</span>
+          <span class="v g2 grow">
+            <span class="t15 w6 ink ell">${esc(s.name)}</span>
+            <span class="t12 muted ell">${esc(s.email)}</span>
+            <span class="t12 ink2 ell">${plural(s.count, "email")} · ${s.opened === 0 ? "never opened" : `${s.opened} opened`} · last ${esc(D.md(s.last))}</span>
+            ${done || blocked ? `<span class="flow g4">${done ? ui.tag(`Unsubscribed ${D.md(done)}`) : ""}${blocked ? ui.tag("Blocked") : ""}</span>` : ""}
+          </span>
+        </button>
+        ${ui.btn({ label: blocked ? "Unblock" : "Block", icon: blocked ? "hand.raised.slash" : "hand.raised", kind: "small", act: blocked ? "subs-unblock" : "subs-block", data: { email: s.email }, aria: `${blocked ? "Unblock" : "Block"} ${s.email}` })}
+      </div>`;
+    };
+    const listHTML = (X) => {
+      const list = subs(X), never = list.filter((s) => s.opened === 0 && !unsubscribedOn(X, s.email));
+      const all = never.length && never.every((s) => st.picked.has(s.email));
+      return `<div class="fsec"><div class="fhead h g8"><span class="grow">${plural(list.length, "sender")} · most mail first</span>
+          ${never.length ? `<button type="button" class="btn link t13 w6 subnever" data-act="subs-never">${all ? "Clear" : `Pick the ${never.length} never opened`}</button>` : ""}</div>
+        <div class="fgroup">${list.length ? list.map((s) => subRow(X, s)).join("")
+          : `<div class="frow"><span class="t15 muted">${esc(st.query.trim() ? `No sender matches “${st.query.trim()}”.` : "No mailing lists in your recent mail.")}</span></div>`}</div>
+        <p class="ffoot">Only senders that offer an unsubscribe are listed. Nothing is picked for you; tap the ones you want gone.</p></div>`;
+    };
+    const blockedHTML = () => {
+      const bl = blockedSenders(), al = allowedSenders();
+      const row = (e, label, act) => `<div class="frow"><span class="lbl t15 ink ell">${esc(e)}</span>${ui.btn({ label, kind: "small", act, data: { email: e } })}</div>`;
+      return `<div class="fsec"><div class="fgroup">${bl.length ? bl.map((e) => row(e, "Unblock", "subs-unblock")).join("")
+          : `<div class="frow"><span class="t15 muted">Nobody is blocked. Use Junk and block sender on an email, or block a sender in Subscriptions.</span></div>`}</div>
+        <p class="ffoot">Mail from blocked senders goes straight to Junk on every device. "Not Junk" on any of their emails unblocks them.</p></div>
+        ${al.length ? `<div class="fsec"><div class="fhead">Never junk</div><div class="fgroup">${al.map((e) => row(e, "Remove", "subs-forget")).join("")}</div>
+          <p class="ffoot">Senders you marked Not Junk. They are never blocked.</p></div>` : ""}`;
+    };
+    const body = () => {
+      const X = X0(); if (!X) return "";
+      return `<div class="narrow v g16">
+        <div class="v g8">${ui.seg("subs-page", ["Subscriptions", "Blocked"], st.page)}
+          ${st.page === "Subscriptions" ? ui.search("subs-q", "Search senders", st.query, "subs-q") : ""}</div>
+        <div class="form" id="subs-list">${st.page === "Subscriptions" ? listHTML(X) : blockedHTML()}</div></div>`;
+    };
+    const resultsHTML = () => {
+      const ok = st.results.filter((r) => r.kind === "done"), pages = st.results.filter((r) => r.kind === "page"), failed = st.results.filter((r) => r.kind === "failed");
+      return `<div class="v g8"><p class="t17 w6 ink">Asked your iPhone to unsubscribe from ${ok.length}</p>
+        ${pages.length ? `<p class="t13 ink2">${plural(pages.length, "sender")} only take${pages.length === 1 ? "s" : ""} requests on their own page. Open each one to finish:</p>
+          <div class="flow">${pages.map((r) => ui.btn({ label: `Finish: ${r.name}`, icon: "arrow.up.right.square", kind: "small", act: "subs-finish", data: { url: r.url } })).join("")}</div>` : ""}
+        ${failed.map((r) => ui.errorText(`${r.name}: ${r.why}`)).join("")}
+        <div>${ui.btn({ label: "Done", act: "subs-results-done" })}</div></div>`;
+    };
+    const foot = () => {
+      if (st.page !== "Subscriptions" || (!st.picked.size && !st.running && !st.results.length)) return "";
+      if (st.running) return `<div class="h g8">${ui.spinner()}<span class="t15 ink">Unsubscribing ${st.progress} of ${st.total}…</span></div>`;
+      if (st.results.length) return resultsHTML();
+      return `<div class="v g8 subfoot">
+        <label class="h g8 subtog"><span class="t15 ink grow">Also move their mail to Junk</span>${ui.switch("", st.alsoJunk, "subs-alsojunk")}</label>
+        <label class="h g8 subtog"><span class="t15 ink grow">Send anything they mail later to Junk</span>${ui.switch("", st.alsoBlock, "subs-alsoblock")}</label>
+        ${ui.btn({ label: `Unsubscribe from ${st.picked.size}`, kind: "primary", wide: true, act: "subs-run" })}</div>`;
+    };
+    const sh = F.sheet({ title: "Subscriptions & junk", trailing: { label: "Done", act: "sheet-close" }, body, foot, id: "mail-subs" });
+    sh.refresh = () => { if (!st.running) sh.update(); };
+    const redraw = () => sh.update();
+
+    async function runAll() {
+      const X = X0(); if (!X) return;
+      const chosen = subscriptions(X).filter((s) => st.picked.has(s.email));
+      st.running = true; st.progress = 0; st.total = chosen.length; st.results = []; redraw();
+      const cmds = [], junkIDs = [], unsubNow = [];
+      for (const s of chosen) {
+        st.progress += 1;
+        const name = s.name;
+        if (unsubscribedOn(X, s.email)) {
+          st.results.push({ name, kind: "done" });
+          if (st.alsoJunk) junkIDs.push(...X.messages.filter((m) => m.from.email.toLowerCase() === s.email && !isInJunk(m)).map((m) => m.id));
+          continue;
+        }
+        const plan = unsubscribePlan(s.sample);
+        if (plan.kind === "none") { st.results.push({ name, kind: "failed", why: "This email doesn't offer an unsubscribe link." }); continue; }
+        cmds.push(["mail_unsubscribe", { mailID: s.sample.id, alsoJunk: st.alsoJunk, block: st.alsoBlock }]);
+        if (plan.kind === "page") { st.results.push({ name, kind: "page", url: plan.url }); unsubNow.push(s.email); }
+        else st.results.push({ name, kind: "done" });
+      }
+      if (junkIDs.length) cmds.push(["mail_junk", { mailIDs: junkIDs }]);
+      redraw();
+      const senders = chosen.map((s) => s.email), own = new Set(blockable(X, senders));
+      const lists = editLists((o) => {
+        for (const e of unsubNow) o.unsub[e] = Math.round(F.nowSec());
+        if (st.alsoBlock) { o.allowed = o.allowed.filter((e) => !own.has(e)); o.blocked.push(...own); }
+      });
+      try { if (cmds.length) await send(cmds); await lists; }
+      catch { st.results = st.results.map((r) => (r.kind === "failed" ? r : { ...r, kind: "failed", why: "Couldn't reach your iPhone's sync. Try again." })); }
+      st.running = false;
+      if (!st.results.length) st.picked.clear();
+      redraw();
+    }
+
+    sh.el._subs = {
+      page(el) { st.page = el.dataset.value; redraw(); },
+      query(el) { st.query = el.value; const X = X0(), l = sh.el.querySelector("#subs-list"); if (X && l) l.innerHTML = listHTML(X); },
+      pick(el) { const e = el.dataset.email; if (st.picked.has(e)) st.picked.delete(e); else st.picked.add(e); redraw(); },
+      never() {
+        const X = X0(), never = subs(X).filter((s) => s.opened === 0 && !unsubscribedOn(X, s.email)).map((s) => s.email);
+        if (never.every((e) => st.picked.has(e))) never.forEach((e) => st.picked.delete(e)); else never.forEach((e) => st.picked.add(e));
+        redraw();
+      },
+      alsoJunk(el) { st.alsoJunk = el.checked; },
+      alsoBlock(el) { st.alsoBlock = el.checked; },
+      async run() {
+        const n = st.picked.size;
+        const ok = await F.alert({ title: `Unsubscribe from ${n} sender${n === 1 ? "" : "s"}?`,
+          message: "F.R.I.D.A.Y. asks each one to stop sending you email." + (st.alsoJunk ? " Their mail moves to Junk." : "") + (st.alsoBlock ? " Anything they send later goes to Junk." : ""),
+          buttons: [{ label: "Unsubscribe", value: true }, { label: "Cancel", kind: "cancel" }] });
+        if (ok) await runAll();
+      },
+      resultsDone() { st.results = []; st.picked.clear(); redraw(); },
+    };
+    return sh;
+  }
+  const SB = (el) => el.closest("dialog")?._subs;
+  F.on("subs-page", (el) => SB(el)?.page(el));
+  F.onInput("subs-q", (el) => SB(el)?.query(el));
+  F.on("subs-pick", (el) => SB(el)?.pick(el));
+  F.on("subs-never", (el) => SB(el)?.never());
+  F.onChange("subs-alsojunk", (el) => SB(el)?.alsoJunk(el));
+  F.onChange("subs-alsoblock", (el) => SB(el)?.alsoBlock(el));
+  F.on("subs-run", (el) => SB(el)?.run());
+  F.on("subs-results-done", (el) => SB(el)?.resultsDone());
+  F.on("subs-finish", (el) => openPage(el.dataset.url));
+  F.on("subs-block", (el) => { const X = X0(); if (X) return block(X, [el.dataset.email]); });
+  F.on("subs-unblock", (el) => unblock([el.dataset.email]));
+  F.on("subs-forget", (el) => forgetAllowed(el.dataset.email));
 
   // ------------------------------------------------------------ ComposeView ("Nothing is sent until you tap Send")
   function openCompose(input = {}) {
@@ -799,5 +1135,6 @@ ${esc(d.body)}</textarea></div>
   F.onChange("mail-c-from", (el) => C(el)?.from(el));
 
   F.openCompose = (draft) => openCompose(draft || {});
+  F.openSubscriptions = () => openSubscriptions();
   F.openMessage = (id) => { location.hash = "mail"; openMessage(id); };
 })();

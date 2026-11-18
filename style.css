@@ -212,7 +212,7 @@ dialog.alert .ab h3 { font-size: 17px; font-weight: 600; }
 dialog.alert .ab p { font-size: 13px; color: var(--ink2); }
 dialog.alert .ab .input { margin-top: 8px; text-align: left; }
 dialog.alert .aa { display: flex; flex-direction: column; border-top: 1px solid var(--hairline); }
-dialog.alert .aa button { appearance: none; border: 0; background: none; min-height: 44px; font-size: 17px; color: var(--action); cursor: pointer; border-top: 1px solid var(--hairline); }
+dialog.alert .aa button { appearance: none; border: 0; background: none; min-height: 44px; padding: 10px 16px; line-height: 1.3; font-size: 17px; color: var(--action); cursor: pointer; border-top: 1px solid var(--hairline); }
 dialog.alert .aa button:first-child { border-top: 0; }
 dialog.alert .aa button.destructive { color: var(--danger); font-weight: 600; }
 dialog.alert .aa button.cancel { font-weight: 600; }
@@ -235,3 +235,6 @@ dialog.alert .aa button.cancel { font-weight: 600; }
 .auth .panel { width: 100%; max-width: 420px; padding: 24px; gap: 16px; }
 .steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; color: var(--ink2); }
 .err { color: var(--attention); font-size: 13px; font-weight: 500; }
+
+/* Sync now: the arrows turn while it waits for the iPhone */
+.btn.is-syncing svg { animation: spin 1s linear infinite; }
