@@ -282,6 +282,7 @@ function todayView() {
   const open = due.filter((x) => !x.done).length;
   return `${header(greet)}
     <p class="muted" style="margin:-8px 0 16px">${fmtDay(now)} · ${open} task${open === 1 ? "" : "s"} today · ${ev.filter((e) => !e.allDay).length} event${ev.length === 1 ? "" : "s"}</p>
+    ${todayLoad()}
     ${aCount > 3 ? `<div class="banner warn" style="margin-bottom:16px"><div class="grow">You have ${aCount} A tasks today. When everything is an A, nothing is. Consider making some of them B.</div></div>` : ""}
     <div class="grid2">
       <section class="card" aria-labelledby="h-today">
@@ -294,6 +295,13 @@ function todayView() {
         <section class="card" aria-labelledby="h-rocks"><h2 id="h-rocks">This week's Big Rocks</h2>${rocksList(p, wk)}</section>
       </div>
     </div>`;
+}
+
+/** Today is more than fits: a suggestion only; nothing moves unless he moves it. */
+function todayLoad() {
+  const c = snap()?.capacity?.[dayKey(new Date())];
+  if (!c || c.n <= c.fits) return "";
+  return `<div class="banner warn" style="margin-bottom:16px"><div class="grow"><b>Today looks overloaded:</b> ${c.n} tasks, about ${c.fits} fit. Consider moving ${c.n - c.fits} of the lowest-priority ones to another day (tap a task to move it).</div></div>`;
 }
 
 function taskList(list, { showLate = false, empty = "Nothing here." } = {}) {
@@ -627,9 +635,11 @@ function newTaskDialog(due) {
 function loadWarning(day) {
   const s = snap(); if (!s) return "";
   const n = todos().filter((t) => !t.done && t.due && dayKey(t.due) === day).length;
-  const fits = s.capacity?.[day];
-  if (fits == null ? n < 8 : n < fits) return "";
-  return `<div class="banner warn small"><div class="grow">${fmtShort(new Date(day + "T00:00"))} already has ${n} task${n === 1 ? "" : "s"}${fits != null ? `; about ${fits} fit` : ""}. Another day may be easier.</div></div>`;
+  const c = s.capacity?.[day];                      // {n, fits, room} from the iPhone's own estimate
+  const full = c ? (n >= c.fits && c.room < 30) : n >= 8;
+  if (!full) return "";
+  const better = Object.entries(s.capacity || {}).filter(([k, v]) => k > day && v.room >= 60).map(([k]) => k).sort()[0];
+  return `<div class="banner warn small"><div class="grow">${fmtShort(new Date(day + "T00:00"))} already has ${n} task${n === 1 ? "" : "s"}${c ? `; about ${c.fits} fit` : ""}, so more may roll over.${better ? ` ${fmtShort(new Date(better + "T00:00"))} has room.` : ""} It's your call.</div></div>`;
 }
 
 function editTaskDialog(id) {
@@ -839,7 +849,7 @@ function demoPayload() {
                { id: "E3", title: "Team check-in", start: at(0, 15), end: at(0, 15, 30), allDay: false, calendar: "Personal" },
                { id: "E4", title: "Kids' soccer practice", start: at(1, 17), end: at(1, 18, 30), allDay: false, calendar: "Family" },
                { id: "E5", title: "Thanksgiving", start: at(8, 0), end: at(9, 0), allDay: true, calendar: "Holidays" }],
-      applied: [], capacity: { [dayKey(t0)]: 6 } } },
+      applied: [], capacity: { [dayKey(t0)]: { n: 5, fits: 4, room: 0 }, [dayKey(addDays(t0, 2))]: { n: 1, fits: 1, room: 240 } } } },
     queue: { stamp: nowSec(), value: [] }, webchat: { stamp: nowSec(), value: [] },
   };
 }
