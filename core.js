@@ -721,5 +721,10 @@ const F = (() => {
     view, on, onInput, onChange, onSubmit, signOut, boot,
   };
 })();
+// Text size dial for this computer only (kept in this browser). Wide screens start one step up.
+F.zoomSteps = [[0.9, "Smaller"], [1, "Normal"], [1.15, "Larger"], [1.3, "Large"], [1.5, "Largest"]];
+F.zoom = () => { let v = NaN; try { v = Number(localStorage.getItem("friday.zoom")); } catch {} return v > 0 ? v : (window.innerWidth >= 1200 ? 1.15 : 1); };
+F.setZoom = (v) => { try { localStorage.setItem("friday.zoom", String(v)); } catch {} document.documentElement.style.zoom = String(v); };
+document.documentElement.style.zoom = String(F.zoom());
 window.F = F;
 document.addEventListener("DOMContentLoaded", () => F.boot());

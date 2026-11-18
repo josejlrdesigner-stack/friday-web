@@ -50,6 +50,12 @@
         ${ui.btn({ label: "Show now", kind: "small", act: "set-ritual-now" })}
         <span class="switch"><input id="set-ritual" type="checkbox" role="switch" data-change="set-ritual" ${F.prefs().ritualOff === "1" ? "" : "checked"}></span>
       </div>
+      <hr class="set-div">
+      <div class="h g16 set-toggle">
+        <label class="v g2 grow" for="set-zoom"><span class="t15 w6 ink">Text size on this computer</span>
+          <span class="t13 muted">Makes everything on the website bigger or smaller. Your browser's ⌘+ and ⌘− work too.</span></label>
+        <select id="set-zoom" data-change="set-zoom">${F.zoomSteps.map(([v, n]) => `<option value="${v}" ${Math.abs(F.zoom() - v) < 0.01 ? "selected" : ""}>${n}</option>`).join("")}</select>
+      </div>
       ${setUp ? `<hr class="set-div">
         <div class="flow">${ui.btn({ label: "Start from zero", kind: "destructive", act: "set-reset" })}</div>
         <p class="t13 muted">Clears values, roles, goals, Big Rocks and setup answers, including anything a starter profile added. Your to-dos and calendar events stay. A backup is saved first.</p>` : ""}
@@ -94,6 +100,7 @@
   F.on("set-calendars", () => (F.openCalendarFilter ? F.openCalendarFilter() : later("Choosing calendars")));
   F.on("set-friday", () => F.openFridaySettings());
   F.on("set-sync", () => openSync());
+  F.onChange("set-zoom", (el) => F.setZoom(Number(el.value)));
   F.onChange("set-ritual", async (el) => {
     try { await F.setPref("ritualOff", el.checked ? "0" : "1"); F.toast(el.checked ? "Morning ritual is on" : "Morning ritual is off"); }
     catch (e) { el.checked = !el.checked; F.toast("Couldn't save that: " + F.friendly(e.message)); }

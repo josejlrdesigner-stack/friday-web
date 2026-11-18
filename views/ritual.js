@@ -11,7 +11,7 @@
   let open = null;
 
   // ------------------------------------------------------------ the data
-  const firstName = () => { const n = String(F.prefs().fromName || "").trim().split(/\s+/)[0]; return n || "Boss"; };
+  const firstName = () => { const n = String(F.prefs().fromName || "").trim().split(/\s+/)[0]; return n || "Jose"; };
   const greeting = (h) => (h < 5 ? "Late night" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : h < 21 ? "Good evening" : "Late night");
   const planner = () => { const p = F.planner() || {}; p.days ||= {}; p.weeks ||= {}; p.midGoals ||= []; p.longGoals ||= []; p.profile ||= {}; return p; };
   const actAsToday = (p, d) => String(p.days[D.key(d)]?.actAs ?? p.actAs ?? "").trim();

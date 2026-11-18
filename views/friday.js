@@ -25,7 +25,7 @@
     session: null, context: "brief", openingHandled: false, lastOpening: null, setupOffered: false, mode: "idle",
   };
   const NO_KEY = "Add your Anthropic API key to use Friday here: tap the gear above, then Claude › API key. It also reaches your iPhone, scrambled.";
-  const SETUP_LINE = "Hi Boss. Your planner isn't set up yet. Want me to walk you through it? Six quick questions, about three minutes. Say yes, or tell me what you need.";
+  const SETUP_LINE = "Hi Jose. Your planner isn't set up yet. Want me to walk you through it? Six quick questions, about three minutes. Say yes, or tell me what you need.";
 
   const stored = () => (F.S.payload?.webchat?.value || []);
   const allLines = () => [...stored(), ...C.local.filter((l) => !stored().some((s) => s.id === l.id))];
@@ -56,7 +56,7 @@
       || "Coach here. Which part do you want to work on: values, roles, the time matrix, or your rules?";
     if (kind === "calendar") return "You're on your calendar. Want to add or move something?";
     if (kind === "mail") return "You're in mail. Want me to read your latest, or find something?";
-    return "What do you need, Boss?";
+    return "What do you need, Jose?";
   }
 
   // ------------------------------------------------------------ greetings (Friday.swift: one per part of the day)
@@ -156,7 +156,7 @@
     const lines = allLines().filter((l) => ["user", "friday", "action", "note"].includes(l.role));
     const sc = C.dlg.querySelector("#fc-scroll");
     const atBottom = sc.scrollHeight - sc.scrollTop - sc.clientHeight < 80;
-    box.innerHTML = (lines.length ? "" : bubble({ role: "friday", text: "Good to see you, Boss. Type below. Ask about your day, or tell me what to add." }))
+    box.innerHTML = (lines.length ? "" : bubble({ role: "friday", text: "Good to see you, Jose. Type below. Ask about your day, or tell me what to add." }))
       + lines.map(bubble).join("")
       + (C.busy ? `<div class="fc-thinking h g8">${ui.spinner()}<span class="label2 friday">Thinking · ${esc(C.who)}</span></div>` : "");
     if (atBottom || C.busy || C.local.length) sc.scrollTop = sc.scrollHeight;
@@ -226,7 +226,7 @@
     setBusy(true, model().short);
     try {
       let reply;
-      if (F.DEMO) { await new Promise((r) => setTimeout(r, 900)); reply = justHi ? "Right here, Boss. What's up?" : "This is the demo. Signed in, I'd answer using your real tasks, calendar, planner and email."; }
+      if (F.DEMO) { await new Promise((r) => setTimeout(r, 900)); reply = justHi ? "Right here, Jose. What's up?" : "This is the demo. Signed in, I'd answer using your real tasks, calendar, planner and email."; }
       else reply = await askClaude(text);
       addLine("friday", reply, { brain: model().short });
     } catch (e) {
@@ -286,10 +286,10 @@
         }
         s.messages = messages;
         const t = content.filter((b) => b.type === "text").map((b) => b.text).join(" ").trim();
-        return t || "Done, Boss.";
+        return t || "Done, Jose.";
       }
       s.messages = messages;
-      return "That took more steps than I expected, Boss. Check the dashboard to see what changed.";
+      return "That took more steps than I expected, Jose. Check the dashboard to see what changed.";
     } catch (e) { s.messages = s.messages.slice(0, start); throw e; }
   }
 
@@ -322,13 +322,13 @@
     const known = facts.length ? facts.map((f) => "- " + f.fact).join("\n") : "(nothing yet)";
     return `You are Claude, made by Anthropic, working as Friday: Jose's personal assistant inside his own app, here on its website, with access to his Apple Calendar, Apple Reminders, his email accounts and his Franklin planner through F.R.I.D.A.Y. on his iPhone. Be yourself: the same thoughtful, warm, curious, quick-witted Claude he talks to in the Claude app. You can talk about anything, not just the app: questions, advice, ideas, writing, thinking out loud. Understand what he means, not just the literal words; use the conversation's context. If he corrects you, take the correction, fix it, and move on; never argue, never repeat the same answer. If something fails twice, say so plainly and offer another way. Never go in circles.
 
-Name: Friday, said like the day. Write it "Friday". When a message starts with "Friday" or "Hey Friday", he's talking to you. If he asks what it stands for: "Female Replacement Intelligent Digital Assistant Youth, Friday for short." Call him "Boss" now and then, the way a person would: a greeting, good news, a heads-up, a bit of warmth. Roughly one reply in four; never twice in a row, never as the first word every time. "Jose" works too. Light, dry wit when it fits; accuracy always wins.
+Name: Friday, said like the day. Write it "Friday". When a message starts with "Friday" or "Hey Friday", he's talking to you. If he asks what it stands for: "Female Replacement Intelligent Digital Assistant Youth, Friday for short." Call him Jose, by name, now and then the way a person would (a greeting, good news, a bit of warmth); never call him "Boss" or any other nickname. "Jose" works too. Light, dry wit when it fits; accuracy always wins.
 
 Writing: this is the website, text only; he reads your replies in a chat. Write naturally, in plain sentences: no markdown, no bullet symbols, no tables, no emoji. Usually one to four sentences; go longer when he asks for detail or when you're coaching him through planning, and then take it one step and one question at a time.
 
 Acting: when he asks you to do something, do it with your tools right away. No permission needed to add, change, move, complete, prioritize, schedule or file things. Changes made here are sent to F.R.I.D.A.Y. on his iPhone, which applies them within a minute while it's open; say so only if he asks why something hasn't shown up yet. Only two things need his explicit yes: sending an email (always show the draft first, see below) and permanently deleting an email or a calendar event (one short check, then act on his yes immediately). Never say something changed unless a tool confirmed it; if you haven't checked, check before you answer. Read with tools instead of guessing. Use his own wording for to-do titles; you may suggest to-dos, but add them only once he agrees. Default to-do list "Task Dump", default calendar "Jose". Dates are YYYY-MM-DD or YYYY-MM-DDTHH:MM local time.
 
-Greetings: only when the message includes a [GREETING DUE] note. Then a short greeting for the time of day with one honest take on his day, using the DAY LOAD label from daily_brief exactly (a holiday never makes a day busy; one long meeting isn't a messy day). On his birthday open with "Happy birthday, Boss!"; mention anniversaries and holidays coming up when the note lists them. Without the note, don't greet; just answer.
+Greetings: only when the message includes a [GREETING DUE] note. Then a short greeting for the time of day with one honest take on his day, using the DAY LOAD label from daily_brief exactly (a holiday never makes a day busy; one long meeting isn't a messy day). On his birthday open with "Happy birthday, Jose!"; mention anniversaries and holidays coming up when the note lists them. Without the note, don't greet; just answer.
 
 Day overviews ("what's my day look like", "brief me", "what's tomorrow"): call daily_brief and cover, in order, what's next, events, to-dos (lead with his A priorities), then email. Size the day with its DAY LOAD label, never stronger. For email go through the newest messages one at a time in the same three parts: who it's from, the subject, then a one-line overview in your own words ("You have an email from Lucille's Bistro. Subject: Let's grab lunch. Overview: John's asking if you're free next week."), then "Next, ...". If more remain, say how many and ask "Want me to keep going?"; on yes, call list_emails with the offset and continue.
 
@@ -354,7 +354,7 @@ This conversation started ${new Date().toLocaleDateString("en-US", { weekday: "l
   const tool = (name, description, properties, required = []) => ({ name, description, input_schema: { type: "object", properties, required } });
   const S_ = { type: "string" }, I_ = { type: "integer" }, B_ = { type: "boolean" };
   const TOOLS = [
-    tool("remember", "Save a lasting fact or preference about Boss for future conversations.", { fact: S_ }, ["fact"]),
+    tool("remember", "Save a lasting fact or preference about Jose for future conversations.", { fact: S_ }, ["fact"]),
     tool("planner_get", "Read the Franklin planner for a day: mission, governing values, goals, roles, this week's Big Rocks, Sharpen the Saw, the Act As card, the daily record, the prioritized ABC-123 daily task list (with ids, quadrant, role, status), the master task list and the calendar. Call this before any planning, prioritizing or close-out.", {
       date: { type: "string", description: "YYYY-MM-DD. Default today." } }),
     tool("planner_update_task", "Change one to-do's Franklin details and/or close it out. Use for prioritizing (A1, B2…), quadrant, role, Big Rock, goal link, and the end-of-day status marks.", {
@@ -375,9 +375,9 @@ This conversation started ${new Date().toLocaleDateString("en-US", { weekday: "l
     tool("create_mail_folder", "Create a new email folder (mailbox) in an account.", { name: S_, account: { type: "string", description: "Account label or address. Default the first account." } }, ["name"]),
     tool("daily_brief", "Everything for one day in one call: next up, the day's events, to-dos (due, overdue, flagged, done) and email (unread, newest from people, drafts). Use this for any day overview or rundown.", {
       date: { type: "string", description: "YYYY-MM-DD. Default today." } }),
-    tool("get_schedule", "Read Boss's calendar. Returns events with an id in brackets.", {
+    tool("get_schedule", "Read Jose's calendar. Returns events with an id in brackets.", {
       start_date: { type: "string", description: "First day, YYYY-MM-DD. Default today." }, days: { type: "integer", description: "Number of days to include, 1-31. Default 1." } }),
-    tool("list_todos", "Read Boss's open to-dos from Apple Reminders. Returns items with an id in brackets.", {
+    tool("list_todos", "Read Jose's open to-dos from Apple Reminders. Returns items with an id in brackets.", {
       filter: { type: "string", enum: ["all", "today", "overdue", "week", "important", "done"], description: "Which to-dos. 'done' = finished today." },
       list: { type: "string", description: "Optional Reminders list name." } }),
     tool("delete_todo", "Remove a to-do from Apple Reminders entirely. Use when he says delete/remove/get rid of a to-do.", { todo_id: S_, title: { type: "string", description: "Part of the to-do's title." } }),
@@ -391,8 +391,8 @@ This conversation started ${new Date().toLocaleDateString("en-US", { weekday: "l
       all_day: B_, calendar: { type: "string", description: "Calendar name. Default 'Jose'." }, location: S_ }, ["title", "start"]),
     tool("move_event", "Reschedule one event. Get event_id from get_schedule first.", {
       event_id: S_, new_start: { type: "string", description: "YYYY-MM-DDTHH:MM local time." }, new_end: { type: "string", description: "Optional; default keeps the same length." } }, ["event_id", "new_start"]),
-    tool("delete_event", "Delete one event. Only after Boss has clearly confirmed which event to delete.", { event_id: S_ }, ["event_id"]),
-    tool("list_emails", "List inbox emails across all of Boss's connected accounts, newest first, read or unread. Returns ids in brackets and how many more remain.", {
+    tool("delete_event", "Delete one event. Only after Jose has clearly confirmed which event to delete.", { event_id: S_ }, ["event_id"]),
+    tool("list_emails", "List inbox emails across all of Jose's connected accounts, newest first, read or unread. Returns ids in brackets and how many more remain.", {
       filter: { type: "string", enum: ["all", "unread", "priority", "updates", "flagged"], description: "all = everything in the inbox, newest first (default). priority = unread from people." },
       account: { type: "string", description: "Optional account label or address." }, limit: { type: "integer", description: "How many, default 5." },
       offset: { type: "integer", description: "Skip this many to continue a list (5, 10, …)." } }),
@@ -401,10 +401,10 @@ This conversation started ${new Date().toLocaleDateString("en-US", { weekday: "l
       to: { type: "string", description: "Recipients for a new email." }, cc: S_, subject: S_,
       body: { type: "string", description: "Plain text in Jose's voice, signed 'Jose'." }, reply_to_email_id: { type: "string", description: "Set to reply to an email from list_emails." },
       reply_all: B_, account: { type: "string", description: "Which account to send from (label or address)." } }, ["body"]),
-    tool("update_draft", "Change an existing draft after Boss asks for edits (body, subject, recipients). Returns the new version to read back. Never create a second draft for edits.", {
+    tool("update_draft", "Change an existing draft after Jose asks for edits (body, subject, recipients). Returns the new version to read back. Never create a second draft for edits.", {
       draft_id: S_, body: { type: "string", description: "The full new message text." }, subject: S_, to: S_, cc: S_ }, ["draft_id"]),
-    tool("discard_draft", "Throw away a draft Boss doesn't want.", { draft_id: S_ }, ["draft_id"]),
-    tool("send_email", "Send a saved draft. Only call after Boss has seen the latest version in full and explicitly said to send it.", { draft_id: S_ }, ["draft_id"]),
+    tool("discard_draft", "Throw away a draft Jose doesn't want.", { draft_id: S_ }, ["draft_id"]),
+    tool("send_email", "Send a saved draft. Only call after Jose has seen the latest version in full and explicitly said to send it.", { draft_id: S_ }, ["draft_id"]),
     tool("archive_email", "Archive one email.", { email_id: S_ }, ["email_id"]),
     tool("delete_email", "Move one email to the trash.", { email_id: S_ }, ["email_id"]),
     tool("mark_email", "Mark one email read, unread, flag or unflag.", { email_id: S_, state: { type: "string", enum: ["read", "unread", "flag", "unflag"] } }, ["email_id", "state"]),
@@ -494,7 +494,7 @@ This conversation started ${new Date().toLocaleDateString("en-US", { weekday: "l
   // the irreversible ones wait for his plain yes in his latest message (Tools.swift: delete_event, delete_email, send_email)
   const APPROVE = /\b(yes|yeah|yep|yup|sure|go ahead|do it|send it|send|confirm|ok|okay|please do|delete it|delete|remove it|remove|cancel it|trash it)\b/i;
   const approved = () => APPROVE.test(C.lastUser || "") && !/\b(don'?t|do not|never|not yet|wait|hold on)\b/i.test(C.lastUser || "");
-  const notYet = (summary) => `NOT DONE YET. This needs Boss's yes first. Ask him: "${summary}?" and wait. Do not say it's done.`;
+  const notYet = (summary) => `NOT DONE YET. This needs Jose's yes first. Ask him: "${summary}?" and wait. Do not say it's done.`;
 
   // planner helpers
   const SAW = ["Physical", "Social / Emotional", "Mental", "Spiritual"];

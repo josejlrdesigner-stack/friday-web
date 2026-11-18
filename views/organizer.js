@@ -475,7 +475,7 @@
     const rocks = week(d).rocks.filter((r) => !r.done);
     const g = d.midGoals[d.midGoals.length - 1] || d.longGoals[d.longGoals.length - 1];
     return `<div class="v g16">
-      <div class="v g8">${icon("checkmark.circle.fill", 'class="org-bigcheck"')}<h2 class="t24 w6 ink">You're set up, Boss</h2>
+      <div class="v g8">${icon("checkmark.circle.fill", 'class="org-bigcheck"')}<h2 class="t24 w6 ink">You're set up, Jose</h2>
         <p class="t15 ink2">${esc(profileName ? `Started from the ${profileName} profile. Change anything later in the Organizer.` : "Built from your answers. Change anything later in the Organizer.")}</p></div>
       ${block("What you have now", summaryRow("heart", `${d.values.length} governing value${d.values.length === 1 ? "" : "s"}`, d.values.slice(0, 4).map((v) => v.title).join(", "))
         + summaryRow("person.2", `${d.roles.length} role${d.roles.length === 1 ? "" : "s"}`, d.roles.map((r) => r.name).join(", "))
