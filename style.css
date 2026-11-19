@@ -48,7 +48,7 @@
   /* spacing scale (Layout.swift): every padding, margin and gap is one of these */
   --sp-4: 4px; --sp-8: 8px; --sp-12: 12px; --sp-16: 16px; --sp-24: 24px; --sp-32: 32px; --sp-48: 48px;
   --gutter: 16px;            /* red line: 16 phone, 24 tablet, 32 sidebar layout (Design System v2 §2) */
-  --frame: 1200px;           /* content max width, LEFT-aligned on the left red line (no centering) */
+  --frame: 100%;             /* content fills the window between the red lines (Jose 2026-11-18) */
   --card-gap: 12px; --section-gap: 24px; --btn-gap: 8px; --page-top: 16px;
   --sidebar: clamp(220px, 18vw, 264px);
   --tabbar: 73px;            /* the real bar: 8 + 56 + 8 + 1 (safe area added separately) */

@@ -162,6 +162,12 @@
     return { title: "You're on track", detail: today.planned ? "Today is planned. Work your A's first; your deep-work block is for A1." : "Planning tomorrow tonight makes the morning easier.",
              button: "See my A's", go: "day" };
   }
+  // the phone's own sync problem (it travels in the mail file, which gets through when the main file doesn't)
+  function phoneSyncBanner() {
+    const e = F.mail?.()?.syncError;
+    if (!e) return "";
+    return `<section class="card attention p16 v g8"><span class="label2 c-attention">Your iPhone has a sync problem</span><p class="t15 ink2">${F.esc(e)}</p><p class="t13 muted">Open F.R.I.D.A.Y. on the iPhone › Settings › Sync to fix it. Changes made here may not reach the phone until then.</p></section>`;
+  }
   function guideCard(now) {
     const p = F.planner();
     const setUp = F.prefs().plannerSetupDone === "1" && (p?.values || []).length > 0 && (p?.roles || []).length > 0;
@@ -432,7 +438,7 @@
       }
       const now = new Date();
       const b = buckets(), ms = mailState();
-      const top = header(now) + accessBanner() + K().failedCard([...K().TODO_KINDS, ...K().EVENT_KINDS]);   // the coaching card sits below the core cards (mockup)
+      const top = header(now) + phoneSyncBanner() + accessBanner() + K().failedCard([...K().TODO_KINDS, ...K().EVENT_KINDS]);   // the coaching card sits below the core cards (mockup)
       // compact branch (one column, the app's iPhone order): First thing · Next up · Inbox · Day load · Big Rocks, then the rest
       const compact = `<div class="v cgap only-compact">
           ${firstThing()}<div class="pair">${nextUpCard(now)}${inboxCard(ms)}</div>${dayLoadCard(now, 104, b, ms)}${bigRocksCard(now)}${guideCard(now)}${todoPanel(b)}${commsSummary(ms, true)}${todayPanel(now)}${weekPanel(now)}
