@@ -104,7 +104,8 @@
     const inTrash = (m) => { const t = roleName(m.accountID, "trash"); return !!t && m.folder === t; };
     // the junk lists (prefs, written by the iPhone), with his pending changes laid over them
     const p = F.prefs();
-    const lists = { blocked: listOf(p.mailBlocked), allowed: listOf(p.mailAllowed), unsub: mapOf(p.mailUnsubscribed) };
+    const lists = { blocked: listOf(p.mailBlocked), allowed: listOf(p.mailAllowed), unsub: mapOf(p.mailUnsubscribed),
+      tally: mapOf(p.mailJunkTally), filter: mapOf(p.mailJunkFilter) };
     const own = new Set(accounts.map((a) => a.email.toLowerCase()));
     const lc = (e) => String(e || "").toLowerCase();
     const blockE = (e) => { e = lc(e); if (!e.includes("@") || own.has(e)) return; lists.allowed = lists.allowed.filter((x) => x !== e); if (!lists.blocked.includes(e)) lists.blocked.push(e); };
@@ -260,12 +261,11 @@
     if (M.query.trim()) return localSearch(X, M.query);
     let list = [];
     if (M.folder === "INBOX") {
-      if (M.lane === "Junk") list = junkMessages(X).filter((m) => !M.acct || m.accountID === M.acct);
-      else {
-        list = inboxOf(X).filter((m) => !M.acct || m.accountID === M.acct);
-        if (M.lane === "Priority") list = list.filter((m) => !m.isUpdate);
-        if (M.lane === "Updates") list = list.filter((m) => m.isUpdate);
-      }
+      list = inboxOf(X).filter((m) => !M.acct || m.accountID === M.acct);
+      if (M.lane === "Priority") list = list.filter((m) => !m.isUpdate);
+      if (M.lane === "Updates") list = list.filter((m) => m.isUpdate);
+    } else if (boxRole()) {
+      list = roleMessages(X, boxRole()).filter((m) => !M.acct || m.accountID === M.acct);
     } else if (M.acct) list = X.messages.filter((m) => m.accountID === M.acct && m.folder === M.folder);
     if (M.show === "Unread only") list = list.filter((m) => !m.seen);
     if (M.show === "Flagged only") list = list.filter((m) => m.flagged);
@@ -273,8 +273,16 @@
   }
   /** The rows on screen, top to bottom (one per conversation). */
   const visibleIds = (X) => threads(current(X)).map((t) => t[0].id);
+  /** "@sent" / "@junk" / "@trash": that box in every account at once (CommsView.boxRole). */
+  const boxRole = () => (M.folder.startsWith("@") ? M.folder.slice(1) : null);
+  const BOX = { sent: "Sent", junk: "Junk", trash: "Trash" };
+  function roleMessages(X, role) {
+    if (role === "junk") return junkMessages(X);
+    return X.messages.filter((m) => m.folder === X.roleName(m.accountID, role)).sort((a, b) => b.date - a.date);
+  }
   function folderTitle(X) {
     if (M.folder === "INBOX") return "Mail";
+    if (boxRole()) return BOX[boxRole()] || boxRole();
     for (const a of X.accounts) { const f = X.folders[a.id]?.find((x) => x.name === M.folder); if (f) return displayName(f.name); }
     return M.folder;
   }
@@ -446,8 +454,16 @@
         ...X.accounts.map((a) => { const n = inboxOf(X).filter((m) => m.accountID === a.id && !m.seen).length; return mi(a.label + (n ? ` (${n} unread)` : ""), "mail-acct", { icon: M.acct === a.id ? "checkmark" : "envelope", data: { id: a.id } }); })];
     }
     if (key === "boxes") {
-      const out = [mi("Subscriptions & blocked senders", "mail-subs", { icon: "envelope.badge.shield.half.filled" }), { divider: true }];
+      // on top: Inbox, Sent, Junk, Trash for every account at once (or the one picked); then each account's folders
+      const one = account(X, M.acct);
+      const out = [{ header: one ? `In ${one.label}` : "Every account" },
+        ...[["INBOX", "Inbox", "tray"], ["@sent", "Sent", "paperplane"], ["@junk", "Junk", "xmark.bin"], ["@trash", "Trash", "trash"]]
+          .map(([b, t, ic]) => mi(t, "mail-box", { icon: M.folder === b ? "checkmark" : ic, data: { box: b } })),
+        { divider: true }];
+      if (one) out.push(mi("New folder…", "mail-new-folder", { icon: "folder.badge.plus", data: { acct: one.id } }));
+      out.push(mi("Unsubscribe & block", "mail-subs", { icon: "envelope.badge.shield.half.filled" }), { divider: true });
       for (const a of X.accounts) {
+        if (one && a.id !== one.id) continue;
         const fl = X.folders[a.id] || [];
         out.push({ header: a.label, dot: a.color });
         out.push(mi("Inbox", "mail-folder", { icon: "tray", data: { acct: a.id, folder: "INBOX" } }));
@@ -463,7 +479,7 @@
       return [mi("Inbox", "mail-folder", { icon: "tray", data: { acct: a.id, folder: "INBOX" } }),
         ...primary.map((f) => mi(displayName(f.name), "mail-folder", { icon: roleIcon(f.role), data: { acct: a.id, folder: f.name } })),
         ...(others.length ? [{ header: "More folders" }, ...others.map((f) => mi(f.name, "mail-folder", { data: { acct: a.id, folder: f.name } }))] : []),
-        { divider: true }, mi("Subscriptions & blocked senders", "mail-subs", { icon: "envelope.badge.shield.half.filled" }),
+        { divider: true }, mi("Unsubscribe & block", "mail-subs", { icon: "envelope.badge.shield.half.filled" }),
         mi("New folder…", "mail-new-folder", { icon: "folder.badge.plus", data: { acct: a.id } })];
     }
     if (key === "more") {
@@ -500,7 +516,7 @@
         mi("Mark unread", "mail-bulk-unread", { icon: "envelope.badge" }),
         mi("Flag", "mail-bulk-flag", { icon: "flag", data: { on: 1 } }),
         mi("Unflag", "mail-bulk-flag", { icon: "flag.slash", data: { on: 0 } }),
-        ...(M.lane === "Junk" && M.folder === "INBOX" ? [] : [mi("Junk and block senders", "mail-bulk-junkblock", { icon: "hand.raised" })])];
+        ...(boxRole() === "junk" ? [] : [mi("Junk and block senders", "mail-bulk-junkblock", { icon: "hand.raised" })])];
     }
     if (key.startsWith("row:")) {
       const m = X.byId.get(key.slice(4)); if (!m) return [];
@@ -523,8 +539,14 @@
     if (D.same(d, D.add(today, -1))) return "Yesterday";
     return D.md(d);
   }
+  /** Sent box: who it went TO (CommsView.MessageRow.sent). */
+  function sentTo(m) {
+    const names = [...(m.to || []), ...(m.cc || [])].map((a) => a.name || a.email);
+    return "To: " + (names.length ? names.slice(0, 2).join(", ") + (names.length > 2 ? ` +${names.length - 2}` : "") : "(no recipient)");
+  }
   function initials(m) {
-    const parts = display(m.from).split(/[^\p{L}]+/u).filter(Boolean).slice(0, 2);
+    const first = boxRole() === "sent" && m.to?.[0] ? { name: m.to[0].name, email: m.to[0].email } : m.from;
+    const parts = display(first).split(/[^\p{L}]+/u).filter(Boolean).slice(0, 2);
     return parts.map((p) => p[0]).join("").toUpperCase() || "?";
   }
   // account: a neutral tag; the account colour only as the 8px dot
@@ -544,7 +566,7 @@
         ${M.selecting ? `<span class="mpickcol" aria-hidden="true"></span><span class="pick ${picked ? "on" : ""}">${icon(picked ? "checkmark.circle.fill" : "circle")}</span>` : ""}
         <span class="av">${esc(initials(m))}</span>
         <span class="v g2 grow">
-          <span class="h g8"><span class="from ell ${unread ? "w6" : ""}">${esc(display(m.from))}</span>
+          <span class="h g8"><span class="from ell ${unread ? "w6" : ""}">${esc(boxRole() === "sent" ? sentTo(m) : display(m.from))}</span>
             ${th.length > 1 ? `<span class="cnt">${th.length}</span>` : ""}${m.flagged ? `<span class="flag">${icon("flag.fill")}</span>` : ""}
             <span class="sp"></span><span class="time nowrap">${esc(timeLabel(m.date))}</span>${unread ? '<i class="udot"></i>' : ""}</span>
           <span class="subj ${m.seen ? "ink2" : "ink"}">${esc(m.subject)}</span>
@@ -566,36 +588,69 @@
     if (M.folder === "INBOX" && !M.query.trim()) {
       for (const c of X.sending) h += `<div class="mcard v g8"><div class="h g8">${ui.spinner()}${ui.label2("Sending from your iPhone…")}<span class="sp"></span><span class="t12 muted">${esc(account(X, c.accountID)?.label || "")}</span></div>
         <p class="t15 w5 ell">To: ${esc(c.to)}</p><p class="t15 ink2 ell">${esc(c.subject)}</p></div>`;
-      if (M.lane !== "Junk") for (const d of X.drafts) h += `<div class="mcard v g8 ${d.byFriday ? "friday" : ""}"><div class="h g8">${d.byFriday ? ui.fmark(18) : ""}${ui.label2(d.byFriday ? "Friday's draft · not sent" : "Draft · not sent", d.byFriday ? "friday" : "")}<span class="sp"></span><span class="t12 muted">${esc(account(X, d.accountID)?.label || "")}</span></div>
+      for (const d of X.drafts) h += `<div class="mcard v g8 ${d.byFriday ? "friday" : ""}"><div class="h g8">${d.byFriday ? ui.fmark(18) : ""}${ui.label2(d.byFriday ? "Friday's draft · not sent" : "Draft · not sent", d.byFriday ? "friday" : "")}<span class="sp"></span><span class="t12 muted">${esc(account(X, d.accountID)?.label || "")}</span></div>
         <p class="t15 w5 ell">To: ${esc(d.to)}</p><p class="t15 ink2 ell">${esc(d.subject)}</p>
         ${ui.actbar([ui.btn({ label: "Discard", kind: "small", act: "mail-draft-discard", data: { id: d.id }, aria: `Discard the draft ${d.subject || ""}` }), ui.btn({ label: "Review & send", kind: "small", cls: "tinted", act: "mail-draft-open", data: { id: d.id } })])}</div>`;
       if (M.lane !== "Priority") h += junkHelperHTML(X);
     }
+    if (!M.query.trim() && (boxRole() === "junk" || boxRole() === "trash")) h += boxCardHTML(X, boxRole(), cur.length);
     h += ths.map((th) => rowHTML(X, th, th[0].id === sel)).join("");
     if (!cur.length) {
       const q = M.query.trim();
-      const asked = M.acct && X.askedFolder.has(M.acct + "|" + M.folder);
+      const asked = boxRole() ? X.accounts.some((a) => { const f = X.roleName(a.id, boxRole()); return f && X.askedFolder.has(a.id + "|" + f); })
+        : M.acct && X.askedFolder.has(M.acct + "|" + M.folder);
       const t = q ? `No mail matches “${q}”.`
         : asked ? `Asking your iPhone for ${folderTitle(X)}… It will show here once your iPhone fetches it.`
         : M.lane === "Priority" && M.folder === "INBOX" ? "Nothing from people waiting. Tap All to see everything."
         : M.lane === "Updates" && M.folder === "INBOX" ? "No newsletters or updates right now."
-        : M.lane === "Junk" && M.folder === "INBOX" ? "No junk right now."
+        : boxRole() === "junk" ? "No junk right now."
+        : boxRole() === "trash" ? "Trash is empty."
         : `No emails in ${folderTitle(X)}.`;
       h += `<p class="mempty t13 muted ${asked && !q ? "h g8" : ""}">${asked && !q ? ui.spinner() : ""}<span>${esc(t)}</span></p>`;
     }
     return h;
   }
 
+  /** Top of Junk and Trash (CommsView.boxCard): a visible Empty button; Junk adds the shield (JunkShieldCard):
+   *  what was kept out of the inbox (mailJunkTally, real counts) and how far Friday's filter has learned (mailJunkFilter). */
+  function boxCardHTML(X, role, n) {
+    const a = account(X, M.acct);
+    const empty = n ? ui.btn({ label: `Empty ${BOX[role]}`, kind: "destructive", act: "mail-empty", data: { role } }) : "";
+    if (role === "trash") {
+      if (!n) return "";
+      return `<div class="mcard v g8 sec-mail"><div class="h g8">${ui.label2("Trash")}<span class="sp"></span><span class="t12 muted">${n} email${n === 1 ? "" : "s"}</span></div>
+        <p class="t15 ink2">Emptying deletes these for good on the server${a ? ` for ${esc(a.label)}` : ", in every account"}.</p>${ui.actbar([empty])}</div>`;
+    }
+    const t = X.lists.tally || {}, days = t.days || {}, f = X.lists.filter || {};
+    const cut = new Date(); cut.setHours(0, 0, 0, 0); cut.setDate(cut.getDate() - 6);
+    let ws = 0, wf = 0, as = 0, af = 0;
+    for (const [k, d] of Object.entries(days)) {
+      const [y, mo, da] = k.split("-").map(Number), dt = new Date(y, mo - 1, da);
+      as += d.service || 0; af += d.friday || 0;
+      if (dt >= cut) { ws += d.service || 0; wf += d.friday || 0; }
+    }
+    const since = t.since ? new Date(t.since * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "today";
+    const nS = f.nSpam || 0, nH = f.nHam || 0, ready = nS >= 15 && nH >= 25;
+    const learn = ready ? "Friday's filter is on: it moves junk it's sure about, never mail from people you've written to. It keeps learning from every Junk and Not Junk you tap."
+      : `Friday's filter is learning: ${nS} junk and ${nH} real emails so far. It starts moving junk on its own after 15 and 25. Tap Junk or Not Junk to teach it.`;
+    return `<div class="mcard v g8 sec-mail jshield"><div class="h g8">${ui.label2("Junk shield")}<span class="sp"></span><span class="t12 muted">Since ${esc(since)}</span></div>
+      <p class="h g8 base"><span class="t-stat ink tnum">${ws + wf}</span><span class="t15 ink2">kept out of your inbox this week</span></p>
+      <p class="flow g12 t13 ink2"><span class="h g4"><i class="dot d8" style="background:var(--sec)"></i><b class="ink tnum">${as}</b> by your mail services</span>
+        <span class="h g4"><i class="dot d8" style="background:var(--action)"></i><b class="ink tnum">${af}</b> by Friday</span></p>
+      <p class="t13 muted">${esc(learn)}</p>
+      ${ui.actbar([ui.btn({ label: "Blocked senders", act: "mail-subs" }), empty])}</div>`;
+  }
+
   /** Top of Updates / All / Junk: the mailing lists he never opens (a suggestion, nothing pre-picked), and the way in to manage them. */
   function junkHelperHTML(X) {
     const sugg = junkSuggestions(X);
-    if (sugg.length && M.lane !== "Junk") {
+    if (sugg.length) {
       return `<div class="mcard v g8">${ui.label2("Clean up")}
         <p class="t15 w6 ink">${sugg.length} mailing list${sugg.length === 1 ? "" : "s"} you never open</p>
         <p class="t13 muted mclamp2">${esc(sugg.slice(0, 3).map((s) => s.name).join(", ") + (sugg.length > 3 ? " and more" : ""))}</p>
         ${ui.actbar([ui.btn({ label: "Review and unsubscribe", kind: "small", cls: "tinted", act: "mail-subs" })])}</div>`;
     }
-    if (M.lane !== "All") return `<div class="mjlink">${ui.btn({ label: "Subscriptions & blocked senders", icon: "envelope.badge.shield.half.filled", kind: "link", act: "mail-subs" })}</div>`;
+    if (M.lane !== "All") return `<div class="mjlink">${ui.btn({ label: "Unsubscribe & block", icon: "envelope.badge.shield.half.filled", kind: "link", act: "mail-subs" })}</div>`;
     return "";
   }
 
@@ -608,7 +663,7 @@
       ${ui.btn({ label: "Read", icon: "envelope.open", kind: "small", act: "mail-bulk-read", disabled: none })}
       ${ui.btn({ label: "Move", icon: "folder", kind: "small", act: "mail-bulk-move", disabled: none })}
       ${ui.btn({ label: "Archive", icon: "archivebox", kind: "small", act: "mail-bulk-archive", disabled: none })}
-      ${M.lane === "Junk" && M.folder === "INBOX" ? ui.btn({ label: "Not Junk", icon: "tray.and.arrow.up", kind: "small", act: "mail-bulk-notjunk", disabled: none })
+      ${boxRole() === "junk" ? ui.btn({ label: "Not Junk", icon: "tray.and.arrow.up", kind: "small", act: "mail-bulk-notjunk", disabled: none })
         : ui.btn({ label: "Junk", icon: "xmark.bin", kind: "small", act: "mail-bulk-junk", disabled: none })}
       <button type="button" class="btn small mbmore" data-act="mail-menu" data-menu="bulk-more" aria-haspopup="menu" aria-expanded="${M.menu === "bulk-more"}" aria-label="More actions for the selected emails" ${none ? "disabled" : ""}>${icon("ellipsis.circle")}</button>
       ${ui.btn({ label: "Delete", icon: "trash", kind: "destructive", cls: "small", act: "mail-bulk-delete", disabled: none })}</div></div>`;
@@ -618,7 +673,8 @@
     const unread = X ? inboxOf(X).filter((m) => !m.seen).length : 0;
     const hasAccounts = X && X.accounts.length;
     // icon buttons sit beside the title; labelled buttons make the 2-column row under it (grid-snap)
-    const head = (extraTool = "") => ui.header({ eyebrow: ui.label2(`${unread} unread`), title: X ? folderTitle(X) : "Mail",
+    const boxN = X && boxRole() ? current(X).length : 0;
+    const head = (extraTool = "") => ui.header({ eyebrow: ui.label2(boxRole() ? `${boxN} email${boxN === 1 ? "" : "s"}` : `${unread} unread`), title: X ? folderTitle(X) : "Mail",
       tools: ui.btn({ icon: "gearshape", kind: "icon", filled: true, act: "mail-settings", aria: "Settings: email accounts and signature" })
         + F.syncButton() + extraTool,
       actions: (hasAccounts ? ui.btn({ label: M.selecting ? "Done" : "Select", act: "mail-select" }) : "")
@@ -635,15 +691,15 @@
     }
     const a = account(X, M.acct);
     const acctLabel = `<span class="h g4">${(a ? [a] : X.accounts).map((x) => `<i class="dot d8" style="background:${x.color}"></i>`).join("")}</span><span class="ell">${esc(a?.label || "All accounts")}</span>${icon("chevron.down", 'class="cd"')}`;
-    const chan = a ? `<span class="ell">${esc(M.folder === "INBOX" ? "Inbox" : displayName((X.folders[a.id] || []).find((f) => f.name === M.folder)?.name || M.folder))}</span>${icon("chevron.down", 'class="cd"')}`
-      : `${icon("tray.2")}<span class="ell">Mailboxes</span>${icon("chevron.down", 'class="cd"')}`;
+    const boxTitle = M.folder === "INBOX" ? "Inbox" : folderTitle(X);
+    const chan = `${icon(boxRole() ? roleIcon(boxRole()) : M.folder === "INBOX" ? "tray" : "folder")}<span class="ell">${esc(boxTitle)}</span>${icon("chevron.down", 'class="cd"')}`;
     const filtered = M.show !== "All mail";
     const filterTrigger = trigger("filter", `${icon(filtered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")}${filtered ? `<span class="ell">${M.show === "Unread only" ? "Unread" : "Flagged"}</span>` : ""}`,
       "mfilter", "Filter and mailbox actions" + (filtered ? `: showing ${M.show.toLowerCase()}` : ""));
     const controls = `<div class="mctl v g8">
       ${ui.search("mail-q", "Search all mail", M.query, "mail-q")}
-      ${M.folder === "INBOX" && !M.query.trim() ? ui.seg("mail-lane", ["Priority", "Updates", "All", "Junk"], M.lane) : ""}
-      <div class="flow">${trigger("acct", acctLabel, "", `Account: ${a?.label || "All accounts"}`)}<span class="mpair">${a ? trigger("chan", chan) : trigger("boxes", chan, "", "Mailboxes: Sent, Trash, Archive and folders")}</span></div></div>`;
+      ${M.folder === "INBOX" && !M.query.trim() ? ui.seg("mail-lane", ["Priority", "Updates", "All"], M.lane) : ""}
+      <div class="flow">${trigger("acct", acctLabel, "", `Account: ${a?.label || "All accounts"}`)}<span class="mpair">${trigger("boxes", chan, "", `Mailbox: ${boxTitle}. Inbox, Sent, Junk, Trash and folders`)}</span></div></div>`;
     return `<div class="mhead">${head(filterTrigger)}</div>${controls}<div class="mlist" id="mail-list">${listHTML(X)}</div>${M.selecting ? bulkBar(X) : ""}`;
   }
 
@@ -937,7 +993,14 @@
     if (X && list) list.innerHTML = listHTML(X);
   });
   F.on("mail-lane", (el) => { M.lane = el.dataset.value; F.render(); });
-  F.on("mail-acct", (el) => { M.acct = el.dataset.id || null; M.folder = "INBOX"; M.menu = null; M.picked.clear(); F.render(); });
+  F.on("mail-acct", (el) => { M.acct = el.dataset.id || null; if (!boxRole()) M.folder = "INBOX"; M.menu = null; M.picked.clear(); F.render(); });
+  /** A box for every account (Sent / Junk / Trash): asks his iPhone/Mac for each account's folder it hasn't sent yet. */
+  F.on("mail-box", (el) => {
+    const X = X0(); M.folder = el.dataset.box; M.menu = null; M.picked.clear(); F.render();
+    const r = boxRole(); if (!r || !X) return;
+    const ask = X.accounts.map((a) => [a.id, X.roleName(a.id, r)]).filter(([id, f]) => f && !X.askedFolder.has(id + "|" + f));
+    if (ask.length) quietly(send(ask.map(([accountID, folder]) => ["mail_folder", { accountID, folder }])));
+  });
   F.on("mail-folder", (el) => { const X = X0(); M.menu = null; if (el.dataset.folder === "INBOX") { M.acct = el.dataset.acct; M.folder = "INBOX"; F.render(); } else openFolder(X, el.dataset.acct, el.dataset.folder); });
   F.on("mail-new-folder", async (el) => {
     const X = X0(), a = account(X, el.dataset.acct); M.menu = null; F.render();

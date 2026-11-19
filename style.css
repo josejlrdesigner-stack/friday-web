@@ -85,9 +85,11 @@ svg .spk-f { fill: var(--spark, currentColor); stroke: none; }
 svg .spk-s { stroke: var(--spark, currentColor); }
 svg .spk-fs { fill: var(--spark, currentColor); }
 /* SectionTile: section gradient, glyph in --sec-on, gold spark. 36px on cards */
-.stile { width: 36px; height: 36px; flex: none; border-radius: var(--r-tile); background: var(--sec-grad, var(--g-settings)); color: var(--sec-glyph, #fff); --spark: var(--sec-spark, #FFD700);
-  display: inline-grid; place-items: center; }
-.stile svg { width: 21px; height: 21px; stroke-width: 1.8; }
+.stile { width: 42px; height: 42px; flex: none; border-radius: var(--r-tile); background: var(--sec-grad, var(--g-settings)); color: var(--sec-glyph, #fff); --spark: var(--sec-spark, #FFD700);
+  display: inline-grid; place-items: center;
+  /* 2026-11-19 (Jose: icons "a bit larger", "shine a bit more"): a soft glow in the tile's own color */
+  box-shadow: 0 3px 8px color-mix(in srgb, var(--sec, #4A2D8A) 32%, transparent); }
+.stile svg { width: 25px; height: 25px; stroke-width: 1.8; }
 /* Role scope: .rc0 … .rc7 set --role / --role-dark / --role-tint (F.roleIndex picks the number) */
 .rc0 { --role: var(--role0); --role-dark: var(--role0-dark); --role-tint: var(--role0-tint); }
 .rc1 { --role: var(--role1); --role-dark: var(--role1-dark); --role-tint: var(--role1-tint); }
@@ -143,10 +145,10 @@ svg .spk-fs { fill: var(--spark, currentColor); }
 @media (min-width: 900px) { .t-stat { font-size: 34px; } }
 .t-chip { font-size: 12px; font-weight: 600; }
 /* Card header lockup: tile 28 (r8, glyph 16) + 8 + EYEBROW, optional trailing meta/action */
-.lockup { display: flex; align-items: center; gap: 8px; row-gap: 8px; min-width: 0; min-height: 28px; flex-wrap: wrap; }
-.lockup > .stile { width: 28px; height: 28px; border-radius: 8px; }
-.lockup > .stile svg { width: 16px; height: 16px; stroke-width: 2; }
-.lockup > .label2 { flex: 1 0 auto; max-width: calc(100% - 36px); }   /* never cut the eyebrow: the trailing item wraps first */
+.lockup { display: flex; align-items: center; gap: 8px; row-gap: 8px; min-width: 0; min-height: 34px; flex-wrap: wrap; }
+.lockup > .stile { width: 34px; height: 34px; border-radius: 10px; }
+.lockup > .stile svg { width: 20px; height: 20px; stroke-width: 2; }
+.lockup > .label2 { flex: 1 0 auto; max-width: calc(100% - 42px); }   /* never cut the eyebrow: the trailing item wraps first */
 .lockup > .lk-trail { flex: none; display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
 /* Stat = eyebrow + big stat + one meta line */
 .stat { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -328,8 +330,8 @@ textarea.input { resize: vertical; min-height: 88px; line-height: 1.4; }
 /* Screen header (v2 §5): section tile 36 to the left of eyebrow-over-title; trailing actions on the same row */
 .screen-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; min-height: 44px; }
 .screen-head .tb { display: flex; align-items: center; gap: 12px; margin-right: auto; min-width: 0; max-width: 100%; }
-.screen-head .tb > .stile { width: 36px; height: 36px; border-radius: 12px; }
-.screen-head .tb > .stile svg { width: 20px; height: 20px; }
+.screen-head .tb > .stile { width: 44px; height: 44px; border-radius: 13px; }
+.screen-head .tb > .stile svg { width: 26px; height: 26px; }
 .screen-head .tb .tx { display: flex; flex-direction: column; gap: 0; min-width: 0; }
 .screen-head .tb h1 { font-size: 28px; font-weight: 700; letter-spacing: -.3px; line-height: 1.15; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .screen-head .acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -366,8 +368,8 @@ textarea.input { resize: vertical; min-height: 88px; line-height: 1.4; }
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--muted);
   font: 600 11px/1 var(--font); transition: transform .12s ease-out; }
 .tab:active { transform: scale(.96); }
-.tab .ic { position: relative; width: 56px; max-width: 100%; height: 32px; border-radius: var(--r-control); display: grid; place-items: center; color: var(--sec-icon, var(--ink2)); --spark: var(--sec-icon); transition: background .2s; }
-.tab .ic svg { width: 24px; height: 24px; }
+.tab .ic { position: relative; width: 56px; max-width: 100%; height: 38px; border-radius: var(--r-control); display: grid; place-items: center; color: var(--sec-icon, var(--ink2)); --spark: var(--sec-icon); transition: background .2s; }
+.tab .ic svg { width: 28px; height: 28px; }
 .tab .badge { top: -4px; left: auto; right: 2px; }
 .tab[aria-selected=true] { color: var(--sec-dark, var(--ink)); font-weight: 700; }
 .tab[aria-selected=true] .ic { background: var(--sec-grad); color: var(--sec-glyph, #fff); --spark: var(--sec-spark); }
@@ -389,7 +391,7 @@ textarea.input { resize: vertical; min-height: 88px; line-height: 1.4; }
   display: flex; align-items: center; gap: 12px; color: #fff; font-size: 15px; font-weight: 600; text-align: left; transition: transform .12s ease-out, background .2s; }
 .side-row:hover { background: rgba(255, 255, 255, .09); }
 .side-row:active { transform: scale(.98); }
-.side-row svg { width: 22px; height: 22px; flex: none; color: var(--sec-glow, #fff); --spark: var(--sec-glow, #fff); }
+.side-row svg { width: 26px; height: 26px; flex: none; color: var(--sec-glow, #fff); --spark: var(--sec-glow, #fff); }
 .side-row[aria-current=page] { background: var(--sec-grad); color: var(--sec-on, #fff); font-weight: 700; }
 .side-row[aria-current=page] svg { color: var(--sec-glyph, #fff); --spark: var(--sec-spark); }
 .side-row .sl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -532,3 +534,6 @@ dialog.alert .aa button.cancel { font-weight: 700; }
   .screen-head .acts { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
   .screen-head .acts > * { min-width: 0; }
 }
+
+/* Junk shield (top of the Junk box) */
+.jshield .t-stat { line-height: 1; }

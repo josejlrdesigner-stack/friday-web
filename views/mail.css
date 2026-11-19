@@ -254,3 +254,17 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
   .bulk-row > .btn .btn-l { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 .bulk-row > .btn { width: 100%; max-width: none; }
+
+/* QA 11-19: the mail list is a narrow COLUMN on a wide screen, so the phone header rules (which key off the window)
+   never applied: the tools dropped to their own row and Select / Compose stacked. Key off the column instead. */
+.mhead { container-type: inline-size; }
+@container (max-width: 560px) {
+  .mhead .screen-head { flex-wrap: wrap; row-gap: 12px; }
+  .mhead .screen-head .tb { flex: 1 1 0; min-width: 0; gap: 8px; }
+  .mhead .screen-head .tb > .stile { width: 36px; height: 36px; border-radius: 11px; }   /* room for "Trash" beside the tools */
+  .mhead .screen-head .tb > .stile svg { width: 22px; height: 22px; }
+  .mhead .screen-head .tb h1 { font-size: 24px; }
+  .mhead .screen-head .tools { align-self: center; }
+  .mhead .screen-head .acts { order: 3; flex: 1 1 100%; max-width: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--card-gap, 12px); }
+  .mhead .screen-head .acts > .btn:not(.icon) { min-width: 0; }
+}

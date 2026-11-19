@@ -46,7 +46,9 @@ window.FDemo = (() => {
   for (let i = 0; i < 14; i++) capacity[key(i)] = i === 0 ? { n: 6, fits: 4, room: 0, free: 210, needed: 290, aCount: 2, basis: "profile", reasons: ["3h 30m of meetings", "1h 30m crisis buffer", "1h for home and family"] } : { n: todos.filter((t) => t.due && key(Math.round((t.due - at(0)) / 86400)) === key(i)).length, fits: 6, room: 240, free: 300, needed: 60, aCount: 0, basis: "profile", reasons: [] };
   const payload = () => ({
     version: 1, device: "iPhone",
-    prefs: { stamp: Date.now() / 1000, value: { franklinPlanner: JSON.stringify(planner), claudeModel: "claude-sonnet-5-5", plannerSetupDone: "1", fromName: "Sample User" } },
+    prefs: { stamp: Date.now() / 1000, value: { franklinPlanner: JSON.stringify(planner), claudeModel: "claude-sonnet-5-5", plannerSetupDone: "1", fromName: "Sample User",
+      mailJunkTally: JSON.stringify({ days: { [key(0)]: { service: 3, friday: 1 }, [key(-2)]: { service: 5, friday: 2 } }, counted: [], since: Date.now() / 1000 - 3 * 86400 }),
+      mailJunkFilter: JSON.stringify({ spam: {}, ham: {}, nSpam: 9, nHam: 31, learned: {} }) } },
     claude: { stamp: 1, value: "" },
     friday: { stamp: 1, value: { facts: [{ id: "F1", fact: "Sample memory.", date: 0 }], lines: [] } },
     snapshot: { stamp: Date.now() / 1000, value: { at: Date.now() / 1000 - 240, device: "iPhone", access: { calendar: true, reminders: true },
@@ -69,6 +71,7 @@ window.FDemo = (() => {
                msg(7, "Sample Newsletter", "news@example.com", "Last week in product", 1440 * 7, { isUpdate: true, unsubscribe: "<https://news.example.com/unsub?u=1>, <mailto:unsubscribe@news.example.com?subject=unsubscribe>", oneClick: true }),
                msg(8, "Sample Newsletter", "news@example.com", "Two weeks in product", 1440 * 14, { isUpdate: true, unsubscribe: "<https://news.example.com/unsub?u=1>, <mailto:unsubscribe@news.example.com?subject=unsubscribe>", oneClick: true }),
                msg(9, "Sample Promotions", "deals@promo.example", "You won a prize!!!", 600, { folder: "Junk", junk: true, isUpdate: true, unsubscribe: "<https://promo.example/stop>", oneClick: true }),
+               msg(30, "Sample Deals", "deals@shop.example", "Flash sale ends tonight", 800, { folder: "Trash", seen: true, isUpdate: true }),
                // conversations (MailStore.threadKey): M10/M11 join M1 through References; M12/M13 join by their "Re:" subject; M3 (no "Re:") stays its own
                msg(10, "Sample User", "me@example.com", "Re: Next steps", 15, { folder: "Sent", seen: true, to: [{ name: "Sample Recruiter", email: "recruiter@example.com" }], references: "<m1@example.com>" }),
                msg(11, "Sample Recruiter", "recruiter@example.com", "Re: Next steps", 5, { references: "<m1@example.com> <m10@example.com>" }),
