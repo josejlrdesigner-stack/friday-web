@@ -87,7 +87,7 @@ svg .spk-fs { fill: var(--spark, currentColor); }
 /* SectionTile: section gradient, glyph in --sec-on, gold spark. 36px on cards */
 .stile { width: 42px; height: 42px; flex: none; border-radius: var(--r-tile); background: var(--sec-grad, var(--g-settings)); color: var(--sec-glyph, #fff); --spark: var(--sec-spark, #FFD700);
   display: inline-grid; place-items: center;
-  /* 2026-11-19 (Jose: icons "a bit larger", "shine a bit more"): a soft glow in the tile's own color */
+  /* 2026-11-19: icons a bit larger, with a soft glow in the tile's own color */
   box-shadow: 0 3px 8px color-mix(in srgb, var(--sec, #4A2D8A) 32%, transparent); }
 .stile svg { width: 25px; height: 25px; stroke-width: 1.8; }
 /* Role scope: .rc0 … .rc7 set --role / --role-dark / --role-tint (F.roleIndex picks the number) */
