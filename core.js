@@ -395,6 +395,23 @@ const F = (() => {
     roleTag: (name) => `<span class="tag role ${roleClass(name)}">${esc(name)}</span>`,
     seg: (act, options, selected, extra = {}) => `<div class="seg" role="group">${options.map((o) => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<button type="button" data-act="${esc(act)}" data-value="${esc(v)}" ${data(extra)} aria-pressed="${v === selected}">${esc(l)}</button>`; }).join("")}</div>`,
     search: (id, placeholder, value = "", act = "") => `<label class="search">${icon("magnifyingglass")}<span class="sr">${esc(placeholder)}</span><input id="${esc(id)}" type="search" placeholder="${esc(placeholder)}" value="${esc(value)}" ${act ? `data-input="${esc(act)}"` : ""} autocomplete="off" spellcheck="false"></label>`,
+    /** A task that left this day's page, with its Franklin mark in the circle: → forwarded (and where) or ✗ deleted. */
+    markRow: (m) => {
+      const fwd = m.kind === "forward";
+      let where = "Deleted · no longer needed";
+      if (fwd) {
+        if (!m.to) where = "Forwarded to the master list";
+        else {
+          const d = new Date(m.to + "T00:00"), t0 = new Date(); t0.setHours(0, 0, 0, 0);
+          const diff = Math.round((d - t0) / 86400000);
+          where = "Forwarded to " + (diff === 1 ? "tomorrow" : diff === 0 ? "today" : d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }));
+        }
+      }
+      return `<div class="markrow ${fwd ? "fwd" : "del"}" role="group" aria-label="${esc(m.title + ". " + where)}">
+        <span class="mk" aria-hidden="true">${fwd ? "→" : "✕"}</span>
+        ${m.code ? `<span class="mkcode" aria-hidden="true">${esc(m.code)}</span>` : ""}
+        <span class="v g2 grow"><span class="t15 mkt">${esc(m.title)}</span><span class="t13 muted">${esc(where)}</span></span></div>`;
+    },
     /** The to-do circle. fc (optional) shows Franklin status in it, like the app: • in progress, D delegated, ✓ done. */
     check: (on, act, d = {}, label = "", fc = null) => {
       const st = on ? "on" : fc?.inProgress ? "prog" : fc?.delegate ? "dlg" : "";
@@ -797,6 +814,12 @@ F.setZoom = (v) => { try { localStorage.setItem("friday.zoom", String(v)); } cat
 F.applyZoom(F.zoom());
 /** The Compass shown for a day (Franklin.swift actAs): his line for that day, else this week's Compass, else his
  *  standing card, else Friday's suggested Compass for the week (the iPhone/Mac write it). */
+/** Marks (→ ✗) left on a day's page, minus tasks that are back on it. presentIds: ids on that day now. */
+F.dayMarks = (date, presentIds = []) => {
+  const p = F.planner && F.planner(); if (!p || !p.days) return [];
+  const ids = new Set(presentIds);
+  return ((p.days[F.D.key(date)] || {}).marks || []).filter((m) => !ids.has(m.id));
+};
 F.compassFor = (p, d) => {
   if (!p) return "";
   const day = p.days?.[F.D.key(d)] || {};

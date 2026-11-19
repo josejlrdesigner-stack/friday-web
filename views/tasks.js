@@ -460,10 +460,12 @@
       return sec(`${ui.label2(name, color)}<span class="sp"></span><span class="t12 w6 muted">${g.length}</span>`,
         g.map((t) => franklinRow(t, day, gc, { drag: letter ? "day-" + letter : null })).join(""));
     }).join("");
-    const empty = list.length ? "" : sec("", `<div class="tk-row v g12 top pad"><p class="t-secondary">${esc(today ? "Nothing on today's list yet. Add the first thing you want to get done." : `Nothing scheduled for ${dayWord(day)} yet.`)}</p>
+    const marks = F.dayMarks(day, list.map((t) => t.id));
+    const markSec = marks.length ? sec(`${ui.label2(`Forwarded & deleted · ${marks.length}`, "muted")}`, marks.map((m) => `<div class="tk-row">${ui.markRow(m)}</div>`).join("")) : "";
+    const empty = list.length || marks.length ? "" : sec("", `<div class="tk-row v g12 top pad"><p class="t-secondary">${esc(today ? "Nothing on today's list yet. Add the first thing you want to get done." : `Nothing scheduled for ${dayWord(day)} yet.`)}</p>
       ${ui.actbar([ui.btn({ label: "Add a to-do", icon: "plus", kind: "small", cls: "tinted", act: "tk-new" })])}</div>`);
     // wide (≥1100): 12-column split — the day's list (7) | Big Rocks, schedule, record (5). Narrow: one column, Big Rocks first.
-    return `<div class="tk-list tk-split"><div class="tk-main">${head}${groups}${empty}</div><div class="tk-side">${bigRocks(p, day)}${schedule(day)}${record(p, day)}</div></div>`;
+    return `<div class="tk-list tk-split"><div class="tk-main">${head}${groups}${markSec}${empty}</div><div class="tk-side">${bigRocks(p, day)}${schedule(day)}${record(p, day)}</div></div>`;
   }
   F.on("tk-day", (el) => { const d = +el.dataset.dir; T.day = d === 0 ? today0() : D.add(T.day, d); F.render(); });
   F.on("tk-plan", () => F.openChat?.(`Let's do my 15-minute Franklin daily plan for ${dayWord(T.day)}.`));

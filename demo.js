@@ -15,15 +15,17 @@ window.FDemo = (() => {
     roles,
     weeks: { [ws]: { rocks: [{ id: "K1", roleID: "R2", title: "Finish the quarterly plan draft", done: false, scheduled: true }, { id: "K2", roleID: "R1", title: "Exercise three times", done: true, scheduled: false }, { id: "K3", roleID: "R3", title: "One-on-one time with each kid", done: false, scheduled: false }],
                      saw: { Physical: "Three walks", Mental: "Read two chapters" }, sawDone: { Physical: true } } },
-    days: { [key(0)]: { record: [{ id: "D1", time: at(0, 9, 10) - 978307200, text: "Called the insurance company; claim filed." }], planned: true, closed: false } },
+    days: { [key(0)]: { record: [{ id: "D1", time: at(0, 9, 10) - 978307200, text: "Called the insurance company; claim filed." }], planned: true, closed: false,
+      marks: [{ id: "M1", title: "Draft the vendor brief", kind: "forward", to: key(1), code: "B1", time: 0 },
+              { id: "M2", title: "Order new business cards", kind: "delete", code: "C2", time: 0 }] } },
     profile: { peakHour: 9, peakMinute: 0, peakMinutes: 120, slumpHour: 15, bufferMinutes: 90, batchTimes: ["11:30", "16:30"], traps: ["Last-minute messages & emails"], keystone: "Exercise three times", needleGoalID: "G2", milestones: ["Outline", "Draft", "Review"], completedDiagnostic: true },
   };
   const td = (id, title, d, letter, number, extra = {}) => ({ id, title, list: "Task Dump", listColor: "#767E8A", due: d == null ? null : at(d), dueHasTime: false, notes: "", letter, number, quadrant: null, role: null, bigRock: false, inProgress: false, delegate: null, goal: null, important: false, repeats: false, repeatRule: "never", ...extra });
   const todos = [
     td("T1", "Draft the quarterly plan", 0, "A", 1, { quadrant: 2, bigRock: true, role: "Professional", list: "Work", listColor: "#2F56C8" }),
-    td("T2", "Call the insurance company", 0, "A", 2, { quadrant: 1 }),
+    td("T2", "Call the insurance company", 0, "A", 2, { quadrant: 1, inProgress: true }),
     td("T3", "Reply to the team about the review", -2, "B", 1, { list: "Work", listColor: "#2F56C8" }),
-    td("T4", "Pick up the shirts", 0, "C", 1, { list: "Home", listColor: "#16A34A", due: at(0, 17, 30), dueHasTime: true }),
+    td("T4", "Pick up the shirts", 0, "C", 1, { delegate: "Alex", list: "Home", listColor: "#16A34A", due: at(0, 17, 30), dueHasTime: true }),
     td("T5", "Renew the car registration", 1, null, null, { important: true }),
     td("T6", "Plan this week's meals", 2, "B", 2, { list: "Home", listColor: "#16A34A", quadrant: 2 }),
     td("T7", "Clean up the shared drive", 3, "C", 1, { list: "Work", listColor: "#2F56C8", quadrant: 4 }),

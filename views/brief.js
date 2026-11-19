@@ -354,7 +354,9 @@
       </div>
       ${items.length ? "" : `<p class="t15 muted bempty">${esc(empty)}</p>`}
       <div class="rows">${shown.map((t) => todoRow(t, { showDay: false })).join("")}</div>
-      ${extra > shown.length ? `<div>${ui.btn({ label: `${extra - shown.length} more for ${title.toLowerCase()}`, kind: "link", act: "brief-tasks", cls: "t13" })}</div>` : ""}`;
+      ${extra > shown.length ? `<div>${ui.btn({ label: `${extra - shown.length} more for ${title.toLowerCase()}`, kind: "link", act: "brief-tasks", cls: "t13" })}</div>` : ""}
+      ${(() => { const mk = F.dayMarks(date, items.map((t) => t.id)); return mk.length
+        ? `<div class="rows">${mk.slice(0, 3).map(ui.markRow).join("")}</div>${mk.length > 3 ? `<div>${ui.btn({ label: `${mk.length - 3} more forwarded or deleted`, kind: "link", act: "brief-tasks", cls: "t13" })}</div>` : ""}` : ""; })()}`;
   }
   function todoPanel(b) {
     const trailing = ui.btn({ label: "See all", kind: "small", cls: "ghost", act: "brief-tasks" });
