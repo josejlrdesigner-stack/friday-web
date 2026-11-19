@@ -374,10 +374,17 @@ const F = (() => {
     },
     label2: (text, cls = "") => `<span class="label2 ${cls}">${esc(text)}</span>`,
     tag: (text, kind = "") => `<span class="tag ${kind}">${esc(text)}</span>`,
-    /** Panel: white card with a section label and optional trailing controls */
-    panel: (title, trailing, content, cls = "", lead = "") => `<section class="panel ${cls}"><div class="panel-head">${lead}${ui.label2(title)}${trailing || ""}</div>${content}</section>`,
+    /** Card header lockup (v2 §5): tile 28 + 8 + EYEBROW, optional trailing meta/action. sec = section key for the tile (or "" for none). */
+    cardHead: (sec, title, trailing = "", ic = "") => `<div class="lockup">${sec ? ui.secTile(sec, ic) : ""}${ui.label2(title)}${trailing ? `<span class="lk-trail">${trailing}</span>` : ""}</div>`,
+    /** Action bar (v2 §6): related CTAs in one row; primary sits last. end = right-aligned (sheets/toolbars). */
+    actbar: (btns, end = false, cls = "") => `<div class="actbar ${end ? "end" : ""} ${cls}">${btns.filter(Boolean).join("")}</div>`,
+    /** Panel: white card with a card-header lockup. lead = a secTile string (legacy) — its section is read from it. */
+    panel: (title, trailing, content, cls = "", lead = "") => {
+      const m = /sec-([a-z]+)/.exec(lead || ""), ic = /data-ic="([^"]+)"/.exec(lead || "");
+      return `<section class="panel ${cls}">${ui.cardHead(m ? m[1] : "", title, trailing || "", ic ? ic[1] : "")}${content}</section>`;
+    },
     /** SectionTile: a rounded tile in the section's gradient with its custom glyph. sec = brief|calendar|tasks|mail|settings|friday|health */
-    secTile: (sec, ic) => `<span class="stile sec-${esc(sec)}" aria-hidden="true">${icon(ic || SEC_ICON[sec] || "dot")}</span>`,
+    secTile: (sec, ic) => `<span class="stile sec-${esc(sec)}" ${ic ? `data-ic="${esc(ic)}"` : ""} aria-hidden="true">${icon(ic || SEC_ICON[sec] || "dot")}</span>`,
     /** Role chip: the role's tint with its dark text (neutral when the name isn't one of the planner's roles). */
     roleTag: (name) => `<span class="tag role ${roleClass(name)}">${esc(name)}</span>`,
     seg: (act, options, selected, extra = {}) => `<div class="seg" role="group">${options.map((o) => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<button type="button" data-act="${esc(act)}" data-value="${esc(v)}" ${data(extra)} aria-pressed="${v === selected}">${esc(l)}</button>`; }).join("")}</div>`,
@@ -388,7 +395,7 @@ const F = (() => {
     header: ({ eyebrow = "", title, actions = "", lead = null, sec = null }) => {
       const s = sec === false ? null : (sec || (SEC_ICON[S.tab] ? S.tab : null));
       const l = lead ?? (s ? ui.secTile(s) : "");
-      return `<div class="screen-head"><div class="tb">${eyebrow}<div class="tt">${l}<h1>${esc(title)}</h1></div></div><div class="acts">${actions}</div></div>`;
+      return `<div class="screen-head"><div class="tb">${l}<div class="tx">${eyebrow}<h1>${esc(title)}</h1></div></div><div class="acts">${actions}</div></div>`;
     },
     /** FridayMark: the Friday icon — cyan→violet ring with a cyan hexagon at the center */
     fmark(size = 26) {

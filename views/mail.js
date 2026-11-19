@@ -561,14 +561,14 @@
       for (const f of X.failedOther.slice(-3)) h += `<div class="mfail h g8 top"><div class="grow">${ui.errorText(failText(f))}</div>${ui.btn({ label: "Dismiss", kind: "small", act: "mail-fail-dismiss", data: { id: f.id } })}</div>`;
       for (const f of X.failedSends) h += `<div class="mcard attention-edge v g8"><div class="h g8">${icon("exclamationmark.triangle.fill", 'class="mwarn"')}${ui.label2("Not sent", "c-attention")}<span class="sp"></span><span class="t12 muted">${esc(account(X, f.send?.accountID)?.label || "")}</span></div>
         <p class="t15 w5 ell">To: ${esc(f.to)}</p><p class="t15 ink2 ell">${esc(f.subject || "(no subject)")}</p><p class="t13 c-attention">${esc(f.msg)}</p>
-        <div class="h g8">${f.send?.body != null ? ui.btn({ label: "Edit and try again", kind: "primary", act: "mail-retry", data: { id: f.id } }) : ""}${ui.btn({ label: "Dismiss", act: "mail-fail-dismiss", data: { id: f.id } })}</div></div>`;
+        ${ui.actbar([ui.btn({ label: "Dismiss", kind: "small", act: "mail-fail-dismiss", data: { id: f.id } }), f.send?.body != null ? ui.btn({ label: "Edit and try again", kind: "small", cls: "tinted", act: "mail-retry", data: { id: f.id } }) : ""])}</div>`;
     }
     if (M.folder === "INBOX" && !M.query.trim()) {
       for (const c of X.sending) h += `<div class="mcard v g8"><div class="h g8">${ui.spinner()}${ui.label2("Sending from your iPhone…")}<span class="sp"></span><span class="t12 muted">${esc(account(X, c.accountID)?.label || "")}</span></div>
         <p class="t15 w5 ell">To: ${esc(c.to)}</p><p class="t15 ink2 ell">${esc(c.subject)}</p></div>`;
       if (M.lane !== "Junk") for (const d of X.drafts) h += `<div class="mcard v g8 ${d.byFriday ? "friday" : ""}"><div class="h g8">${d.byFriday ? ui.fmark(18) : ""}${ui.label2(d.byFriday ? "Friday's draft · not sent" : "Draft · not sent", d.byFriday ? "friday" : "")}<span class="sp"></span><span class="t12 muted">${esc(account(X, d.accountID)?.label || "")}</span></div>
         <p class="t15 w5 ell">To: ${esc(d.to)}</p><p class="t15 ink2 ell">${esc(d.subject)}</p>
-        <div class="h g8">${ui.btn({ label: "Review & send", kind: "primary", act: "mail-draft-open", data: { id: d.id } })}${ui.btn({ label: "Discard", act: "mail-draft-discard", data: { id: d.id }, aria: `Discard the draft ${d.subject || ""}` })}</div></div>`;
+        ${ui.actbar([ui.btn({ label: "Discard", kind: "small", act: "mail-draft-discard", data: { id: d.id }, aria: `Discard the draft ${d.subject || ""}` }), ui.btn({ label: "Review & send", kind: "small", cls: "tinted", act: "mail-draft-open", data: { id: d.id } })])}</div>`;
       if (M.lane !== "Priority") h += junkHelperHTML(X);
     }
     h += ths.map((th) => rowHTML(X, th, th[0].id === sel)).join("");
@@ -593,7 +593,7 @@
       return `<div class="mcard v g8">${ui.label2("Clean up")}
         <p class="t15 w6 ink">${sugg.length} mailing list${sugg.length === 1 ? "" : "s"} you never open</p>
         <p class="t13 muted mclamp2">${esc(sugg.slice(0, 3).map((s) => s.name).join(", ") + (sugg.length > 3 ? " and more" : ""))}</p>
-        ${ui.btn({ label: "Review and unsubscribe", act: "mail-subs" })}</div>`;
+        ${ui.actbar([ui.btn({ label: "Review and unsubscribe", kind: "small", cls: "tinted", act: "mail-subs" })])}</div>`;
     }
     if (M.lane !== "All") return `<div class="mjlink">${ui.btn({ label: "Subscriptions & blocked senders", icon: "envelope.badge.shield.half.filled", kind: "link", act: "mail-subs" })}</div>`;
     return "";
@@ -626,7 +626,8 @@
         <h2 class="t24 w6 ink">${X ? "No email connected yet" : "No email from your iPhone yet"}</h2>
         <p class="t15 ink2">${X ? "Connect iCloud, Gmail or your Bluehost mailbox on your iPhone and F.R.I.D.A.Y. can read, sort, draft and send for you."
           : (F.snap() && !F.snap().access) ? "Your iPhone has just been updated. Open F.R.I.D.A.Y. on your iPhone once; it sends your recent email here a minute later, and anything you do here is carried out by your iPhone."
-          : "Open F.R.I.D.A.Y. on your iPhone; it sends your recent email here a minute later, and anything you do here is carried out by your iPhone."}</p></div>`;
+          : "Open F.R.I.D.A.Y. on your iPhone; it sends your recent email here a minute later, and anything you do here is carried out by your iPhone."}</p>
+        ${ui.actbar([ui.btn({ label: "Email settings", icon: "gearshape", act: "mail-settings" })], false, "center")}</div>`;
     }
     const a = account(X, M.acct);
     const acctLabel = `<span class="h g4">${(a ? [a] : X.accounts).map((x) => `<i class="dot d8" style="background:${x.color}"></i>`).join("")}</span><span class="ell">${esc(a?.label || "All accounts")}</span>${icon("chevron.down", 'class="cd"')}`;

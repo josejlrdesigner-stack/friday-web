@@ -82,19 +82,19 @@
     const now = new Date(), p = planner(), act = actAsToday(p, now), nd = needle(p), top = a1(), st = streak(p);
     const dateLine = now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
     const actCard = act
-      ? `<p class="rit-act">${esc(act)}</p>`
+      ? `<p class="actas-s">${esc(act)}</p>`
       : `<label class="v g8"><span class="t13 muted">Who do you want to be today? One line is enough.</span>
           <textarea id="rit-actas" class="input rit-field" rows="2" placeholder="Today I act as a calm, focused…" maxlength="240"></textarea></label>`;
     const goalCard = nd ? `<section class="rit-card sec-friday">
         <div class="h g8">${ui.label2("90-day goal")}<span class="sp"></span>${nd.week && !nd.dated ? `<span class="t13 w7 ink2 num">Week ${nd.week} of ${WEEKS}</span>` : ""}</div>
-        <p class="t17 w7 ink wrap">${esc(nd.g.title)}</p>
+        <p class="t-card-title wrap">${esc(nd.g.title)}</p>
         ${goalBars(nd)}
         ${nd.milestones.length ? `<ul class="rit-ms">${nd.milestones.map((m) => `<li class="${m.done ? "done" : ""}">${F.icon(m.done ? "checkmark" : "dot")}<span>${esc(m.title)}</span></li>`).join("")}</ul>
           ${nd.dated ? "" : `<p class="t13 muted">${nd.milestones.filter((m) => m.done).length} of ${nd.milestones.length} milestones done</p>`}` : ""}
       </section>` : "";
     const a1Card = `<section class="rit-card sec-brief">
         ${ui.label2("Your A1 today")}
-        ${top ? `<div class="h g16"><span class="a1tile" aria-hidden="true">A${esc(top.fc.number ?? 1)}</span><p class="t17 w7 ink wrap grow"><span class="sr">A${esc(top.fc.number ?? 1)}: </span>${esc(top.title)}</p></div>
+        ${top ? `<div class="h g16"><span class="a1tile" aria-hidden="true">A${esc(top.fc.number ?? 1)}</span><p class="t-card-title wrap grow"><span class="sr">A${esc(top.fc.number ?? 1)}: </span>${esc(top.title)}</p></div>
           ${top.fc.bigRock ? `<p class="t13 c-done w6">Big Rock · it moves your week forward</p>` : ""}`
           : `<p class="t15 muted">No A1 yet. Pick the one thing that matters most when you plan your day.</p>`}
       </section>`;
@@ -106,12 +106,12 @@
       </section>`;
     return `<div class="rit">
       <div class="rit-band"><div class="rit-band-in">
-        <div class="rit-brand">${ui.fmark(22)}<span>F.R.I.D.A.Y.</span></div>
+        <div class="rit-brand">${ui.fmark(24)}<span>F.R.I.D.A.Y.</span>${ui.btn({ icon: "xmark", kind: "icon", cls: "rit-x", act: "rit-close", aria: "Not now", title: "Not now (Esc)" })}</div>
         <div class="rit-hero" aria-hidden="true"><canvas id="rit-core"></canvas></div>
         <div class="v g4 rit-greet"><span class="band-label">${esc(dateLine)}</span><h1 id="rit-title" class="band-greet">${esc(greeting(now.getHours()))}, ${esc(firstName())}</h1></div>
       </div></div>
       <div class="rit-in">
-        <section class="rit-card rit-actcard sec-friday">${ui.label2(act ? "Today I act as" : "Act as")}${actCard}</section>
+        <section class="rit-card rit-actcard sec-friday actas-l">${ui.label2(act ? "Today I act as" : "Act as")}${actCard}</section>
         ${goalCard}${a1Card}${streakCard}
       </div>
     </div>
@@ -133,6 +133,7 @@
     return d;
   }
   F.openRitual = openRitual;
+  F.on("rit-close", (el) => el.closest("dialog")?.close());
 
   F.on("rit-start", async (el) => {
     const d = el.closest("dialog"), field = d?.querySelector("#rit-actas"), text = field?.value.trim();

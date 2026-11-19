@@ -73,7 +73,7 @@
         <div class="v g4 grow">
           <span class="band-label"><span class="sr">${esc(D.wide(now))}. </span><span aria-hidden="true">${esc(label)}</span></span>
           <h1 class="band-greet">${esc(greet)}, ${esc(firstName())}</h1>
-          ${act ? `<p class="band-act"><span class="sr">Act as: </span>${esc(act)}</p>` : ""}
+          ${act ? `<div class="actas-l band-act">${ui.label2("Act as")}<p class="actas-s">${esc(act)}</p></div>` : ""}
         </div>
       </div>
     </section>`;
@@ -81,51 +81,51 @@
 
   // ------------------------------------------------------------ First thing (today's A1)
   function firstThing() {
-    const head = `<span class="label2">First thing</span>`;
+    const head = ui.cardHead("brief", "First thing");
     if (!K().remindersAccess()) return `<section class="card p16 v g8 first sec-brief">${head}${K().accessOffRow("Reminders")}</section>`;
     const t = F.ritualKit?.a1();
     if (!t) {
-      return `<section class="card p16 h g16 first sec-brief"><span class="a1tile empty" aria-hidden="true">A1</span>
-        <div class="v g4 grow">${head}<p class="t15 muted">No A1 yet. Pick the one thing that matters most today.</p>
-          <div>${ui.btn({ label: "Plan my day", kind: "small", act: "brief-go", data: { go: "day" } })}</div></div></section>`;
+      return `<section class="card p16 v g12 first sec-brief">${head}<div class="h g12"><span class="a1tile empty" aria-hidden="true">A1</span>
+        <p class="t-secondary grow">No A1 yet. Pick the one thing that matters most today.</p></div>
+          ${ui.actbar([ui.btn({ label: "Plan my day", icon: "arrow.right", kind: "small", cls: "tinted", act: "brief-go", data: { go: "day" } })])}</section>`;
     }
     const code = "A" + (t.fc.number ?? 1);
-    return `<section class="card p16 h g16 first sec-brief">
-      <span class="a1tile" aria-hidden="true">${esc(code)}</span>
-      <div class="v g4 grow">${head}
-        <button type="button" class="plain" data-act="brief-todo" data-id="${esc(t.id)}" aria-label="${esc(`${code}: ${t.title}. Edit, move or delete`)}"><span class="t17 w7 ink wrap">${esc(t.title)}</span></button>
-        ${t.fc.bigRock || t.fc.role ? `<span class="flow g4">${t.fc.bigRock ? ui.tag("Big Rock", "done") : ""}${t.fc.role ? ui.roleTag(t.fc.role) : ""}</span>` : ""}
+    return `<section class="card p16 v g12 first sec-brief">${head}
+      <div class="h g12"><span class="a1tile" aria-hidden="true">${esc(code)}</span>
+      <div class="v g4 grow">
+        <button type="button" class="plain" data-act="brief-todo" data-id="${esc(t.id)}" aria-label="${esc(`${code}: ${t.title}. Edit, move or delete`)}"><span class="t-card-title wrap">${esc(t.title)}</span></button>
+        ${t.fc.bigRock || t.fc.role ? `<span class="flow">${t.fc.bigRock ? ui.tag("Big Rock", "done") : ""}${t.fc.role ? ui.roleTag(t.fc.role) : ""}</span>` : ""}
       </div>
-      ${ui.check(false, "brief-toggle", { id: t.id }, t.title)}
+      ${ui.check(false, "brief-toggle", { id: t.id }, t.title)}</div>
     </section>`;
   }
 
   // ------------------------------------------------------------ Inbox (big unread count)
   function inboxCard(ms) {
-    const head = `<span class="h g12">${ui.secTile("mail")}<span class="label2">Inbox</span></span>`;
-    if (!ms) return `<section class="card p16 v g8 inbox sec-mail">${head}<p class="invite">No email connected. Connect an account in F.R.I.D.A.Y. on the iPhone and it shows up here.</p></section>`;
+    const head = ui.cardHead("mail", "Inbox");
+    if (!ms) return `<section class="card p16 v g12 inbox sec-mail">${head}<p class="invite">No email connected. Connect an account in F.R.I.D.A.Y. on the iPhone and it shows up here.</p></section>`;
     const unread = ms.inbox.filter((m) => !m.seen);
     const top = unread[0] || ms.inbox[0];
     const from = top ? (top.from?.name || top.from?.email || "") : "";
-    return `<button type="button" class="plain card p16 v g8 inbox sec-mail press" data-act="brief-mail" aria-label="${esc(`Inbox: ${unread.length} unread. Open Mail`)}">
+    return `<button type="button" class="plain card p16 v g12 inbox sec-mail press" data-act="brief-mail" aria-label="${esc(`Inbox: ${unread.length} unread. Open Mail`)}">
       ${head}
-      <span class="h g8 base"><span class="bignum">${unread.length}</span><span class="t15 w6 ink2">unread</span><span class="sp"></span><span class="t13 muted nowrap">${ms.inbox.length} in inbox</span></span>
-      ${top ? `<span class="t13 muted ell">${esc(`${unread.length ? "Newest" : "Latest"}: ${from} · ${top.subject || ""}`)}</span>` : '<span class="t13 muted">Your inbox is empty.</span>'}
+      <span class="stat"><span class="h g8 base"><span class="t-stat">${unread.length}</span><span class="t15 w6 ink2">unread</span></span><span class="t-meta">${ms.inbox.length} in inbox</span></span>
+      ${top ? `<span class="t-meta ell">${esc(`${unread.length ? "Newest" : "Latest"}: ${from} · ${top.subject || ""}`)}</span>` : '<span class="t13 muted">Your inbox is empty.</span>'}
     </button>`;
   }
 
   // ------------------------------------------------------------ Big Rocks (this week): done ÷ total, per-role bars only for 2+ rocks
   function bigRocksCard(now) {
     const p = F.planner();
-    const head = `<span class="h g12">${ui.secTile("health", "mountain.2")}<span class="label2">Big Rocks this week</span></span>`;
+    const head = ui.cardHead("health", "Big Rocks this week", "", "mountain.2");
     if (!p || !(p.roles || []).length) {
-      return `<section class="card p16 v g8 rockscard sec-health">${head}<p class="invite">Set up your roles first; then pick one or two Big Rocks for each.</p>
-        <div>${ui.btn({ label: "Set up my planner", kind: "small", act: "brief-setup", data: { mode: "diagnostic" } })}</div></section>`;
+      return `<section class="card p16 v g12 rockscard sec-health">${head}<p class="t-secondary">Set up your roles first; then pick one or two Big Rocks for each.</p>
+        ${ui.actbar([ui.btn({ label: "Set up my planner", kind: "small", cls: "tinted", act: "brief-setup", data: { mode: "diagnostic" } })])}</section>`;
     }
     const rocks = p.weeks?.[D.key(D.weekStart(now))]?.rocks || [];
     if (!rocks.length) {
-      return `<section class="card p16 v g8 rockscard sec-health">${head}<p class="invite">No Big Rocks yet this week. They're the one or two important things per role that you schedule first.</p>
-        <div>${ui.btn({ label: "Set this week's Big Rocks", kind: "small", act: "brief-go", data: { go: "week" } })}</div></section>`;
+      return `<section class="card p16 v g12 rockscard sec-health">${head}<p class="t-secondary">No Big Rocks yet this week. They're the one or two important things per role that you schedule first.</p>
+        ${ui.actbar([ui.btn({ label: "Set this week's Big Rocks", kind: "small", cls: "tinted", act: "brief-go", data: { go: "week" } })])}</section>`;
     }
     const done = rocks.filter((r) => r.done).length;
     const byRole = new Map();
@@ -138,9 +138,9 @@
         : (n ? `<span class="rk-ok" role="img" aria-label="Done">${F.icon("checkmark")}</span>` : `<span class="rk-open" role="img" aria-label="Not done yet"></span>`);
       return `<div class="rk-row ${F.roleClass(name)}"><span class="role-dot"></span><span class="t13 w6 ink grow ell">${esc(name)}</span>${right}</div>`;
     }).join("");
-    return `<button type="button" class="plain card p16 v g8 rockscard sec-health press" data-act="brief-go" data-go="week" aria-label="${esc(`Big Rocks this week: ${done} of ${rocks.length} done. Open the week`)}">
+    return `<button type="button" class="plain card p16 v g12 rockscard sec-health press" data-act="brief-go" data-go="week" aria-label="${esc(`Big Rocks this week: ${done} of ${rocks.length} done. Open the week`)}">
       ${head}
-      <span class="chart-l"><span class="big">${done} of ${rocks.length}</span><span class="t15 w6 ink2">done</span></span>
+      <span class="h g8 base"><span class="t-stat">${done} of ${rocks.length}</span><span class="t15 w6 ink2">done</span></span>
       ${ui.pbar(done, rocks.length, `${done} of ${rocks.length} Big Rocks done`)}
       <span class="v g4 rk-rows">${rows}</span>
     </button>`;
@@ -166,19 +166,19 @@
     const p = F.planner();
     const setUp = F.prefs().plannerSetupDone === "1" && (p?.values || []).length > 0 && (p?.roles || []).length > 0;
     if (!setUp) {
-      return `<section class="card friday-edge guide v g8 sec-friday">
-        <span class="h g12">${ui.secTile("friday")}${ui.label2("Start here", "friday")}</span>
-        <h2 class="t20 w6 ink">Set up your planner</h2>
-        <p class="t15 ink2">Six quick questions, about three minutes. Tap or type. You'll get your values, roles, a 90-day goal, this week's Big Rocks and protected time on your calendar.</p>
-        <div class="flow">${ui.btn({ label: "Start the 6 questions", icon: "arrow.right", kind: "primary", act: "brief-setup", data: { mode: "diagnostic" } })}${ui.btn({ label: "Pick a starter profile", act: "brief-setup", data: { mode: "starter" } })}</div>
+      return `<section class="card p16 guide v g12 sec-friday">
+        ${ui.cardHead("friday", "Start here")}
+        <div class="v g4"><h2 class="t-card-title">Set up your planner</h2>
+        <p class="t-secondary">Six quick questions, about three minutes. Tap or type. You'll get your values, roles, a 90-day goal, this week's Big Rocks and protected time on your calendar.</p></div>
+        ${ui.actbar([ui.btn({ label: "Pick a starter profile", icon: "person.crop.rectangle.stack", act: "brief-setup", data: { mode: "starter" } }), ui.btn({ label: "Start the 6 questions", icon: "arrow.right", kind: "primary", act: "brief-setup", data: { mode: "diagnostic" } })])}
       </section>`;
     }
     const s = nextStep(now);
-    return `<section class="card friday-edge guide v g8 sec-friday">
-      <span class="h g12">${ui.secTile("friday")}${ui.label2("Your next step", "friday")}</span>
-      <h2 class="t20 w6 ink">${esc(s.title)}</h2>
-      <p class="t15 ink2">${esc(s.detail)}</p>
-      <div class="flow">${ui.btn({ label: s.button, kind: "primary", act: "brief-go", data: { go: s.go } })}${ui.btn({ label: "Organizer", icon: "target", act: "brief-organizer" })}</div>
+    return `<section class="card p16 guide v g12 sec-friday">
+      ${ui.cardHead("friday", "Your next step")}
+      <div class="v g4"><h2 class="t-card-title">${esc(s.title)}</h2>
+      <p class="t-secondary">${esc(s.detail)}</p></div>
+      ${ui.actbar([ui.btn({ label: "Organizer", icon: "target", act: "brief-organizer" }), ui.btn({ label: s.button, icon: "arrow.right", kind: "primary", act: "brief-go", data: { go: s.go } })])}
     </section>`;
   }
 
@@ -241,22 +241,23 @@
     const holiday = evs.find((e) => e.allDay && isBackground(e));
     let summary = `${plural(info.count, "event")}, ${plural(b.today.length + b.overdue.length, "to-do")} due, ${unread} new email${unread === 1 ? "" : "s"}.`;
     if (holiday) summary += ` ${holiday.title} today.`;
-    const head = `<span class="label2">Day load</span>`;
+    const head = ui.cardHead("friday", "Day load", "", "clock");
     const cal = K().calendarAccess(), rem = K().remindersAccess();
     if (!F.capacity || (!cal && !rem)) {
-      return `<section class="card p16 v g8 dayload sec-friday">${head}<p class="invite">Turn on Calendar and Reminders access on your iPhone to see how full your day is.</p><p class="t13 muted">${esc(summary)}</p></section>`;
+      return `<section class="card p16 v g12 dayload sec-friday">${head}<p class="invite">Turn on Calendar and Reminders access on your iPhone to see how full your day is.</p><p class="t13 muted">${esc(summary)}</p></section>`;
     }
     const e = F.capacity(day);
     const meetings = cal ? e.meetings : 0, todo = rem ? e.needed : 0, avail = Math.max(60, e.free + meetings);
     const pct = Math.round((meetings + todo) / avail * 100), word = loadWord(pct);
     const numbers = `${hm(meetings)} of meetings + about ${hm(todo)} for ${plural(e.tasks.length, "to-do")}, in ${hm(avail)} available`;
     const wordCls = word === "Overloaded" ? "c-danger" : word === "Busy" ? "c-attention" : "ink";
-    return `<section class="card p16 h g16 dayload sec-friday" role="group" aria-label="${esc(`Day load: ${pct} percent, ${word}. ${numbers}.`)}">
+    return `<section class="card p16 v g12 dayload sec-friday" role="group" aria-label="${esc(`Day load: ${pct} percent, ${word}. ${numbers}.`)}">
+      ${head}<div class="h g16">
       ${loadRing(Math.min(1, pct / 100), pct, word, ringSize)}
-      <div class="v g4 grow">${head}<p class="t20 w7 ${wordCls}">${esc(word)} · ${pct}%</p>
+      <div class="v g4 grow"><p class="t-card-title ${wordCls}">${esc(word)} · ${pct}%</p>
         <p class="t13 ink2">${esc(numbers)}.</p>
         ${!cal ? '<p class="invite">Calendar access is off, so meetings aren’t counted.</p>' : ""}${!rem ? '<p class="invite">Reminders access is off, so to-dos aren’t counted.</p>' : ""}
-        <p class="t13 muted">${esc(summary)}</p></div>
+        <p class="t-meta">${esc(summary)}</p></div></div>
     </section>`;
   }
 
@@ -285,23 +286,22 @@
   }
   function nextUpCard(now) {
     const n = nextUp(now);
-    const head = (extra = "") => `<span class="h g12">${ui.secTile("calendar")}<span class="label2">Next up</span><span class="sp"></span>${extra}</span>`;
+    const head = (extra = "") => ui.cardHead("calendar", "Next up", extra);
     if (!n) {
-      return `<section class="card p16 v g8 nextup sec-calendar">${head()}
+      return `<section class="card p16 v g12 nextup sec-calendar">${head()}
         <p class="invite">${K().calendarAccess() ? "Nothing else on the calendar this week." : "Waiting for calendar access."}</p></section>`;
     }
     const { e, also } = n;
     const big = e.allDay ? "All day" : D.time(e.start);
     const when = e.allDay ? e.start.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })
       : `${D.time(e.start)} – ${D.time(e.end)}${e.location ? " · " + e.location : ""}`;
-    return `<section class="card p16 v g8 nextup sec-calendar">
-      ${head()}
-      <span class="flow"><span class="bigtime">${esc(big)}</span>${ui.tag(countdown(e, now))}</span>
-      <p class="t17 w6 ink wrap">${esc(e.title)}</p>
-      <p class="t13 muted">${esc(when)}</p>
-      ${also.length ? `<p class="t13 muted">${esc("Also that day: " + also.map((x) => x.title).join(" · "))}</p>` : ""}
-      <div>${ui.btn({ label: "Open", kind: "small", act: "cal-open-event", data: { id: e.id }, aria: "Open " + e.title })}</div>
-    </section>`;
+    return `<button type="button" class="plain card p16 v g12 nextup sec-calendar press" data-act="cal-open-event" data-id="${esc(e.id)}" aria-label="${esc(`Next up: ${e.title}, ${countdown(e, now)}. Open`)}">
+      ${head(ui.tag(countdown(e, now)))}
+      <span class="stat"><span class="t-stat">${esc(big)}</span>
+      <span class="t-card-title wrap">${esc(e.title)}</span>
+      <span class="t-meta">${esc(when)}</span></span>
+      ${also.length ? `<span class="t-meta">${esc("Also that day: " + also.map((x) => x.title).join(" · "))}</span>` : ""}
+    </button>`;
   }
 
   // ------------------------------------------------------------ TodoPanel(brief: true)
@@ -344,14 +344,14 @@
     return `<div class="h g8 bday">
         <div class="bday-name"><span class="t15 w6 ink">${esc(title)}</span><span class="h g8 nowrap"><span class="t13 muted">${esc(date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }))}</span>${items.length ? ui.tag(`${items.length} due`, strong ? "ink" : "") : ""}</span></div>
         <span class="sp"></span>
-        ${ui.btn({ icon: "plus", kind: "small", cls: "plusbtn", act: "brief-add-todo", data: { day: D.key(date) }, aria: `Add a to-do for ${title.toLowerCase()}` })}
+        ${ui.btn({ icon: "plus", kind: "icon", cls: "small filled", act: "brief-add-todo", data: { day: D.key(date) }, aria: `Add a to-do for ${title.toLowerCase()}` })}
       </div>
       ${items.length ? "" : `<p class="t15 muted bempty">${esc(empty)}</p>`}
       <div class="rows">${shown.map((t) => todoRow(t, { showDay: false })).join("")}</div>
       ${extra > shown.length ? `<div>${ui.btn({ label: `${extra - shown.length} more for ${title.toLowerCase()}`, kind: "link", act: "brief-tasks", cls: "t13" })}</div>` : ""}`;
   }
   function todoPanel(b) {
-    const trailing = ui.btn({ label: "See all", kind: "small", act: "brief-tasks" });
+    const trailing = ui.btn({ label: "See all", kind: "small", cls: "ghost", act: "brief-tasks" });
     let body;
     if (!K().remindersAccess()) body = K().accessOffRow("Reminders");
     else {
@@ -434,20 +434,20 @@
       const b = buckets(), ms = mailState();
       const top = header(now) + accessBanner() + K().failedCard([...K().TODO_KINDS, ...K().EVENT_KINDS]);   // the coaching card sits below the core cards (mockup)
       // compact branch (one column, the app's iPhone order): First thing · Next up · Inbox · Day load · Big Rocks, then the rest
-      const compact = `<div class="v g16 only-compact">
+      const compact = `<div class="v cgap only-compact">
           ${firstThing()}<div class="pair">${nextUpCard(now)}${inboxCard(ms)}</div>${dayLoadCard(now, 104, b, ms)}${bigRocksCard(now)}${guideCard(now)}${todoPanel(b)}${commsSummary(ms, true)}${todayPanel(now)}${weekPanel(now)}
         </div>`;
       // non-compact branch: First thing | Next up | Inbox, then Day load | Big Rocks, then (Today + Week) | (To-dos + Email)
-      const wide = `<div class="v g16 only-wide">
+      const wide = `<div class="v cgap only-wide">
           <div class="bgrid">${firstThing()}${nextUpCard(now)}${inboxCard(ms)}</div>
-          <div class="cols two">${dayLoadCard(now, 120, b, ms)}${bigRocksCard(now)}</div>
+          <div class="cols two eq">${dayLoadCard(now, 120, b, ms)}${bigRocksCard(now)}</div>
           ${guideCard(now)}
           <div class="cols two">
-            <div class="v g16">${todayPanel(now)}${weekPanel(now)}</div>
-            <div class="v g16">${todoPanel(b)}${commsSummary(ms, false)}</div>
+            <div class="v cgap">${todayPanel(now)}${weekPanel(now)}</div>
+            <div class="v cgap">${todoPanel(b)}${commsSummary(ms, false)}</div>
           </div>
         </div>`;
-      return `<div class="brief v g16">${top}${compact}${wide}</div>`;
+      return `<div class="brief v cgap">${top}${compact}${wide}</div>`;
     },
     after() { if (F.snap()) ringPlayed = true; },
   });

@@ -419,7 +419,7 @@
     const s = W.step;
     return `<div class="v g8">${s === 1 ? `<div class="v g4"><h2 class="t24 w6 ink">Let's set up your planner</h2>
         <p class="t15 ink2">Six quick questions, one per screen. Tap the answers that fit, or type. Nothing is saved until you see it and tap Build. You can stop anytime with Later.</p></div>
-        <div>${ui.btn({ label: "Skip & Pick a Starter Profile", icon: "person.crop.rectangle.stack", act: "setup-starter" })}</div>` : ""}
+        ${ui.actbar([ui.btn({ label: "Skip & Pick a Starter Profile", icon: "person.crop.rectangle.stack", kind: "small", act: "setup-starter" })])}` : ""}
       <div class="org-prog" aria-hidden="true">${[1, 2, 3, 4, 5, 6].map((i) => `<i class="${i < s ? "done" : i === s ? "cur" : ""}"></i>`).join("")}</div>
       ${s <= 6 ? `<p class="t13 w6 muted">${esc(QUESTIONS[s - 1].title)}</p>` : ""}</div>`;
   }
@@ -438,7 +438,7 @@
   const answered = () => { const a = W.answers[W.step]; return !!a && (a.chips.size > 0 || a.text.trim() !== ""); };
   function setupFooter() {
     const s = W.step;
-    return `<div class="h g8">${s > 1 ? ui.btn({ label: "Back", act: "setup-back" }) : ""}<span class="sp"></span>
+    return `<div class="h g8 setfoot">${s > 1 ? ui.btn({ label: "Back", icon: "chevron.left", act: "setup-back" }) : ""}<span class="sp"></span>
       ${s <= 6 ? `${answered() ? "" : ui.btn({ label: "Skip", act: "setup-next" })}${ui.btn({ label: s === 6 ? "See my planner" : "Next", kind: "primary", act: "setup-next", disabled: !answered() })}`
                : `<button type="button" class="btn primary" data-act="setup-build" ${W.busy ? "disabled" : ""}>${W.busy ? ui.spinner() : ""}Build my planner</button>`}</div>`;
   }
@@ -489,8 +489,8 @@
         + summaryRow("gearshape", "Redo these questions", "Settings › Your planner."), "g12")}
     </div>`;
   }
-  const finishFooter = () => `<div class="v g8">${ui.btn({ label: "Plan my day now", kind: "primary", act: "setup-planday", wide: true })}
-      <div class="org-pair">${ui.btn({ label: "Open the Organizer", act: "setup-organizer" })}${ui.btn({ label: "Look around first", act: "sheet-close" })}</div></div>`;
+  const finishFooter = () => ui.actbar([ui.btn({ label: "Look around first", act: "sheet-close" }), ui.btn({ label: "Open the Organizer", icon: "target", act: "setup-organizer" }),
+      ui.btn({ label: "Plan my day now", icon: "arrow.right", kind: "primary", act: "setup-planday" })], true);
 
   F.on("setup-later", () => W?.api.close());
   F.on("setup-chip", (el) => {
@@ -587,8 +587,7 @@
   const BACKUP_KEY = "friday.plannerBackup";
   const readBackup = () => { try { return localStorage.getItem(BACKUP_KEY); } catch { return null; } };
   function resetButtonHTML() {
-    return `<div class="v g8"><div class="flow">${ui.btn({ label: "Start from zero", kind: "destructive", act: "org-reset" })}
-        ${readBackup() ? ui.btn({ label: "Restore my last backup", act: "org-restore" }) : ""}</div>
+    return `<div class="v g8">${ui.actbar([readBackup() ? ui.btn({ label: "Restore my last backup", kind: "small", act: "org-restore" }) : "", ui.btn({ label: "Start from zero", kind: "destructive", cls: "small", act: "org-reset" })])}
       <p class="t13 muted">Clears values, roles, goals, Big Rocks and setup answers, including anything a starter profile added. Your to-dos and calendar events stay. A backup is saved first.</p></div>`;
   }
   let RS = null;
@@ -603,8 +602,8 @@
         <h2 class="t20 w6 ink">Start your planner from zero?</h2>
         <p class="t15 ink2">This clears your values, roles, mission, goals, Big Rocks, daily pages and setup answers. Your to-dos and your own calendar events are not touched. A backup copy is saved first, so you can restore it.</p>
         ${hasBlocks() ? chip("Also end the focus, buffer and batch blocks Friday put on my calendar", RS.endBlocks, "reset-blocks") : ""}
-        <button type="button" class="btn destructive wide" data-act="reset-go" ${RS.busy ? "disabled" : ""}>${RS.busy ? ui.spinner() : ""}Clear my planner</button>
-        ${ui.btn({ label: "Keep everything", act: "sheet-close", wide: true })}</div>`,
+        ${ui.actbar([ui.btn({ label: "Keep everything", act: "sheet-close" }),
+          `<button type="button" class="btn destructive confirm" data-act="reset-go" ${RS.busy ? "disabled" : ""}>${RS.busy ? ui.spinner() : ""}Clear my planner</button>`], true)}</div>`,
     });
     RS.api.el.classList.add("org-sheet", "org-half");
     RS.hasBlocks = hasBlocks;
@@ -677,8 +676,8 @@
     return `<section class="card org-block ${setUp ? "" : "edge-friday"}">
       ${ui.label2(setUp ? "Start over or add more" : "Start here", setUp ? "" : "friday")}
       <p class="t15 ink2">${setUp ? "Answer the 6 questions again, add from a ready-made profile, or start from zero." : "Set up your planner first: six quick questions, about three minutes. Or pick a ready-made profile."}</p>
-      <div class="flow">${ui.btn({ label: setUp ? "Redo the 6 questions" : "Start the 6 questions", kind: setUp ? "" : "primary", act: "org-quick", data: { m: "diagnostic" } })}
-        ${ui.btn({ label: "Pick a starter profile", act: "org-quick", data: { m: "starter" } })}</div>
+      ${ui.actbar([ui.btn({ label: "Pick a starter profile", kind: "small", act: "org-quick", data: { m: "starter" } }),
+        ui.btn({ label: setUp ? "Redo the 6 questions" : "Start the 6 questions", kind: "small", cls: setUp ? "" : "tinted", act: "org-quick", data: { m: "diagnostic" } })])}
       ${setUp || readBackup() ? `<hr class="org-div">${resetButtonHTML()}` : ""}</section>`;
   }
   function pyramid(p) {
@@ -686,7 +685,7 @@
     const rows = [["Values", p.values.length], ["Goals", p.longGoals.length], ["Roles", p.roles.length], ["Big Rocks this week", week(p).rocks.length],
       ["Today's A-B-C tasks", openTodos().filter((t) => t.fc.letter && t.due && D.same(t.due, t0)).length]];
     return `<div class="org-pyr" role="img" aria-label="${esc("Your pyramid: " + rows.map((r) => `${r[0]} ${r[1]}`).join(", "))}">${rows.map((r, i) =>
-      `<div class="org-pyr-row" style="margin:0 ${i * 6}px"><span class="ink">${esc(r[0])}</span><span class="sp"></span><span class="${r[1] ? "ink2" : "muted"} num">${r[1]}</span></div>`).join("")}</div>`;
+      `<div class="org-pyr-row" style="margin:0 ${i * 8}px"><span class="ink">${esc(r[0])}</span><span class="sp"></span><span class="${r[1] ? "ink2" : "muted"} num">${r[1]}</span></div>`).join("")}</div>`;
   }
   function status(m, p) {
     switch (m.key) {
@@ -713,16 +712,15 @@
       ${setUp ? "" : quickStartCard(p)}
       ${pyramid(p)}
       ${goalCard(setUp)}
-      ${MODULES.map((m) => `<button type="button" class="plain card org-mcard press" data-act="org-module" data-m="${m.key}" aria-description="${esc(m.why)}">
-        <span class="org-tile">${icon(m.icon)}</span><span class="v g4 grow"><span class="t16 w6 ink">${esc(m.name)}</span><span class="t13 muted">${esc(status(m, p))}</span></span>
-        ${icon("chevron.right", 'class="chev"')}</button>`).join("")}
-      ${setUp ? quickStartCard(p) : ""}
-      <div>${coachBtn("Ask the coach")}</div>`;
+      <div class="org-mods">${MODULES.map((m) => `<button type="button" class="plain card org-mcard press" data-act="org-module" data-m="${m.key}" aria-description="${esc(m.why)}">
+        <span class="org-tile">${icon(m.icon)}</span><span class="v g4 grow"><span class="t-card-title">${esc(m.name)}</span><span class="t13 muted">${esc(status(m, p))}</span></span>
+        ${icon("chevron.right", 'class="chev"')}</button>`).join("")}</div>
+      ${setUp ? quickStartCard(p) : ""}`;
   }
   function moduleView(m) {
     const body = { values: valuesModule, roles: rolesModule, matrix: matrixModule, engine: engineModule, energy: energyModule }[m.key]();
-    return `<div class="v g4">${ui.label2("Organizer › " + m.name)}<h2 class="t24 w6 ink">${esc(m.name)}</h2><p class="t15 ink2">${esc(m.why)}</p></div>
-      ${body}<div>${coachBtn("Ask the coach about this")}</div>`;
+    return `<div class="v g4">${ui.label2("Organizer › " + m.name)}<h2 class="t-title">${esc(m.name)}</h2><p class="t-secondary">${esc(m.why)}</p></div>
+      ${body}`;
   }
 
   // ---------- shared module pieces

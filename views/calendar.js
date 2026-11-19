@@ -142,6 +142,7 @@
       const base = opts.day || new Date();
       let start = new Date(base.getTime() + 3600000); start.setMinutes(0, 0, 0);
       if (opts.day && !D.same(opts.day, new Date())) start = new Date(opts.day.getFullYear(), opts.day.getMonth(), opts.day.getDate(), 9, 0);
+      if (opts.start instanceof Date) start = new Date(opts.start);   // a tapped slot on the time grid
       d.start = start; d.end = new Date(start.getTime() + 3600000);
       if (opts.title) d.title = opts.title;
       if (!writableCals.some((c) => c.title === "Jose") && writableCals[0]) d.calendar = writableCals[0].title;
@@ -172,7 +173,7 @@
     const type = d.allDay ? "date" : "datetime-local";
     const curCal = calOpts.find((c) => c.title === d.calendar);
     return `<div class="narrow form evsheet">
-      ${readOnly ? `<div class="fsec"><div class="fgroup"><div class="frow"><span class="h g8 top t15 ink2" style="padding:6px 0">${F.icon("lock", 'class="wi"')}<span>This calendar is read-only (holidays, birthdays and subscribed calendars can't be changed here).</span></span></div></div></div>` : ""}
+      ${readOnly ? `<div class="fsec"><div class="fgroup"><div class="frow"><span class="h g8 top t15 ink2" style="padding:8px 0">${F.icon("lock", 'class="wi"')}<span>This calendar is read-only (holidays, birthdays and subscribed calendars can't be changed here).</span></span></div></div></div>` : ""}
       <div class="fsec"><div class="fgroup">
         <div class="frow"><input class="bare" id="ev-title" data-input="ev-field" data-k="title" placeholder="Title" aria-label="Title" value="${esc(d.title)}" ${dis}></div>
         <div class="frow"><input class="bare" id="ev-loc" data-input="ev-field" data-k="location" placeholder="Location" aria-label="Location" value="${esc(d.location)}" ${dis}></div>
@@ -270,57 +271,215 @@
   F.openEventEdit = openEventEdit;
   F.openCalendarFilter = openCalendarFilter;
 
-  // ------------------------------------------------------------ CalendarTab
-  let anchor = null;   // first day shown; null = today
+  // ------------------------------------------------------------ CalendarTab: Agenda · Day · Week (Design System v2 §10)
+  let anchor = null;   // Agenda: first day shown; null = today
   let span = 30;
+  let cursor = null;   // Day / Week: the day shown (Week: a day inside the range); null = today
+  const VIEWS = [["agenda", "Agenda"], ["day", "Day"], ["week", "Week"]];
+  let calView = (() => { try { const v = localStorage.getItem("friday.calView"); return VIEWS.some(([k]) => k === v) ? v : "week"; } catch { return "week"; } })();
+  const setView = (v) => { calView = v; try { localStorage.setItem("friday.calView", v); } catch {} };
+  const wideWeek = () => matchMedia("(min-width: 900px)").matches;   // 7 days on the sidebar layout, 3 below
+  const hourPx = () => (matchMedia("(max-width: 639px)").matches ? 56 : 64);
+  let tg = { key: "", scroll: null };   // remembers the grid's scroll for re-renders of the same range
 
   function dayBlock(day, events, now, isToday) {
     const allDay = events.filter((e) => e.allDay), timed = events.filter((e) => !e.allDay);
     const dk = D.key(day);
-    return `<section class="card p16 v g8 calday">
-      <div class="h g8">
-        <div class="calday-name">
-          <span class="h g8 nowrap"><span class="t15 w6 ink">${isToday ? "Today" : esc(D.wd(day))}</span><span class="t13 muted">${esc(D.md(day))}</span></span>
-          ${isToday ? ui.tag("Now " + D.time(now)) : ""}
-        </div>
-        <span class="sp"></span>
-        ${ui.btn({ icon: "plus", kind: "small", cls: "plusbtn", act: "cal-add", data: { day: dk }, aria: "Add event on " + D.md(day) })}
+    return `<section class="card p16 v g12 calday">
+      <div class="lockup">
+        <span class="calday-name"><span class="t15 w6 ink">${isToday ? "Today" : esc(D.wd(day))}</span><span class="t-meta">${esc(D.md(day))}</span>${isToday ? ui.tag("Now " + D.time(now), "now") : ""}</span>
+        <span class="lk-trail">${ui.btn({ icon: "plus", kind: "icon", cls: "small filled", act: "cal-add", data: { day: dk }, aria: "Add event on " + D.md(day) })}</span>
       </div>
       ${allDayChips(allDay)}
       ${timed.map((e) => eventRow(e, now, isToday)).join("")}
-      ${events.length ? "" : `<div class="freeday h"><span class="t15 w5 ink2">Free day</span><span class="sp"></span>${ui.btn({ label: "Add", icon: "plus", kind: "small", act: "cal-add", data: { day: dk }, aria: "Add an event on " + D.wide(day) })}</div>`}
+      ${events.length ? "" : `<p class="t-meta freeday">Free day</p>`}
     </section>`;
+  }
+
+  // ---- the time grid
+  const bigRockIndex = () => {
+    const p = F.planner(); const out = [];
+    if (!p) return out;
+    for (const w of Object.values(p.weeks || {})) for (const r of w?.rocks || []) {
+      const role = (p.roles || []).find((x) => x.id === r.roleID)?.name || "";
+      out.push({ title: String(r.title || "").trim().toLowerCase(), role });
+    }
+    return out;
+  };
+  function bigRockFor(e, rocks) {
+    const t = String(e.title || "").trim();
+    const m = /^big rock\s*[:·-]\s*(.+)$/i.exec(t);
+    const key = (m ? m[1] : t).trim().toLowerCase();
+    const r = rocks.find((x) => x.title && x.title === key);
+    if (r) return r;
+    return m ? { title: key, role: "" } : null;
+  }
+  /** Overlapping events split into columns: each cluster of overlaps shares its width. */
+  function layoutDay(evs) {
+    const items = evs.map((e) => ({ e, s: +e._s, f: +e._f })).sort((a, b) => a.s - b.s || b.f - a.f);
+    let cluster = [], cols = [], end = -Infinity;
+    const flush = () => { for (const it of cluster) it.n = cols.length; cluster = []; cols = []; };
+    for (const it of items) {
+      if (it.s >= end) { flush(); end = -Infinity; }
+      let c = cols.findIndex((f) => f <= it.s);
+      if (c < 0) { c = cols.length; cols.push(it.f); } else cols[c] = it.f;
+      it.c = c; cluster.push(it); end = Math.max(end, it.f);
+    }
+    flush();
+    return items;
+  }
+  const hhLabel = (h) => (h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "Noon" : `${h - 12} PM`);
+  function gridRange(now) {
+    const c = D.start(cursor || now);
+    if (calView === "day") return { start: c, n: 1 };
+    if (wideWeek()) return { start: D.weekStart(c), n: 7 };
+    return { start: c, n: 3 };
+  }
+  function rangeTitle(start, n) {
+    if (n === 1) return `<span class="only-wide">${esc(D.wide(start))}</span><span class="only-compact">${esc(D.short(start))}</span>`;
+    const end = D.add(start, n - 1);
+    const sameMonth = start.getMonth() === end.getMonth();
+    return esc(`${D.md(start)} – ${sameMonth ? end.getDate() : D.md(end)}`);
+  }
+  function timeGrid(now) {
+    const { start, n } = gridRange(now);
+    const H = hourPx(), all = F.events(), rocks = bigRockIndex();
+    const days = Array.from({ length: n }, (_, i) => D.add(start, i));
+    const cols = `64px repeat(${n}, minmax(0, 1fr))`;
+    const head = days.map((d) => { const today = D.same(d, now);
+      return `<button type="button" class="tg-dh ${today ? "today" : ""}" data-act="cal-pickday" data-day="${D.key(d)}" ${n === 1 ? "disabled" : ""} aria-label="${esc(D.wide(d) + (n > 1 ? ". Show this day" : ""))}">
+        <span class="tg-wd">${esc(D.wdShort(d))}</span><span class="tg-dn">${d.getDate()}</span></button>`; }).join("");
+    const allDay = days.map((d) => {
+      const evs = eventsOn(d, all).filter((e) => e.allDay);
+      return `<div class="tg-ad">${evs.map((e) => { const col = evColor(e); return `<button type="button" class="plain press tg-chip evtint" data-act="cal-open-event" data-id="${esc(e.id)}" style="--evc:${hexRGBA(col, 1)};--evt:${hexRGBA(col, 0.18)}" title="${esc(e.title)}"><span class="ell">${esc(e.title)}</span></button>`; }).join("")}</div>`;
+    }).join("");
+    const lines = Array.from({ length: 24 }, (_, h) => `<i class="tg-hr" style="top:${h * H}px"></i><i class="tg-half" style="top:${h * H + H / 2}px"></i>`).join("");
+    const nowY = days.some((d) => D.same(d, now)) ? (now - D.start(now)) / 3600000 * H : null;
+    const labels = Array.from({ length: 23 }, (_, k) => (nowY != null && Math.abs((k + 1) * H - nowY) < 14 ? "" : `<span class="tg-hl" style="top:${(k + 1) * H}px">${hhLabel(k + 1)}</span>`)).join("");
+    let nowGutter = "";
+    const columns = days.map((d, di) => {
+      const a = D.start(d), b = D.add(a, 1), today = D.same(d, now);
+      const evs = eventsOn(d, all).filter((e) => !e.allDay).map((e) => ({ ...e, _s: e.start < a ? a : e.start, _f: e.end > b ? b : e.end }));
+      const blocks = layoutDay(evs).map((it) => {
+        const e = it.e, top = (it.e._s - a) / 3600000 * H, h = Math.max(20, (it.e._f - it.e._s) / 3600000 * H - 2);
+        const col = evColor(e), past = e.end < now, rock = bigRockFor(e, rocks), rc = rock && rock.role ? F.roleColor(rock.role) : null;
+        const bar = rc ? rc.fill : col;
+        const w = 100 / it.n, left = it.c * w;
+        const time = `${D.time(e.start)} – ${D.time(e.end)}`;
+        return `<button type="button" class="tg-ev ${past ? "past" : ""} ${h < 36 ? "short" : ""} ${e.pending ? "pending" : ""}" data-act="cal-open-event" data-id="${esc(e.id)}"
+          style="top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${w}% - 4px);--evc:${hexRGBA(bar, past ? 0.6 : 1)};--evt:${hexRGBA(col, past ? 0.09 : 0.18)}"
+          aria-label="${esc(`${e.title}, ${time}${rock ? ", Big Rock" : ""}`)}">
+          <span class="tg-et">${rock ? F.icon("mountain.2", 'class="tg-rock"') : ""}<span class="ell">${esc(e.title)}</span></span>${h >= 36 ? `<span class="tg-tm">${esc(time)}</span>` : ""}</button>`;
+      }).join("");
+      let nowLine = "";
+      if (today) {
+        const y = (now - a) / 3600000 * H;
+        nowLine = `<i class="tg-now" style="top:${y}px" aria-hidden="true"></i>`;
+        nowGutter = `<span class="tg-nowl" style="top:${y}px">${esc(D.time(now))}</span>`;
+      }
+      return `<div class="tg-col ${today ? "today" : ""}" style="grid-column:${di + 2}" data-day="${D.key(d)}" role="group" aria-label="${esc(D.wide(d))}. Tap an empty time to add an event">${blocks}${nowLine}</div>`;
+    }).join("");
+    return { html: `<section class="card tg" style="--hour:${H}px;--tg-cols:${cols}" data-key="${calView}:${D.key(start)}:${n}">
+      <div class="tg-head"><span class="tg-gut"></span>${head}</div>
+      <div class="tg-allrow"><span class="tg-gut tg-adl">All day</span>${allDay}</div>
+      <div class="tg-scroll"><div class="tg-body" style="height:${24 * H}px">
+        <div class="tg-gutter">${labels}${nowGutter}</div>
+        <div class="tg-lines">${lines}</div>
+        ${columns}
+      </div></div>
+    </section>`, title: rangeTitle(start, n), start, n };
+  }
+
+  function toolbar(now, title) {
+    const seg = ui.seg("cal-view", VIEWS, calView).replace('class="seg"', 'class="seg fit calseg" aria-label="Calendar view"');
+    if (calView === "agenda") {
+      return `<div class="caltool">${seg}
+        <div class="actbar caltool-r">${ui.btn({ label: "Earlier", icon: "chevron.up", kind: "small", act: "cal-earlier" })}${ui.btn({ label: "Go to date", icon: "calendar", kind: "small", act: "cal-goto" })}${anchor ? ui.btn({ label: "Today", kind: "small", act: "cal-today" }) : ""}</div></div>`;
+    }
+    const isNow = (() => { const r = gridRange(now); return now >= r.start && now < D.add(r.start, r.n); })();
+    return `<div class="caltool">${seg}
+      <div class="stepper-d">${ui.btn({ icon: "chevron.left", kind: "icon", cls: "small filled", act: "cal-step", data: { dir: -1 }, aria: calView === "day" ? "Previous day" : "Previous days" })}
+        <span class="sd-t t15 w6 ink">${title}</span>
+        ${ui.btn({ icon: "chevron.right", kind: "icon", cls: "small filled", act: "cal-step", data: { dir: 1 }, aria: calView === "day" ? "Next day" : "Next days" })}</div>
+      ${ui.btn({ label: "Today", kind: "small", act: "cal-today", disabled: isNow })}</div>`;
   }
 
   F.view("calendar", {
     render() {
       const now = new Date();
-      const start = anchor ? D.start(anchor) : D.start(now);
-      const all = F.events();
-      const eyebrow = ui.label2((anchor || now).toLocaleDateString([], { month: "long", year: "numeric" }));
-      let days = "";
-      for (let i = 0; i < span; i++) {
-        const day = D.add(start, i);
-        days += dayBlock(day, eventsOn(day, all), now, D.same(day, now));
+      const actions = filterButton() + ui.btn({ label: "Event", icon: "plus", kind: "primary", act: "cal-new" });
+      const banners = (calendarAccess() ? "" : accessOffRow("Calendar")) + failedCard(EVENT_KINDS);
+      if (calView === "agenda") {
+        const start = anchor ? D.start(anchor) : D.start(now);
+        const all = F.events();
+        const eyebrow = ui.label2((anchor || now).toLocaleDateString([], { month: "long", year: "numeric" }));
+        let days = "";
+        for (let i = 0; i < span; i++) { const day = D.add(start, i); days += dayBlock(day, eventsOn(day, all), now, D.same(day, now)); }
+        return `${ui.header({ eyebrow, title: "Calendar", actions })}${banners}
+          <div class="v cgap">${toolbar(now)}<div class="caldays">${days}</div>
+          ${ui.actbar([ui.btn({ label: "Show 30 more days", icon: "chevron.down", act: "cal-more" })])}</div>`;
       }
-      return `${ui.header({ eyebrow, title: "Calendar", actions: filterButton() + ui.btn({ label: "Event", icon: "plus", kind: "primary", act: "cal-new" }) })}
-        ${calendarAccess() ? "" : accessOffRow("Calendar")}
-        ${failedCard(EVENT_KINDS)}
-        <div class="h g8">
-          ${ui.btn({ label: "Earlier", icon: "chevron.up", kind: "small", act: "cal-earlier" })}
-          ${ui.btn({ label: "Go to date", icon: "calendar", kind: "small", act: "cal-goto" })}
-          <span class="sp"></span>
-          ${anchor ? ui.btn({ label: "Today", kind: "small", act: "cal-today" }) : ""}
-        </div>
-        <div class="caldays">${days}</div>
-        <div>${ui.btn({ label: "Show 30 more days", act: "cal-more" })}</div>`;
+      const g = timeGrid(now);
+      const eyebrow = ui.label2(g.start.toLocaleDateString([], { month: "long", year: "numeric" }));
+      return `${ui.header({ eyebrow, title: "Calendar", actions })}${banners}<div class="v cgap">${toolbar(now, g.title)}${g.html}</div>`;
+    },
+    after(root) {
+      const grid = root.querySelector(".tg"); if (!grid) { tg.key = ""; return; }
+      const sc = grid.querySelector(".tg-scroll"), screen = root;
+      // the grid fills the rest of the window; the hours scroll inside it
+      const absTop = (el) => { let y = 0; for (let n = el; n; n = n.offsetParent) y += n.offsetTop; return y; };
+      const avail = screen.clientHeight - (absTop(sc) - absTop(screen)) - 24;
+      sc.style.height = Math.max(360, Math.min(24 * hourPx(), avail)) + "px";
+      const sb = sc.offsetWidth - sc.clientWidth;   // keep the day headers over their columns when a scrollbar shows
+      for (const r of grid.querySelectorAll(".tg-head, .tg-allrow")) r.style.paddingRight = sb + "px";
+      const key = grid.dataset.key;
+      if (key === tg.key && tg.scroll != null) sc.scrollTop = tg.scroll;
+      else {
+        const now = new Date(), H = hourPx();
+        const showsToday = !!grid.querySelector(".tg-col.today");
+        const hour = showsToday ? Math.max(0, now.getHours() + now.getMinutes() / 60 - 1) : 8;
+        sc.scrollTop = Math.max(0, hour * H - 12);
+      }
+      tg.key = key; tg.scroll = sc.scrollTop;
+      sc.addEventListener("scroll", () => { tg.scroll = sc.scrollTop; }, { passive: true });
     },
   });
 
-  F.on("cal-new", () => openEventEdit(null, { day: new Date() }));
+  F.on("cal-view", (el) => { setView(el.dataset.value); tg.key = ""; F.render(); });
+  F.on("cal-step", (el) => {
+    const dir = +el.dataset.dir, now = new Date(), { n } = gridRange(now);
+    cursor = D.add(D.start(cursor || now), dir * n);
+    if (D.same(cursor, now)) cursor = null;
+    F.render();
+  });
+  F.on("cal-pickday", (el) => { cursor = D.parse(el.dataset.day); if (D.same(cursor, new Date())) cursor = null; setView("day"); F.render(); });
+  // tap an empty slot → New event at that time (30-minute snap)
+  document.addEventListener("click", (e) => {
+    const col = e.target.closest?.(".tg-col"); if (!col || e.target.closest(".tg-ev")) return;
+    const r = col.getBoundingClientRect(), H = r.height / 24;   // works under the text-size zoom too
+    const mins = Math.max(0, Math.min(23.5 * 60, Math.floor(((e.clientY - r.top) / H) * 2) * 30));
+    const d = D.parse(col.dataset.day);
+    openEventEdit(null, { day: d, start: new Date(d.getFullYear(), d.getMonth(), d.getDate(), Math.floor(mins / 60), mins % 60) });
+  });
+  // ←/→ step the Day / Week view (not while typing or with a sheet open)
+  document.addEventListener("keydown", (e) => {
+    if (F.S.tab !== "calendar" || calView === "agenda" || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    if (document.querySelector("dialog[open]") || e.target.closest?.("input, textarea, select, [contenteditable]")) return;
+    e.preventDefault();
+    const { n } = gridRange(new Date());
+    cursor = D.add(D.start(cursor || new Date()), (e.key === "ArrowLeft" ? -1 : 1) * n);
+    if (D.same(cursor, new Date())) cursor = null;
+    F.render();
+  });
+  // 7 ⇄ 3 days when the window crosses 900 px
+  let wasWide = wideWeek();
+  addEventListener("resize", () => { const w = wideWeek(); if (w !== wasWide && F.S.tab === "calendar") { wasWide = w; tg.key = ""; F.render(); } });
+
+  F.on("cal-new", () => openEventEdit(null, { day: cursor || new Date() }));
   F.on("cal-add", (el) => { const day = D.parse(el.dataset.day); openEventEdit(null, { day: D.same(day, new Date()) ? new Date() : day }); });
   F.on("cal-earlier", () => { anchor = D.add(anchor ? D.start(anchor) : D.start(new Date()), -7); F.render(); });
-  F.on("cal-today", () => { anchor = null; span = 30; F.render(); });
+  F.on("cal-today", () => { anchor = null; cursor = null; span = 30; tg.key = ""; F.render(); });
   F.on("cal-more", () => { span += 30; F.render(); });
   F.on("cal-goto", () => {
     let pick = D.key(anchor || new Date());

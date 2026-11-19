@@ -25,9 +25,9 @@
 
   function card({ icon, title, status, ok, tag, content = "" }) {
     return `<section class="card set-card">
-      <div class="h g16">
+      <div class="h g12">
         <span class="set-ic sec-${({ calendar: "calendar", checklist: "tasks", envelope: "mail" })[icon] || "settings"}" aria-hidden="true">${F.icon(icon)}</span>
-        <div class="v g2 grow"><span class="t17 w6 ink">${esc(title)}</span><span class="t13 ${ok ? "ink2" : "muted"}">${esc(status)}</span></div>
+        <div class="v g2 grow"><span class="t-card-title">${esc(title)}</span><span class="t13 ${ok ? "ink2" : "muted"}">${esc(status)}</span></div>
         <span class="tag ${ok ? "done" : "set-off"}">${esc(tag || (ok ? "Connected" : "Not set up"))}</span>
       </div>${content}</section>`;
   }
@@ -35,14 +35,12 @@
   function plannerSection() {
     const p = F.planner();
     const setUp = !!(p && (p.values || []).length && (p.roles || []).length);
-    return `<section class="card set-card set-planner">
+    return `<section class="card set-card set-planner set-full">
       ${ui.label2("Your planner")}
       <p class="t15 ink2">${esc(setUp ? "Values, roles, goals and focus time live in the Organizer." : "Your planner isn't set up yet. Six quick questions, about three minutes.")}</p>
-      <div class="flow">
-        ${ui.btn({ label: setUp ? "Redo the 6 questions" : "Set up my planner", kind: setUp ? "" : "primary", act: "set-setup", data: { mode: "diagnostic" } })}
-        ${ui.btn({ label: "Pick a starter profile", act: "set-setup", data: { mode: "starter" } })}
-        ${ui.btn({ label: "Organizer", icon: "target", act: "set-organizer" })}
-      </div>
+      ${ui.actbar([ui.btn({ label: setUp ? "Redo the 6 questions" : "Set up my planner", kind: "small", cls: setUp ? "" : "tinted", act: "set-setup", data: { mode: "diagnostic" } }),
+        ui.btn({ label: "Pick a starter profile", kind: "small", act: "set-setup", data: { mode: "starter" } }),
+        ui.btn({ label: "Organizer", icon: "target", kind: "small", act: "set-organizer" })])}
       <hr class="set-div">
       <div class="h g16 set-toggle">
         <label class="v g2 grow" for="set-ritual"><span class="t15 w6 ink">Morning ritual</span>
@@ -57,7 +55,7 @@
         <select id="set-zoom" data-change="set-zoom">${F.zoomSteps.map(([v, n]) => `<option value="${v}" ${Math.abs(F.zoom() - v) < 0.01 ? "selected" : ""}>${n}</option>`).join("")}</select>
       </div>
       ${setUp ? `<hr class="set-div">
-        <div class="flow">${ui.btn({ label: "Start from zero", kind: "destructive", act: "set-reset" })}</div>
+        ${ui.actbar([ui.btn({ label: "Start from zero", kind: "destructive", cls: "small", act: "set-reset" })])}
         <p class="t13 muted">Clears values, roles, goals, Big Rocks and setup answers, including anything a starter profile added. Your to-dos and calendar events stay. A backup is saved first.</p>` : ""}
     </section>`;
   }
@@ -71,12 +69,12 @@
     const from = s ? `${esc(s.device || "your iPhone")}` : "";
     const iphoneNote = (t) => `<p class="t13 muted">${esc(t)}</p>`;
     const synced = F.S.lastLoad ? D.time(new Date(F.S.lastLoad)) : null;
-    return `<div class="set-col">
+    return `<div class="set-col set-grid">
       ${!s ? `<div class="card attention set-warn h top g8">${F.icon("exclamationmark.triangle.fill")}<p class="t15 ink">Your iPhone hasn't sent anything yet. Open F.R.I.D.A.Y. on your iPhone and sign in to sync.</p></div>` : ""}
       ${plannerSection()}
       ${card({ icon: "calendar", title: "Calendar", ok: !!access.calendar, status: access.calendar ? "Connected · all your Apple calendars" : "Not connected",
         content: access.calendar
-          ? `<div class="flow">${ui.btn({ labelHTML: `${F.icon("calendar")}Choose calendars${shown < cals.length ? ` <span class="set-count">${shown}/${cals.length}</span>` : ""}`, act: "set-calendars", aria: `Choose calendars, ${shown} of ${cals.length} shown` })}</div>`
+          ? ui.actbar([ui.btn({ kind: "small", labelHTML: `${F.icon("calendar")}Choose calendars${shown < cals.length ? ` <span class="set-count">${shown}/${cals.length}</span>` : ""}`, act: "set-calendars", aria: `Choose calendars, ${shown} of ${cals.length} shown` })])
           : iphoneNote("Allow calendar access in F.R.I.D.A.Y. on your iPhone.") })}
       ${card({ icon: "checklist", title: "To-dos (Reminders)", ok: !!access.reminders, status: access.reminders ? `Connected · ${lists} list${lists === 1 ? "" : "s"}` : "Not connected",
         content: access.reminders ? "" : iphoneNote("Allow reminders access in F.R.I.D.A.Y. on your iPhone.") })}
@@ -86,10 +84,10 @@
           ${iphoneNote("Connect, fix or remove email accounts on your iPhone. Passwords stay in its Keychain.")}</div>` })}
       ${card({ icon: "waveform", title: "Voice (microphone)", ok: false, tag: "iPhone only", status: "iPhone only · the website is text only" })}
       ${card({ icon: "cpu", title: "Friday: dates, signature, memory", ok: true, tag: "iPhone and iPad",
-        status: "Talking with Friday is on your iPhone and iPad", content: `<div class="flow">${ui.btn({ label: "Friday settings", act: "set-friday" })}</div>` })}
+        status: "Talking with Friday is on your iPhone and iPad", content: ui.actbar([ui.btn({ label: "Friday settings", kind: "small", act: "set-friday" })]) })}
       ${card({ icon: "arrow.triangle.2.circlepath", title: "Sync: iPhone, iPad and website", ok: true,
         status: `Signed in · ${synced ? "synced " + synced : "waiting"}${from ? " · from " + from : ""}`,
-        content: `<div class="flow">${ui.btn({ label: "Sync settings", act: "set-sync" })}</div>` })}
+        content: ui.actbar([ui.btn({ label: "Sync settings", kind: "small", act: "set-sync" })]) })}
       ${updateCard()}
     </div>`;
   }
@@ -114,13 +112,13 @@
     const macOn = F.DEMO || (hb && Date.now() - hb.getTime() < 12 * 60 * 1000);
     const working = (st && st.state === "working" && (!U.requested || st.id === U.requested)) || !!U.requested;
     const devs = d?.devices || [];
-    return `<section class="card set-card">
-      <div class="h g16">
+    return `<section class="card set-card set-full">
+      <div class="h g12">
         <span class="set-ic sec-settings" aria-hidden="true">${F.icon("iphone")}</span>
-        <div class="v g2 grow"><span class="t17 w6 ink">Update the app on your iPhone and iPad</span>
+        <div class="v g2 grow"><span class="t-card-title">Update the app on your iPhone and iPad</span>
           <span class="t13 muted">Your Mac rebuilds F.R.I.D.A.Y. and installs it on every iPhone and iPad it can reach, over Wi-Fi or a cable. It takes about two minutes.</span></div>
       </div>
-      ${ui.btn({ kind: "primary", wide: true, act: "set-update", disabled: working || !macOn, labelHTML: working ? `${ui.spinner()}Updating…` : `${F.icon("arrow.triangle.2.circlepath")}Sync`, cls: "set-syncbtn" })}
+      ${ui.actbar([ui.btn({ kind: "small", act: "set-update", disabled: working || !macOn, labelHTML: working ? `${ui.spinner()}Updating…` : `${F.icon("arrow.triangle.2.circlepath")}Sync`, cls: "tinted" })])}
       ${!macOn ? `<div class="card attention set-banner h top g8">${F.icon("exclamationmark.triangle.fill")}<p class="t13 ink"><b>Your Mac isn't answering${hb ? ` (last heard ${esc(D.ago(hb))})` : ""}.</b> Turn on your Mac mini, plug in the external drive, and sign in. The Sync button wakes up within a minute.</p></div>` : ""}
       ${statusHTML(st)}
       <div class="v">

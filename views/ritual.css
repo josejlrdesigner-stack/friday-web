@@ -2,21 +2,20 @@
    then white cards on the lavender page: Act As, the 90-day goal, today's A1, the planning streak. Green only for done. */
 dialog.sheet.ritual { background: var(--page); }
 .rit { flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; padding: 0 0 calc(var(--sp-32) + env(safe-area-inset-bottom)); }
-.rit-band { background: var(--g-band); color: #fff; border-radius: 0 0 26px 26px; position: relative; overflow: hidden;
-  padding: var(--sp-16) calc(var(--gutter) + env(safe-area-inset-right)) 28px calc(var(--gutter) + env(safe-area-inset-left)); box-shadow: 0 14px 34px rgba(45, 27, 105, .25); }
-.rit-band::before { content: ""; position: absolute; right: -90px; top: -100px; width: 300px; height: 300px; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(circle, rgba(157, 0, 255, .45), rgba(157, 0, 255, 0) 70%); }
+.rit-band { background: var(--g-band); color: #fff; border-radius: 0 0 var(--r-card) var(--r-card); position: relative; overflow: hidden;
+  padding: var(--sp-16) calc(var(--gutter) + env(safe-area-inset-right)) var(--sp-32) calc(var(--gutter) + env(safe-area-inset-left)); }
 .rit-band-in { position: relative; width: 100%; max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--sp-8); }
 .rit-in { width: 100%; max-width: calc(560px + 2 * var(--gutter)); margin: 0 auto; display: flex; flex-direction: column; gap: var(--sp-16);
   padding: var(--sp-24) calc(var(--gutter) + env(safe-area-inset-right)) 0 calc(var(--gutter) + env(safe-area-inset-left)); }
-.rit-brand { display: flex; align-items: center; gap: 8px; min-height: 44px; justify-content: center; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: 2.4px; }
+.rit-brand { display: flex; align-items: center; gap: 8px; min-height: 44px; justify-content: center; color: #fff; position: relative; font-size: 13px; font-weight: 700; letter-spacing: 2.4px; }
 .rit-hero { display: grid; place-items: center; }
 .rit-hero canvas { width: 128px; height: 128px; display: block; }
 .rit-greet { text-align: center; align-items: center; }
-.rit-card { background: var(--panel); border-radius: var(--r-card); padding: 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; box-shadow: var(--shadow); }
-@media (min-width: 640px) { .rit-card { padding: 20px; } }
+.rit-card { background: var(--panel); border-radius: var(--r-card); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; box-shadow: var(--shadow); }
+.rit-x { position: absolute; right: 0; top: 0; color: #fff !important; background: rgba(255, 255, 255, .12) !important; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22) !important; }
+.rit-x:focus-visible { outline-color: #fff; }
 .rit-actcard { margin-top: -44px; position: relative; z-index: 1; }   /* the Act As card overlaps the band, like the app */
-.rit-act { font-size: 17px; font-weight: 500; font-style: italic; line-height: 1.4; color: var(--ink); overflow-wrap: anywhere; }
+
 .rit-field { font-style: italic; resize: none; min-height: 72px; }
 
 .rit-ms { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -30,16 +29,16 @@ dialog.sheet.ritual { background: var(--page); }
 .rit-streak > .v.grow { flex: 1 1 160px; }
 .rit-flame { width: 44px; height: 44px; border-radius: var(--r-tile); background: var(--g-brief); color: var(--ink); --spark: #FFFFFF; display: grid; place-items: center; flex: none; }
 .rit-flame svg { width: 24px; height: 24px; }
-.rit-n { font-size: 22px; letter-spacing: -.4px; }
+.rit-n { font-size: 30px; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
 .rit-days { display: flex; gap: 4px; }
 .rit-days span { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: var(--muted); width: 24px; }
 .rit-days i { width: 20px; height: 20px; border-radius: 50%; background: var(--soft); }
 .rit-days span.on i { background: var(--done); }
 /* the one button stays in view at every height */
-.rit-foot { flex: none; background: rgba(255, 255, 255, .94); box-shadow: 0 -6px 24px rgba(45, 27, 105, .10); border-radius: var(--r-card) 22px 0 0;
+.rit-foot { flex: none; background: var(--panel); box-shadow: 0 -1px 0 var(--card-edge); border-radius: var(--r-card) var(--r-card) 0 0;
   padding: 16px calc(var(--gutter) + env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) calc(var(--gutter) + env(safe-area-inset-left)); }
 .rit-go { max-width: 560px; margin: 0 auto; }
-.rit-go .btn { min-height: 52px; font-size: 17px; }
+
 
 /* spring entrance, one piece after another */
 .ritual[open] .rit-foot { animation: rit-in .6s cubic-bezier(.34, 1.4, .64, 1) .3s both; }
