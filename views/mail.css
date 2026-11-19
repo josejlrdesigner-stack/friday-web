@@ -202,7 +202,7 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 @container (max-width: 479px) {
   .bulk { column-gap: 4px; padding: 8px 12px; }
   .bulk > .v { flex-basis: 100%; flex-direction: row; align-items: center; gap: 16px; }
-  .bulk .btn.small, .bulk .btn.destructive { font-size: 0; gap: 0; width: 44px; min-width: 44px; padding: 0; justify-content: center; }
+  .bulk .btn.small, .bulk .btn.destructive { font-size: 0; gap: 0; width: 100%; min-width: 0; padding: 0; justify-content: center; }
   .bulk .btn.small svg, .bulk .btn.destructive svg { width: 19px; height: 19px; }
 }
 
@@ -231,3 +231,26 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
 
 /* list column children never shrink (the column scrolls) */
 .mcol > *, .mstream > * { flex-shrink: 0; }
+/* GRID-SNAP: the accounts · mailboxes · filter row spans the full width */
+.mctl > .flow { width: 100%; }
+.mctl > .flow > .mtrig { flex: 1 1 0; justify-content: space-between; }
+.mctl > .flow > .mpair { flex: 1 1 0; display: flex; }
+.mctl > .flow > .mpair > .mtrig:not(.mfilter) { flex: 1 1 0; justify-content: space-between; }
+.mctl > .flow > .mpair > .mtrig.mfilter { flex: 0 0 44px; padding: 0; }
+/* the filter now lives beside the title */
+.screen-head .tools .mtrig.mfilter { min-width: 44px; min-height: 44px; padding: 0 12px; }
+.mctl > .flow > .mpair { flex: 1 1 0; }
+.mctl > .flow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--card-gap, 12px); }
+.mctl > .flow > .mpair { display: flex; min-width: 0; }
+.mctl > .flow > .mpair > .mtrig { flex: 1 1 0; }
+.mcard .actbar { gap: var(--card-gap, 12px); }
+/* select-mode bar (grid-snap): count row, then one row of equal columns, same style for every action */
+.bulk { flex-wrap: nowrap; padding: 12px var(--gutter); }
+.bulk-top { width: 100%; align-items: center; }
+.bulk-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; width: 100%; }
+.bulk-row > .btn { min-height: 44px; margin: 0; padding: 0 8px; justify-content: center; min-width: 0; }
+.bulk-row > .btn.mbmore { min-width: 0; padding: 0 8px; }
+@media (max-width: 639px) {
+  .bulk-row > .btn .btn-l { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+.bulk-row > .btn { width: 100%; max-width: none; }

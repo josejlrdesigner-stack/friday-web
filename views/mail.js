@@ -601,25 +601,29 @@
 
   function bulkBar(X) {
     const all = threads(current(X)).map((t) => t[0].id), n = M.picked.size, none = !n;
-    return `<div class="bulk h g8"><div class="v"><span class="t13 w6 ink tnum bcount">${n} selected</span>
+    // grid-snap: a full-width count row, then ONE row of equal columns, all the same button style (Delete in red)
+    return `<div class="bulk v g8"><div class="h bulk-top"><span class="t13 w6 ink tnum bcount">${n} selected</span><span class="sp"></span>
         <button type="button" class="btn link t13" style="min-height:24px;padding:0" data-act="mail-pick-all">${n === all.length && n ? "Select none" : "Select all"}</button></div>
+      <div class="bulk-row">
       ${ui.btn({ label: "Read", icon: "envelope.open", kind: "small", act: "mail-bulk-read", disabled: none })}
       ${ui.btn({ label: "Move", icon: "folder", kind: "small", act: "mail-bulk-move", disabled: none })}
       ${ui.btn({ label: "Archive", icon: "archivebox", kind: "small", act: "mail-bulk-archive", disabled: none })}
       ${M.lane === "Junk" && M.folder === "INBOX" ? ui.btn({ label: "Not Junk", icon: "tray.and.arrow.up", kind: "small", act: "mail-bulk-notjunk", disabled: none })
         : ui.btn({ label: "Junk", icon: "xmark.bin", kind: "small", act: "mail-bulk-junk", disabled: none })}
       <button type="button" class="btn small mbmore" data-act="mail-menu" data-menu="bulk-more" aria-haspopup="menu" aria-expanded="${M.menu === "bulk-more"}" aria-label="More actions for the selected emails" ${none ? "disabled" : ""}>${icon("ellipsis.circle")}</button>
-      <span class="sp"></span>${ui.btn({ label: "Delete", icon: "trash", kind: "destructive", act: "mail-bulk-delete", disabled: none })}</div>`;
+      ${ui.btn({ label: "Delete", icon: "trash", kind: "destructive", cls: "small", act: "mail-bulk-delete", disabled: none })}</div></div>`;
   }
 
   function streamHTML(X) {
     const unread = X ? inboxOf(X).filter((m) => !m.seen).length : 0;
     const hasAccounts = X && X.accounts.length;
-    const header = ui.header({ eyebrow: ui.label2(`${unread} unread`), title: X ? folderTitle(X) : "Mail",
-      actions: ui.btn({ icon: "gearshape", kind: "icon", filled: true, act: "mail-settings", aria: "Settings: email accounts and signature" })
-        + (hasAccounts ? ui.btn({ label: M.selecting ? "Done" : "Select", act: "mail-select" }) : "")
-        + F.syncButton()
+    // icon buttons sit beside the title; labelled buttons make the 2-column row under it (grid-snap)
+    const head = (extraTool = "") => ui.header({ eyebrow: ui.label2(`${unread} unread`), title: X ? folderTitle(X) : "Mail",
+      tools: ui.btn({ icon: "gearshape", kind: "icon", filled: true, act: "mail-settings", aria: "Settings: email accounts and signature" })
+        + F.syncButton() + extraTool,
+      actions: (hasAccounts ? ui.btn({ label: M.selecting ? "Done" : "Select", act: "mail-select" }) : "")
         + ui.btn({ label: "Compose", icon: "square.and.pencil", kind: "primary", act: "mail-compose", aria: "Compose a new email" }) });
+    const header = head();
     if (!hasAccounts) {
       return `<div class="mhead">${header}</div><div class="mnone v g16">
         <canvas class="mcore" data-core width="140" height="140" style="width:140px;height:140px"></canvas>
@@ -639,8 +643,8 @@
     const controls = `<div class="mctl v g8">
       ${ui.search("mail-q", "Search all mail", M.query, "mail-q")}
       ${M.folder === "INBOX" && !M.query.trim() ? ui.seg("mail-lane", ["Priority", "Updates", "All", "Junk"], M.lane) : ""}
-      <div class="flow">${trigger("acct", acctLabel, "", `Account: ${a?.label || "All accounts"}`)}<span class="mpair">${a ? trigger("chan", chan) : trigger("boxes", chan, "", "Mailboxes: Sent, Trash, Archive and folders")}${filterTrigger}</span></div></div>`;
-    return `<div class="mhead">${header}</div>${controls}<div class="mlist" id="mail-list">${listHTML(X)}</div>${M.selecting ? bulkBar(X) : ""}`;
+      <div class="flow">${trigger("acct", acctLabel, "", `Account: ${a?.label || "All accounts"}`)}<span class="mpair">${a ? trigger("chan", chan) : trigger("boxes", chan, "", "Mailboxes: Sent, Trash, Archive and folders")}</span></div></div>`;
+    return `<div class="mhead">${head(filterTrigger)}</div>${controls}<div class="mlist" id="mail-list">${listHTML(X)}</div>${M.selecting ? bulkBar(X) : ""}`;
   }
 
   // ------------------------------------------------------------ one email (MessageView)

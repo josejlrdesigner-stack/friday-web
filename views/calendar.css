@@ -115,3 +115,6 @@
 .tg-ev.past .tg-tm { color: var(--muted); }
 .tg-ev.pending { outline: 1px dashed var(--evc); outline-offset: -1px; }
 .tg-rock { width: 14px; height: 14px; flex: none; color: var(--evc); --spark: var(--evc); }
+/* GRID-SNAP: the day stepper spans the full width ([‹] date [›] [Today]) */
+.stepper-d { flex: 1 1 0; justify-content: space-between; width: 100%; }
+.stepper-d .sd-t { flex: 1 1 auto; }

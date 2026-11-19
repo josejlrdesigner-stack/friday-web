@@ -480,3 +480,37 @@ dialog.alert .aa button.cancel { font-weight: 700; }
   @keyframes cel-fade { from { opacity: .8; } to { opacity: 0; } } }
 .cgap { gap: var(--card-gap); }
 .cols.eq { align-items: stretch; }
+
+/* ── GRID-SNAP (spec v2 §6b): every control row spans red line to red line in equal columns ── */
+.actbar { width: 100%; }
+.actbar > .btn { flex: 1 1 0; min-width: 0; }
+.actbar > .btn.icon { flex: 0 0 44px; }
+@media (max-width: 639px) {
+  /* header actions: a full-width row under the title; labelled buttons share the width, icon buttons stay 44 square */
+  .screen-head { flex-wrap: wrap; row-gap: 12px; }
+  .screen-head .tb { flex: 1 1 100%; }
+  .screen-head .acts { flex: 1 1 100%; max-width: 100%; display: flex; flex-wrap: nowrap; gap: 8px; }
+  .screen-head .acts > * { flex: 1 1 0; min-width: 0; }
+  .screen-head .acts > .btn.icon, .screen-head .acts > .icon { flex: 0 0 44px; }
+  .screen-head .acts .btn:not(.primary):not(.icon):has(svg) { padding: 0 12px; }
+  .screen-head .acts .btn:not(.primary):not(.icon):has(svg) .btn-l,
+  .screen-head .acts .calfilter .lbl { position: static; width: auto; height: auto; overflow: hidden; clip: auto; text-overflow: ellipsis; }
+}
+@media (min-width: 640px) {
+  /* wide: header actions right-aligned with equal widths */
+  .screen-head .acts > .btn:not(.icon) { min-width: 128px; justify-content: center; }
+}
+/* header tools: icon-only buttons beside the title (all widths) */
+.screen-head .tools { display: flex; gap: 8px; align-items: center; flex: none; }
+.screen-head .tools > * { flex: none; }
+@media (max-width: 639px) {
+  .screen-head .tb { flex: 1 1 0; min-width: 0; }
+  .screen-head .tools { align-self: center; }
+  .screen-head .acts { order: 3; }
+}
+/* one gutter for every row of controls = the card gutter (12 phone / 16 wide), so column edges line up top to bottom */
+.actbar, .screen-head .acts { gap: var(--card-gap, 12px); }
+@media (max-width: 639px) {
+  .screen-head .acts { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+  .screen-head .acts > * { min-width: 0; }
+}

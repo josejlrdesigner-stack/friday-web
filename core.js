@@ -392,10 +392,11 @@ const F = (() => {
     check: (on, act, d = {}, label = "") => `<button type="button" class="check ${on ? "on" : ""}" data-act="${esc(act)}" ${data(d)} aria-label="${esc((on ? "Mark not done: " : "Check off: ") + label)}"><i></i></button>`,
     /** ScreenHeader: the one header every tab uses, so every title starts at the same edge.
      *  Section label (dark shade) + large ink title with the section's icon tile beside it. lead = custom HTML instead of the tile; sec = false for none. */
-    header: ({ eyebrow = "", title, actions = "", lead = null, sec = null }) => {
+    /** tools = icon-only buttons (they sit beside the title, like iOS nav-bar items); actions = labelled buttons (a full-width grid row on phones) */
+    header: ({ eyebrow = "", title, actions = "", tools = "", lead = null, sec = null }) => {
       const s = sec === false ? null : (sec || (SEC_ICON[S.tab] ? S.tab : null));
       const l = lead ?? (s ? ui.secTile(s) : "");
-      return `<div class="screen-head"><div class="tb">${l}<div class="tx">${eyebrow}<h1>${esc(title)}</h1></div></div><div class="acts">${actions}</div></div>`;
+      return `<div class="screen-head"><div class="tb">${l}<div class="tx">${eyebrow}<h1>${esc(title)}</h1></div></div>${tools ? `<div class="tools">${tools}</div>` : ""}${actions ? `<div class="acts">${actions}</div>` : ""}</div>`;
     },
     /** FridayMark: the Friday icon — cyan→violet ring with a cyan hexagon at the center */
     fmark(size = 26) {
