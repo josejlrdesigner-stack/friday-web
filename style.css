@@ -483,7 +483,7 @@ dialog.alert .aa button.cancel { font-weight: 700; }
 
 /* ── GRID-SNAP (spec v2 §6b): every control row spans red line to red line in equal columns ── */
 .actbar { width: 100%; }
-.actbar > .btn { flex: 1 1 0; min-width: 0; }
+.actbar > .btn { flex: 1 1 0; min-width: fit-content; }   /* never narrower than its label + padding; a pair that cannot fit wraps to full-width rows */
 .actbar > .btn.icon { flex: 0 0 44px; }
 @media (max-width: 639px) {
   /* header actions: a full-width row under the title; labelled buttons share the width, icon buttons stay 44 square */
