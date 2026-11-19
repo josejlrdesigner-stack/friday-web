@@ -395,7 +395,12 @@ const F = (() => {
     roleTag: (name) => `<span class="tag role ${roleClass(name)}">${esc(name)}</span>`,
     seg: (act, options, selected, extra = {}) => `<div class="seg" role="group">${options.map((o) => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<button type="button" data-act="${esc(act)}" data-value="${esc(v)}" ${data(extra)} aria-pressed="${v === selected}">${esc(l)}</button>`; }).join("")}</div>`,
     search: (id, placeholder, value = "", act = "") => `<label class="search">${icon("magnifyingglass")}<span class="sr">${esc(placeholder)}</span><input id="${esc(id)}" type="search" placeholder="${esc(placeholder)}" value="${esc(value)}" ${act ? `data-input="${esc(act)}"` : ""} autocomplete="off" spellcheck="false"></label>`,
-    check: (on, act, d = {}, label = "") => `<button type="button" class="check ${on ? "on" : ""}" data-act="${esc(act)}" ${data(d)} aria-label="${esc((on ? "Mark not done: " : "Check off: ") + label)}"><i></i></button>`,
+    /** The to-do circle. fc (optional) shows Franklin status in it, like the app: • in progress, D delegated, ✓ done. */
+    check: (on, act, d = {}, label = "", fc = null) => {
+      const st = on ? "on" : fc?.inProgress ? "prog" : fc?.delegate ? "dlg" : "";
+      const say = on ? "Mark not done: " : (st === "prog" ? "In progress. " : st === "dlg" ? "Delegated. " : "") + "Check off: ";
+      return `<button type="button" class="check ${st}" data-act="${esc(act)}" ${data(d)} aria-label="${esc(say + label)}"><i>${st === "dlg" ? "D" : ""}</i></button>`;
+    },
     /** ScreenHeader: the one header every tab uses, so every title starts at the same edge.
      *  Section label (dark shade) + large ink title with the section's icon tile beside it. lead = custom HTML instead of the tile; sec = false for none. */
     /** tools = icon-only buttons (they sit beside the title, like iOS nav-bar items); actions = labelled buttons (a full-width grid row on phones) */

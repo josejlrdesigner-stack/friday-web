@@ -313,6 +313,8 @@ textarea.input { resize: vertical; min-height: 88px; line-height: 1.4; }
 .check { width: 44px; height: 44px; display: grid; place-items: center; flex: none; cursor: pointer; background: none; border: 0; padding: 0; }
 .check i { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--ring); background: var(--panel); display: grid; place-items: center; transition: background .2s, border-color .2s; }
 .check.on i { background: var(--done); border-color: var(--done); }
+.check.prog i, .check.dlg i { background: var(--soft); border-color: #4A2D8A; color: #4A2D8A; font: 700 13px/1 var(--font, inherit); }
+.check.prog i::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #4A2D8A; }
 .check.on i::after { content: ""; width: 6px; height: 11px; border: solid #fff; border-width: 0 2.6px 2.6px 0; transform: translateY(-1px) rotate(45deg); }
 
 /* ScreenHeader — one shared header for every tab (LY-2): section label + large ink title, a section tile beside it */

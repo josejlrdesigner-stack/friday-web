@@ -244,7 +244,7 @@
   }
   function statusMark(t) {
     const m = t.fc || {};
-    const st = t.done ? "done" : m.inProgress ? "prog" : "";
+    const st = t.done ? "done" : m.inProgress ? "prog" : m.delegate ? "dlg" : "";
     return `<span class="smark ${st}">${t.done ? icon("checkmark") : m.inProgress ? "<b></b>" : m.delegate ? "D" : ""}</span>`;
   }
   function tags(t, day) {

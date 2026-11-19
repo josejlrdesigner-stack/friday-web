@@ -57,6 +57,7 @@
 .smark.done svg { width: 15px; height: 15px; stroke-width: 3.2; }
 .smark.prog { background: var(--soft); border-color: #4A2D8A; }
 .smark.prog b { width: 9px; height: 9px; border-radius: 50%; background: #4A2D8A; }
+.smark.dlg { background: var(--soft); border-color: #4A2D8A; color: #4A2D8A; font-weight: 700; }
 .fr-main { flex: 1; min-width: 0; min-height: 44px; display: flex !important; flex-direction: column; justify-content: center; gap: 4px; padding: 4px 4px 4px 0 !important; }
 .fr-title { font-size: 15px; color: var(--ink); overflow-wrap: anywhere; }
 .fr-title.done { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }

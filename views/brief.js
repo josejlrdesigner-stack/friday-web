@@ -96,7 +96,7 @@
         <button type="button" class="plain" data-act="brief-todo" data-id="${esc(t.id)}" aria-label="${esc(`${code}: ${t.title}. Edit, move or delete`)}"><span class="t-card-title wrap">${esc(t.title)}</span></button>
         ${t.fc.bigRock || t.fc.role ? `<span class="flow">${t.fc.bigRock ? ui.tag("Big Rock", "done") : ""}${t.fc.role ? ui.roleTag(t.fc.role) : ""}</span>` : ""}
       </div>
-      ${ui.check(false, "brief-toggle", { id: t.id }, t.title)}</div>
+      ${ui.check(false, "brief-toggle", { id: t.id }, t.title, t.fc)}</div>
     </section>`;
   }
 
@@ -332,7 +332,7 @@
     const notes = plainNotes(t.notes);
     const rc = F.roleClass(t.fc?.role);
     return `<div class="todorow ${t.done ? "done" : ""} ${rc ? "has-role " + rc : ""}">
-      ${ui.check(t.done, "brief-toggle", { id: t.id }, t.title)}
+      ${ui.check(t.done, "brief-toggle", { id: t.id }, t.title, t.fc)}
       ${priorityBadge(t)}
       <button type="button" class="plain todorow-open" data-act="brief-todo" data-id="${esc(t.id)}" aria-label="${esc(t.title)}. Edit, move or delete">
         <span class="v g2 grow">
