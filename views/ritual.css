@@ -1,47 +1,55 @@
-/* Morning Act As ritual — a full-screen sheet. Neutral cards; green only for done (milestones, planned days, Big Rock). */
+/* Morning Act As ritual — a full-screen sheet. The header band's gradient across the top (Friday's core, greeting),
+   then white cards on the lavender page: Act As, the 90-day goal, today's A1, the planning streak. Green only for done. */
 dialog.sheet.ritual { background: var(--page); }
-.rit { flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; padding: var(--sp-24) calc(var(--gutter) + env(safe-area-inset-right)) calc(var(--sp-32) + env(safe-area-inset-bottom)) calc(var(--gutter) + env(safe-area-inset-left)); }
-.rit-in { width: 100%; max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--sp-16); }
-.rit-brand { display: flex; align-items: center; gap: 8px; min-height: 44px; justify-content: center; color: var(--ink2); font-size: 13px; font-weight: 700; letter-spacing: 2px; }
+.rit { flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; padding: 0 0 calc(var(--sp-32) + env(safe-area-inset-bottom)); }
+.rit-band { background: var(--g-band); color: #fff; border-radius: 0 0 26px 26px; position: relative; overflow: hidden;
+  padding: var(--sp-16) calc(var(--gutter) + env(safe-area-inset-right)) 28px calc(var(--gutter) + env(safe-area-inset-left)); box-shadow: 0 14px 34px rgba(45, 27, 105, .25); }
+.rit-band::before { content: ""; position: absolute; right: -90px; top: -100px; width: 300px; height: 300px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(157, 0, 255, .45), rgba(157, 0, 255, 0) 70%); }
+.rit-band-in { position: relative; width: 100%; max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--sp-8); }
+.rit-in { width: 100%; max-width: calc(560px + 2 * var(--gutter)); margin: 0 auto; display: flex; flex-direction: column; gap: var(--sp-16);
+  padding: var(--sp-24) calc(var(--gutter) + env(safe-area-inset-right)) 0 calc(var(--gutter) + env(safe-area-inset-left)); }
+.rit-brand { display: flex; align-items: center; gap: 8px; min-height: 44px; justify-content: center; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: 2.4px; }
 .rit-hero { display: grid; place-items: center; }
 .rit-hero canvas { width: 128px; height: 128px; display: block; }
 .rit-greet { text-align: center; align-items: center; }
-.rit-card { background: var(--panel); border-radius: var(--r-card); padding: 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rit-card { background: var(--panel); border-radius: var(--r-card); padding: 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; box-shadow: var(--shadow); }
+@media (min-width: 640px) { .rit-card { padding: 20px; } }
+.rit-actcard { margin-top: -44px; position: relative; z-index: 1; }   /* the Act As card overlaps the band, like the app */
 .rit-act { font-size: 17px; font-weight: 500; font-style: italic; line-height: 1.4; color: var(--ink); overflow-wrap: anywhere; }
 .rit-field { font-style: italic; resize: none; min-height: 72px; }
 
-/* 13 square week cells: done weeks green, this week dark, the rest neutral */
-.rit-weeks { display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 4px; }
-.rit-weeks i { height: 8px; background: var(--secondary); border-radius: 0; }
-.rit-weeks i.past { background: var(--done); }
-.rit-weeks i.cur { background: var(--ink2); }
 .rit-ms { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .rit-ms li { display: flex; align-items: center; gap: 8px; min-height: 32px; font-size: 15px; color: var(--ink); }
 .rit-ms li svg { width: 16px; height: 16px; flex: none; color: var(--faint); }
 .rit-ms li.done { color: var(--muted); }
 .rit-ms li.done span { text-decoration: line-through; text-decoration-color: var(--faint); }
-.rit-ms li.done svg { color: var(--done-icon); stroke-width: 2.6; }
+.rit-ms li.done svg { color: var(--done); stroke-width: 2.6; }
 
 .rit-streak { flex-direction: row; align-items: center; gap: 16px; flex-wrap: wrap; }
+.rit-streak > .v.grow { flex: 1 1 160px; }
+.rit-flame { width: 44px; height: 44px; border-radius: var(--r-tile); background: var(--g-brief); color: var(--ink); --spark: #FFFFFF; display: grid; place-items: center; flex: none; }
+.rit-flame svg { width: 24px; height: 24px; }
+.rit-n { font-size: 22px; letter-spacing: -.4px; }
 .rit-days { display: flex; gap: 4px; }
-.rit-days span { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--muted); width: 24px; }
-.rit-days i { width: 20px; height: 20px; border-radius: var(--r-chip); background: var(--secondary); }
+.rit-days span { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: var(--muted); width: 24px; }
+.rit-days i { width: 20px; height: 20px; border-radius: 50%; background: var(--soft); }
 .rit-days span.on i { background: var(--done); }
 /* the one button stays in view at every height */
-.rit-foot { flex: none; border-top: 1px solid var(--hairline); background: var(--page);
+.rit-foot { flex: none; background: rgba(255, 255, 255, .94); box-shadow: 0 -6px 24px rgba(45, 27, 105, .10); border-radius: var(--r-card) 22px 0 0;
   padding: 16px calc(var(--gutter) + env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) calc(var(--gutter) + env(safe-area-inset-left)); }
 .rit-go { max-width: 560px; margin: 0 auto; }
 .rit-go .btn { min-height: 52px; font-size: 17px; }
 
 /* spring entrance, one piece after another */
 .ritual[open] .rit-foot { animation: rit-in .6s cubic-bezier(.34, 1.4, .64, 1) .3s both; }
-.ritual[open] .rit-in > * { animation: rit-in .6s cubic-bezier(.34, 1.4, .64, 1) both; }
-.ritual[open] .rit-in > :nth-child(2) { animation-delay: .04s; }
-.ritual[open] .rit-in > :nth-child(3) { animation-delay: .1s; }
-.ritual[open] .rit-in > :nth-child(4) { animation-delay: .16s; }
-.ritual[open] .rit-in > :nth-child(5) { animation-delay: .22s; }
-.ritual[open] .rit-in > :nth-child(6) { animation-delay: .28s; }
-.ritual[open] .rit-in > :nth-child(7) { animation-delay: .34s; }
-.ritual[open] .rit-in > :nth-child(n+8) { animation-delay: .4s; }
+.ritual[open] .rit-band-in > *, .ritual[open] .rit-in > * { animation: rit-in .6s cubic-bezier(.34, 1.4, .64, 1) both; }
+.ritual[open] .rit-band-in > :nth-child(2) { animation-delay: .04s; }
+.ritual[open] .rit-band-in > :nth-child(3) { animation-delay: .1s; }
+.ritual[open] .rit-in > :nth-child(1) { animation-delay: .16s; }
+.ritual[open] .rit-in > :nth-child(2) { animation-delay: .22s; }
+.ritual[open] .rit-in > :nth-child(3) { animation-delay: .28s; }
+.ritual[open] .rit-in > :nth-child(4) { animation-delay: .34s; }
+.ritual[open] .rit-in > :nth-child(n+5) { animation-delay: .4s; }
 @keyframes rit-in { from { opacity: 0; transform: translateY(24px) scale(.98); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .ritual[open] .rit-in > *, .ritual[open] .rit-foot { animation: rit-fade .2s ease-out both; animation-delay: 0s !important; } @keyframes rit-fade { from { opacity: 0; } to { opacity: 1; } } }
+@media (prefers-reduced-motion: reduce) { .ritual[open] .rit-band-in > *, .ritual[open] .rit-in > *, .ritual[open] .rit-foot { animation: rit-fade .2s ease-out both; animation-delay: 0s !important; } @keyframes rit-fade { from { opacity: 0; } to { opacity: 1; } } }

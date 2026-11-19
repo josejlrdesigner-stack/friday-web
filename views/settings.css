@@ -2,12 +2,12 @@
 .set-col { display: flex; flex-direction: column; gap: 16px; }   /* LY-6: the .large sheet sets the width */
 .set-card { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
 .set-planner { gap: 8px; }
-.set-ic { width: 40px; height: 40px; flex: none; display: grid; place-items: center; background: var(--secondary); border-radius: var(--r-control); color: var(--ink); }
-.set-ic svg { width: 20px; height: 20px; }
+.set-ic { width: 40px; height: 40px; flex: none; display: grid; place-items: center; background: var(--sec-grad, var(--g-settings)); border-radius: var(--r-tile); color: var(--sec-glyph, #fff); --spark: var(--sec-spark, #FFD700); box-shadow: 0 4px 10px rgba(45, 27, 105, .14); }
+.set-ic svg { width: 21px; height: 21px; }
 .set-card .tag.set-off { color: var(--muted); }
 .set-card .tag { flex: none; }
-.set-div { border: 0; border-top: 1px solid var(--divider); margin: 4px 0; width: 100%; }
-.set-count { color: var(--muted); font-weight: 600; }
+.set-div { border: 0; border-top: 1px solid var(--hair); margin: 4px 0; width: 100%; }
+.set-count { color: var(--muted); font-weight: 700; }
 .set-acct { min-height: 44px; }
 .set-warn, .set-banner { padding: 16px; }
 .set-warn svg, .set-banner > svg { width: 18px; height: 18px; flex: none; color: var(--attention-icon); margin-top: 1px; }
@@ -24,3 +24,7 @@
 .fgroup .frow .err { padding: 8px 0; }
 .set-toggle { min-height: 44px; }
 .set-toggle .btn.small { flex: none; }
+/* text-size picker: a soft pill */
+#set-zoom { appearance: none; -webkit-appearance: none; border: 0; min-height: 36px; padding: 0 30px 0 14px; border-radius: var(--r-control); font-size: 15px; font-weight: 600; color: #4A2D8A; cursor: pointer; flex: none;
+  background: var(--soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234A2D8A' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center / 14px 14px; }
+#set-zoom:focus-visible { outline: 3px solid rgba(0, 99, 229, .45); outline-offset: 2px; }

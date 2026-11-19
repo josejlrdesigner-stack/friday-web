@@ -46,15 +46,104 @@
   }
   const accColor = (a) => F.accountColor(a?.colorIndex);   // shared palette; shown only as the 8px account dot
 
-  // ------------------------------------------------------------ header
+  // ------------------------------------------------------------ header band (Glow spec): wordmark · streak · gradient big date · greeting · Act As
+  const hm = (m) => { m = Math.max(0, Math.round(m)); if (m < 60) return `${m}m`; return m % 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m / 60}h`; };
+  function actAsLine(now) {
+    const p = F.planner(); if (!p) return "";
+    return String(p.days?.[D.key(now)]?.actAs ?? p.actAs ?? "").trim();
+  }
   function header(now) {
     const h = now.getHours();
-    const [greet, ic] = h < 5 ? ["Late night", "moon.stars.fill"] : h < 12 ? ["Good morning", "sunrise.fill"]
-      : h < 17 ? ["Good afternoon", "sun.max.fill"] : h < 21 ? ["Good evening", "sunset.fill"] : ["Late night", "moon.stars.fill"];
-    const dateLine = now.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) + " · " + D.time(now);
-    // the shared ScreenHeader (LY-2/LY-8): same edge, same 24pt title as every other tab
-    return ui.header({ eyebrow: ui.label2(dateLine), lead: F.icon(ic, 'class="greet-ic"'), title: `${greet}, ${firstName()}`,
-      actions: F.syncButton() + ui.btn({ icon: "gearshape", kind: "icon", filled: true, act: "brief-settings", aria: "Settings and connections" }) });
+    const greet = h < 5 ? "Late night" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : h < 21 ? "Good evening" : "Late night";
+    const label = now.toLocaleDateString([], { weekday: "long" }) + " · " + now.toLocaleDateString([], { month: "long" });
+    // Planning streak: a number, not a chart (spec). Shown once the planner exists.
+    let streak = "";
+    if (F.snap() && F.planner() && F.ritualKit) {
+      const d = F.ritualKit.streakDays();
+      streak = `<span class="streak-pill" role="img" aria-label="${esc(`Planning streak: ${d} day${d === 1 ? "" : "s"} in a row`)}">${F.icon("flame")}<b>${d}</b><span>${d === 1 ? "day" : "days"}</span></span>`;
+    }
+    const act = actAsLine(now);
+    return `<section class="band">
+      <div class="band-top">
+        <span class="band-mark">${ui.fmark(24)}<b>F.R.I.D.A.Y.</b></span><span class="sp"></span>${streak}
+        ${F.syncButton()}${ui.btn({ icon: "gearshape", kind: "icon", filled: true, act: "brief-settings", aria: "Settings and connections" })}
+      </div>
+      <div class="band-main">
+        <span class="bigdate" aria-hidden="true">${now.getDate()}</span>
+        <div class="v g4 grow">
+          <span class="band-label"><span class="sr">${esc(D.wide(now))}. </span><span aria-hidden="true">${esc(label)}</span></span>
+          <h1 class="band-greet">${esc(greet)}, ${esc(firstName())}</h1>
+          ${act ? `<p class="band-act"><span class="sr">Act as: </span>${esc(act)}</p>` : ""}
+        </div>
+      </div>
+    </section>`;
+  }
+
+  // ------------------------------------------------------------ First thing (today's A1)
+  function firstThing() {
+    const head = `<span class="label2">First thing</span>`;
+    if (!K().remindersAccess()) return `<section class="card p16 v g8 first sec-brief">${head}${K().accessOffRow("Reminders")}</section>`;
+    const t = F.ritualKit?.a1();
+    if (!t) {
+      return `<section class="card p16 h g16 first sec-brief"><span class="a1tile empty" aria-hidden="true">A1</span>
+        <div class="v g4 grow">${head}<p class="t15 muted">No A1 yet. Pick the one thing that matters most today.</p>
+          <div>${ui.btn({ label: "Plan my day", kind: "small", act: "brief-go", data: { go: "day" } })}</div></div></section>`;
+    }
+    const code = "A" + (t.fc.number ?? 1);
+    return `<section class="card p16 h g16 first sec-brief">
+      <span class="a1tile" aria-hidden="true">${esc(code)}</span>
+      <div class="v g4 grow">${head}
+        <button type="button" class="plain" data-act="brief-todo" data-id="${esc(t.id)}" aria-label="${esc(`${code}: ${t.title}. Edit, move or delete`)}"><span class="t17 w7 ink wrap">${esc(t.title)}</span></button>
+        ${t.fc.bigRock || t.fc.role ? `<span class="flow g4">${t.fc.bigRock ? ui.tag("Big Rock", "done") : ""}${t.fc.role ? ui.roleTag(t.fc.role) : ""}</span>` : ""}
+      </div>
+      ${ui.check(false, "brief-toggle", { id: t.id }, t.title)}
+    </section>`;
+  }
+
+  // ------------------------------------------------------------ Inbox (big unread count)
+  function inboxCard(ms) {
+    const head = `<span class="h g12">${ui.secTile("mail")}<span class="label2">Inbox</span></span>`;
+    if (!ms) return `<section class="card p16 v g8 inbox sec-mail">${head}<p class="invite">No email connected. Connect an account in F.R.I.D.A.Y. on the iPhone and it shows up here.</p></section>`;
+    const unread = ms.inbox.filter((m) => !m.seen);
+    const top = unread[0] || ms.inbox[0];
+    const from = top ? (top.from?.name || top.from?.email || "") : "";
+    return `<button type="button" class="plain card p16 v g8 inbox sec-mail press" data-act="brief-mail" aria-label="${esc(`Inbox: ${unread.length} unread. Open Mail`)}">
+      ${head}
+      <span class="h g8 base"><span class="bignum">${unread.length}</span><span class="t15 w6 ink2">unread</span><span class="sp"></span><span class="t13 muted nowrap">${ms.inbox.length} in inbox</span></span>
+      ${top ? `<span class="t13 muted ell">${esc(`${unread.length ? "Newest" : "Latest"}: ${from} · ${top.subject || ""}`)}</span>` : '<span class="t13 muted">Your inbox is empty.</span>'}
+    </button>`;
+  }
+
+  // ------------------------------------------------------------ Big Rocks (this week): done ÷ total, per-role bars only for 2+ rocks
+  function bigRocksCard(now) {
+    const p = F.planner();
+    const head = `<span class="h g12">${ui.secTile("health", "mountain.2")}<span class="label2">Big Rocks this week</span></span>`;
+    if (!p || !(p.roles || []).length) {
+      return `<section class="card p16 v g8 rockscard sec-health">${head}<p class="invite">Set up your roles first; then pick one or two Big Rocks for each.</p>
+        <div>${ui.btn({ label: "Set up my planner", kind: "small", act: "brief-setup", data: { mode: "diagnostic" } })}</div></section>`;
+    }
+    const rocks = p.weeks?.[D.key(D.weekStart(now))]?.rocks || [];
+    if (!rocks.length) {
+      return `<section class="card p16 v g8 rockscard sec-health">${head}<p class="invite">No Big Rocks yet this week. They're the one or two important things per role that you schedule first.</p>
+        <div>${ui.btn({ label: "Set this week's Big Rocks", kind: "small", act: "brief-go", data: { go: "week" } })}</div></section>`;
+    }
+    const done = rocks.filter((r) => r.done).length;
+    const byRole = new Map();
+    for (const r of rocks) { const k = r.roleID || ""; if (!byRole.has(k)) byRole.set(k, []); byRole.get(k).push(r); }
+    const rows = [...byRole].map(([id, list]) => {
+      const name = p.roles.find((x) => x.id === id)?.name || "No role";
+      const n = list.filter((r) => r.done).length, rc = F.roleColor(name);
+      const right = list.length >= 2
+        ? `<span class="rk-bar">${ui.pbar(n, list.length, `${name}: ${n} of ${list.length} done`, "sm", rc ? `linear-gradient(90deg, ${rc.fill}, ${rc.next})` : "")}</span><span class="t13 w6 ink2 num nowrap">${n}/${list.length}</span>`
+        : (n ? `<span class="rk-ok" role="img" aria-label="Done">${F.icon("checkmark")}</span>` : `<span class="rk-open" role="img" aria-label="Not done yet"></span>`);
+      return `<div class="rk-row ${F.roleClass(name)}"><span class="role-dot"></span><span class="t13 w6 ink grow ell">${esc(name)}</span>${right}</div>`;
+    }).join("");
+    return `<button type="button" class="plain card p16 v g8 rockscard sec-health press" data-act="brief-go" data-go="week" aria-label="${esc(`Big Rocks this week: ${done} of ${rocks.length} done. Open the week`)}">
+      ${head}
+      <span class="chart-l"><span class="big">${done} of ${rocks.length}</span><span class="t15 w6 ink2">done</span></span>
+      ${ui.pbar(done, rocks.length, `${done} of ${rocks.length} Big Rocks done`)}
+      <span class="v g4 rk-rows">${rows}</span>
+    </button>`;
   }
 
   // ------------------------------------------------------------ PlannerGuideCard
@@ -77,16 +166,16 @@
     const p = F.planner();
     const setUp = F.prefs().plannerSetupDone === "1" && (p?.values || []).length > 0 && (p?.roles || []).length > 0;
     if (!setUp) {
-      return `<section class="card friday-edge guide v g8">
-        ${ui.label2("Start here", "friday")}
+      return `<section class="card friday-edge guide v g8 sec-friday">
+        <span class="h g12">${ui.secTile("friday")}${ui.label2("Start here", "friday")}</span>
         <h2 class="t20 w6 ink">Set up your planner</h2>
         <p class="t15 ink2">Six quick questions, about three minutes. Tap or type. You'll get your values, roles, a 90-day goal, this week's Big Rocks and protected time on your calendar.</p>
         <div class="flow">${ui.btn({ label: "Start the 6 questions", icon: "arrow.right", kind: "primary", act: "brief-setup", data: { mode: "diagnostic" } })}${ui.btn({ label: "Pick a starter profile", act: "brief-setup", data: { mode: "starter" } })}</div>
       </section>`;
     }
     const s = nextStep(now);
-    return `<section class="card friday-edge guide v g8">
-      ${ui.label2("Your next step", "friday")}
+    return `<section class="card friday-edge guide v g8 sec-friday">
+      <span class="h g12">${ui.secTile("friday")}${ui.label2("Your next step", "friday")}</span>
       <h2 class="t20 w6 ink">${esc(s.title)}</h2>
       <p class="t15 ink2">${esc(s.detail)}</p>
       <div class="flow">${ui.btn({ label: s.button, kind: "primary", act: "brief-go", data: { go: s.go } })}${ui.btn({ label: "Organizer", icon: "target", act: "brief-organizer" })}</div>
@@ -125,40 +214,49 @@
     else label = "packed";
     return { label, minutes, count: n };
   }
-  const loadTitle = (l) => (l === "open" ? "Open day" : l === "all-day commitment" ? "All-day commitment" : l[0].toUpperCase() + l.slice(1) + " day");
-  const loadColors = (l) => (l === "open" || l === "light" ? ["var(--ink2)", "var(--control)"] : l === "moderate" ? ["var(--ink)", "var(--ink2)"] : ["var(--attention)", "var(--attention-icon)"]);
-
+  // Day load (spec "Charts and graphs"): booked meeting time + estimated to-do time vs his available hours (DayCapacity).
+  const loadWord = (pct) => (pct <= 40 ? "Open" : pct <= 75 ? "Moderate" : pct <= 100 ? "Busy" : "Overloaded");
   let ringPlayed = false;   // the arc fills once on appear, not on every 60-second refresh
-  function loadRing(fraction, fill, size) {
+  function loadRing(fraction, pct, word, size) {
     const s = 100, c = 50;
     const r0 = c - s * 0.025 - 0.5;                 // hairline + neutral ticks (padding s*0.025)
-    const r1 = c - s * 0.12 - s * 0.03;             // booked track (padding s*0.12, line s*0.06)
-    const r2 = c - s * 0.22 - 0.5;                  // neutral dashed inner ring (padding s*0.22)
-    const circ = 2 * Math.PI * r1, pct = Math.round(fraction * 100);
-    return `<div class="loadring" style="width:${size}px;height:${size}px" role="img" aria-label="${pct} percent of the day booked">
-      <svg viewBox="0 0 100 100" aria-hidden="true">
-        <circle cx="50" cy="50" r="${r0}" fill="none" stroke="var(--hairline)" stroke-width="${100 / size}"/>
-        <g class="spin-cw"><circle cx="50" cy="50" r="${r0}" fill="none" stroke="var(--control)" stroke-opacity=".5" stroke-width="2.5" stroke-dasharray="0.8 5"/></g>
-        <circle cx="50" cy="50" r="${r1}" fill="none" stroke="var(--divider)" stroke-width="6"/>
-        ${fraction > 0 ? `<circle class="booked ${ringPlayed ? "" : "anim"}" cx="50" cy="50" r="${r1}" fill="none" stroke="${fill}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${circ * fraction} ${circ}" transform="rotate(-90 50 50)" style="--circ:${circ}"/>` : ""}
-        <g class="spin-ccw"><circle cx="50" cy="50" r="${r2}" fill="none" stroke="var(--selected-edge)" stroke-width="${100 / size}" stroke-dasharray="15 5"/></g>
+    const r1 = c - s * 0.12 - s * 0.03;             // load track (padding s*0.12, line s*0.06)
+    const r2 = c - s * 0.22 - 0.5;                  // dashed inner ring (padding s*0.22)
+    const circ = 2 * Math.PI * r1, over = pct > 100;
+    return `<div class="loadring" style="width:${size}px;height:${size}px" aria-hidden="true">
+      <svg viewBox="0 0 100 100">
+        <g class="spin-cw"><circle cx="50" cy="50" r="${r0}" fill="none" stroke="var(--faint)" stroke-opacity=".55" stroke-width="2.2" stroke-dasharray="0.8 5" stroke-linecap="round"/></g>
+        <circle cx="50" cy="50" r="${r1}" fill="none" stroke="var(--soft)" stroke-width="8"/>
+        ${fraction > 0 ? `<circle class="booked ${ringPlayed ? "" : "anim"}" cx="50" cy="50" r="${r1}" fill="none" stroke="${over ? "var(--danger)" : "url(#fg-ring)"}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${circ * fraction} ${circ}" transform="rotate(-90 50 50)" style="--circ:${circ}"/>` : ""}
+        <g class="spin-ccw"><circle cx="50" cy="50" r="${r2}" fill="none" stroke="var(--line)" stroke-width="${100 / size}" stroke-dasharray="15 5"/></g>
       </svg>
-      <div class="lr-text"><span class="pct" style="font-size:${size * 0.2}px">${pct}%</span><span class="bk" style="font-size:${Math.max(10, size * 0.1)}px">booked</span></div>
+      <div class="lr-text"><span class="pct" style="font-size:${size * 0.21}px">${pct}%</span><span class="bk" style="font-size:${Math.max(10, size * 0.1)}px">${esc(word.toLowerCase())}</span></div>
     </div>`;
   }
   function dayLoadCard(now, ringSize, b, ms) {
     const day = D.start(now), next = D.add(day, 1);
     const evs = K().eventsOn(now);
     const info = dayLoadInfo(evs, day, next);
-    const frac = Math.min(1, info.minutes / 600);
-    const [textColor, fill] = loadColors(info.label);
     const unread = ms ? ms.inbox.filter((m) => !m.seen).length : 0;
     const holiday = evs.find((e) => e.allDay && isBackground(e));
     let summary = `${plural(info.count, "event")}, ${plural(b.today.length + b.overdue.length, "to-do")} due, ${unread} new email${unread === 1 ? "" : "s"}.`;
     if (holiday) summary += ` ${holiday.title} today.`;
-    return `<section class="card p16 h g16 dayload">
-      ${loadRing(frac, fill, ringSize)}
-      <div class="v g4 grow">${ui.label2("Day load")}<p class="t20 w6" style="color:${textColor}">${esc(loadTitle(info.label))}</p><p class="t13 muted">${esc(summary)}</p></div>
+    const head = `<span class="label2">Day load</span>`;
+    const cal = K().calendarAccess(), rem = K().remindersAccess();
+    if (!F.capacity || (!cal && !rem)) {
+      return `<section class="card p16 v g8 dayload sec-friday">${head}<p class="invite">Turn on Calendar and Reminders access on your iPhone to see how full your day is.</p><p class="t13 muted">${esc(summary)}</p></section>`;
+    }
+    const e = F.capacity(day);
+    const meetings = cal ? e.meetings : 0, todo = rem ? e.needed : 0, avail = Math.max(60, e.free + meetings);
+    const pct = Math.round((meetings + todo) / avail * 100), word = loadWord(pct);
+    const numbers = `${hm(meetings)} of meetings + about ${hm(todo)} for ${plural(e.tasks.length, "to-do")}, in ${hm(avail)} available`;
+    const wordCls = word === "Overloaded" ? "c-danger" : word === "Busy" ? "c-attention" : "ink";
+    return `<section class="card p16 h g16 dayload sec-friday" role="group" aria-label="${esc(`Day load: ${pct} percent, ${word}. ${numbers}.`)}">
+      ${loadRing(Math.min(1, pct / 100), pct, word, ringSize)}
+      <div class="v g4 grow">${head}<p class="t20 w7 ${wordCls}">${esc(word)} · ${pct}%</p>
+        <p class="t13 ink2">${esc(numbers)}.</p>
+        ${!cal ? '<p class="invite">Calendar access is off, so meetings aren’t counted.</p>' : ""}${!rem ? '<p class="invite">Reminders access is off, so to-dos aren’t counted.</p>' : ""}
+        <p class="t13 muted">${esc(summary)}</p></div>
     </section>`;
   }
 
@@ -183,24 +281,26 @@
     if (mins <= 0) return "Happening now";
     if (mins < 60) return `in ${mins} min`;
     if (days === 0) return `in ${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
-    return dayWord + " " + D.time(e.start);
+    return dayWord;   // the big time sits right beside this chip
   }
   function nextUpCard(now) {
     const n = nextUp(now);
+    const head = (extra = "") => `<span class="h g12">${ui.secTile("calendar")}<span class="label2">Next up</span><span class="sp"></span>${extra}</span>`;
     if (!n) {
-      return `<section class="card p16 v g4 nextup">${ui.label2("Next up", "ink2")}
-        <p class="t15 muted">${K().calendarAccess() ? "Nothing else on the calendar this week." : "Waiting for calendar access."}</p></section>`;
+      return `<section class="card p16 v g8 nextup sec-calendar">${head()}
+        <p class="invite">${K().calendarAccess() ? "Nothing else on the calendar this week." : "Waiting for calendar access."}</p></section>`;
     }
     const { e, also } = n;
-    const when = e.allDay ? `${e.start.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} · All day`
+    const big = e.allDay ? "All day" : D.time(e.start);
+    const when = e.allDay ? e.start.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })
       : `${D.time(e.start)} – ${D.time(e.end)}${e.location ? " · " + e.location : ""}`;
-    return `<section class="card p16 h g16 nextup">
-      <div class="v g4 grow">${ui.label2("Next up · " + countdown(e, now), "ink2")}
-        <p class="t17 w6 ink wrap">${esc(e.title)}</p>
-        <p class="t13 muted">${esc(when)}</p>
-        ${also.length ? `<p class="t13 muted">${esc("Also that day: " + also.map((x) => x.title).join(" · "))}</p>` : ""}
-      </div>
-      ${ui.btn({ label: "Open", kind: "primary", act: "cal-open-event", data: { id: e.id }, aria: "Open " + e.title })}
+    return `<section class="card p16 v g8 nextup sec-calendar">
+      ${head()}
+      <span class="flow"><span class="bigtime">${esc(big)}</span>${ui.tag(countdown(e, now))}</span>
+      <p class="t17 w6 ink wrap">${esc(e.title)}</p>
+      <p class="t13 muted">${esc(when)}</p>
+      ${also.length ? `<p class="t13 muted">${esc("Also that day: " + also.map((x) => x.title).join(" · "))}</p>` : ""}
+      <div>${ui.btn({ label: "Open", kind: "small", act: "cal-open-event", data: { id: e.id }, aria: "Open " + e.title })}</div>
     </section>`;
   }
 
@@ -224,7 +324,8 @@
   /** TodoRow: DiamondCheck · PriorityBadge · title / list · notes · flag · due tag · chevron */
   function todoRow(t, { showList = true, showDay = true } = {}) {
     const notes = plainNotes(t.notes);
-    return `<div class="todorow ${t.done ? "done" : ""}">
+    const rc = F.roleClass(t.fc?.role);
+    return `<div class="todorow ${t.done ? "done" : ""} ${rc ? "has-role " + rc : ""}">
       ${ui.check(t.done, "brief-toggle", { id: t.id }, t.title)}
       ${priorityBadge(t)}
       <button type="button" class="plain todorow-open" data-act="brief-todo" data-id="${esc(t.id)}" aria-label="${esc(t.title)}. Edit, move or delete">
@@ -260,7 +361,7 @@
         + '<div class="divider"></div>'
         + briefDay("Tomorrow", D.add(t0, 1), b.tomorrow, false, "Nothing on the docket yet.", b.tomorrow.length);
     }
-    return ui.panel("To-dos", trailing, body, "todopanel");
+    return ui.panel("To-dos", trailing, body, "todopanel sec-tasks", ui.secTile("tasks"));
   }
 
   // ------------------------------------------------------------ CommsSummary
@@ -281,7 +382,7 @@
   }
   function commsSummary(ms, compact) {
     if (!ms) {
-      return ui.panel("Latest email", "", `<p class="t15 muted">No email connected.</p><p class="t13 muted">Email comes from your iPhone. Connect an account in F.R.I.D.A.Y. on the iPhone and it shows up here.</p>`, "comms");
+      return ui.panel("Latest email", "", `<p class="t15 muted">No email connected.</p><p class="t13 muted">Email comes from your iPhone. Connect an account in F.R.I.D.A.Y. on the iPhone and it shows up here.</p>`, "comms sec-mail", ui.secTile("mail"));
     }
     const latest = ms.inbox.slice(0, compact ? 5 : 6);
     const unread = ms.inbox.filter((m) => !m.seen).length;
@@ -292,7 +393,7 @@
       ${latest.length ? "" : '<p class="t13 muted">Your inbox is empty, Jose.</p>'}
       <div class="rows">${latest.map((m) => messageRow(m, accById.get(m.accountID), ms.accounts.length > 1)).join("")}</div>
       ${ms.inbox.length > latest.length ? `<button type="button" class="plain viewall" data-act="brief-mail">View all ${ms.inbox.length} in Mail ${F.icon("chevron.right")}</button>` : ""}`;
-    return ui.panel("Latest email", trailing, body, "comms");
+    return ui.panel("Latest email", trailing, body, "comms sec-mail", ui.secTile("mail"));
   }
 
   // ------------------------------------------------------------ TodayPanel / WeekPanel
@@ -304,7 +405,7 @@
     let body;
     if (!K().calendarAccess()) body = K().accessOffRow("Calendar");
     else body = K().allDayChips(allDay) + (timed.length ? timed.map((e) => K().eventRow(e, now)).join("") : '<p class="t15 muted">No events today.</p>');
-    return ui.panel(title, trailing, body, "todaypanel");
+    return ui.panel(title, trailing, body, "todaypanel sec-calendar", ui.secTile("calendar"));
   }
   function weekPanel(now) {
     const all = F.events();
@@ -320,7 +421,7 @@
         ${evs.length ? "" : '<p class="t13 muted">Open day</p>'}
       </div>`;
     }
-    return ui.panel("Next 6 days", "", `<div class="v g8">${html}</div>`, "weekpanel");
+    return ui.panel("Next 6 days", "", `<div class="v g8">${html}</div>`, "weekpanel sec-calendar", ui.secTile("calendar"));
   }
 
   // ------------------------------------------------------------ the view
@@ -331,14 +432,16 @@
       }
       const now = new Date();
       const b = buckets(), ms = mailState();
-      const top = header(now) + guideCard(now) + accessBanner() + K().failedCard([...K().TODO_KINDS, ...K().EVENT_KINDS]);
-      // compact branch (one column, the app's iPhone order)
+      const top = header(now) + accessBanner() + K().failedCard([...K().TODO_KINDS, ...K().EVENT_KINDS]);   // the coaching card sits below the core cards (mockup)
+      // compact branch (one column, the app's iPhone order): First thing · Next up · Inbox · Day load · Big Rocks, then the rest
       const compact = `<div class="v g16 only-compact">
-          ${dayLoadCard(now, 104, b, ms)}${nextUpCard(now)}${todoPanel(b)}${commsSummary(ms, true)}${todayPanel(now)}${weekPanel(now)}
+          ${firstThing()}<div class="pair">${nextUpCard(now)}${inboxCard(ms)}</div>${dayLoadCard(now, 104, b, ms)}${bigRocksCard(now)}${guideCard(now)}${todoPanel(b)}${commsSummary(ms, true)}${todayPanel(now)}${weekPanel(now)}
         </div>`;
-      // non-compact branch: DayLoad | NextUp, then (Today + Week) | (To-dos + Email)
+      // non-compact branch: First thing | Next up | Inbox, then Day load | Big Rocks, then (Today + Week) | (To-dos + Email)
       const wide = `<div class="v g16 only-wide">
-          <div class="cols two">${dayLoadCard(now, 120, b, ms)}${nextUpCard(now)}</div>
+          <div class="bgrid">${firstThing()}${nextUpCard(now)}${inboxCard(ms)}</div>
+          <div class="cols two">${dayLoadCard(now, 120, b, ms)}${bigRocksCard(now)}</div>
+          ${guideCard(now)}
           <div class="cols two">
             <div class="v g16">${todayPanel(now)}${weekPanel(now)}</div>
             <div class="v g16">${todoPanel(b)}${commsSummary(ms, false)}</div>

@@ -9,22 +9,23 @@
 .calday-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .btn.small.plusbtn { min-width: 60px; padding: 0 16px; }
 .btn.small.plusbtn svg { width: 15px; height: 15px; stroke-width: 2.4; }
-.freeday { min-height: 44px; padding: 0 8px 0 16px; background: var(--secondary); border-radius: var(--r-card); }
-.freeday .btn.small { background: transparent; }
+.freeday { min-height: 44px; padding: 0 8px 0 16px; background: #F7F3FC; border-radius: var(--r-control); }
+.freeday .btn.small { background: var(--panel); }
 
 /* EventRow */
-.evrow { border-radius: var(--r-card); padding: 8px; container-type: inline-size; }
-.evrow, .plain.evrow, .allday, .plain.allday { background: var(--secondary); }   /* neutral row (beats button.plain); calendar colour only in the 4px bar */
+.evrow { border-radius: var(--r-control); padding: 8px; container-type: inline-size; }
+.evrow, .plain.evrow, .allday, .plain.allday { background: var(--soft); }   /* fallback; .evtint (style.css) tints it with the calendar colour */
+.plain.press.evtint { background: var(--evt, var(--soft)); }
 .evrow-in { display: flex; align-items: center; gap: 16px; min-width: 0; }
 .evtime { width: 70px; flex: none; display: flex; flex-direction: column; gap: 2px; font-size: 13px; white-space: nowrap; }
-.evtime .s { font-weight: 600; color: var(--ink); }
+.evtime .s { font-weight: 700; color: var(--ink); }
 .evtime .e { color: var(--muted); }
 .evbar { width: 4px; align-self: stretch; min-height: 38px; border-radius: 2px; flex: none; }
 .evmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .evstack { display: none; font-size: 13px; font-weight: 600; color: var(--ink); }
 .evtitle { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
-.evtitle .t { font-size: 15px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
-.evsub { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.evtitle .t { font-size: 15px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.evsub { font-size: 13px; color: var(--ink2); overflow-wrap: anywhere; }
 .evrow.past .evtime .s, .evrow.past .evstack, .evrow.past .evtitle .t { color: var(--muted); }
 /* side by side only when the title column keeps ~180px; otherwise the time goes above the title */
 @container (max-width: 320px) {
@@ -33,14 +34,15 @@
 }
 
 /* AllDayChips */
-.allday { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 8px; border-radius: var(--r-card); }
+.allday { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 8px; border-radius: var(--r-control); }
 .allday .bar { width: 4px; height: 18px; border-radius: 2px; flex: none; }
+.plain.allday { display: flex; }   /* beats button.plain's display:block so the gap shows */
 
 /* CalendarFilterButton */
 .calfilter { appearance: none; border: 0; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; min-width: 44px; min-height: 44px;
-  padding: 0 8px; border-radius: var(--r-control); background: var(--secondary); color: var(--ink); font-size: 13px; font-weight: 600; white-space: nowrap; }
+  padding: 0 14px; border-radius: var(--r-control); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink2); font-size: 13px; font-weight: 700; white-space: nowrap; }
 .calfilter svg { width: 15px; height: 15px; }
-.calfilter.some { background: var(--selected-edge); color: var(--ink); }   /* some calendars hidden: neutral emphasis, not a warning */
+.calfilter.some { background: var(--soft); box-shadow: none; color: #4A2D8A; }   /* some calendars hidden: neutral emphasis, not a warning */
 .panel-head .calfilter .lbl { display: inline; }
 @media (max-width: 380px) { .panel-head .calfilter .lbl { display: none; } }
 
@@ -58,7 +60,7 @@
 .evsheet .frow > .lbl { flex: none; }
 .evsheet .evdt { text-align: right; flex: 1; color: var(--ink); min-width: 0; }
 .evsheet .frow input:disabled, .evsheet .frow textarea:disabled, .evsheet .frow select:disabled { color: var(--muted); -webkit-text-fill-color: var(--muted); opacity: 1; }
-.evsheet .evlink { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--action); text-decoration: none; font-size: 16px; }
-.evsheet .evdel { background: var(--danger-tint); }
+.evsheet .evlink { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--action); text-decoration: none; font-size: 16px; font-weight: 600; }
+.evsheet .evdel { background: var(--danger-tint); box-shadow: none; }
 .evsheet .evdel .rowlink { display: inline-flex; align-items: center; justify-content: center; gap: 8px; color: var(--danger-text); font-size: 15px; font-weight: 600; text-align: center; }
 .failedcard ul { margin: 0; padding-left: 24px; display: flex; flex-direction: column; gap: 8px; }

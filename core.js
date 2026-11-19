@@ -310,6 +310,26 @@ const F = (() => {
     lightbulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
     graduationcap: '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5M22 9v6"/>',
   };
+  // Custom section icons (Design-Spec-Glow): stroke 1.8, round caps; the accent ("spark") carries .spk-f / .spk-s and follows --spark.
+  Object.assign(ICONS, {
+    brief: '<path d="M3 17.5h18"/><path class="spk-f" d="M7 17.5a5 5 0 0 1 10 0z"/><path d="M12 5v2.5M5.6 9.1l1.6 1.6M18.4 9.1l-1.6 1.6"/>',
+    calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/><circle class="spk-f" cx="15.5" cy="15" r="2"/>',
+    checklist: '<rect x="3.5" y="5.5" width="14" height="14" rx="3.5"/><path class="spk-s" d="M7.5 12.2l3 3 10-10.7"/>',
+    envelope: '<rect x="3" y="5.5" width="18" height="13" rx="3"/><path d="M3.5 7.5l8.5 6 8.5-6"/><circle class="spk-f" cx="19.5" cy="6" r="2.6"/>',
+    friday: '<circle cx="12" cy="12" r="10" stroke="url(#fg-fri)"/><path d="M15.5 12l-1.75 3.03h-3.5L8.5 12l1.75-3.03h3.5z" fill="#00D4FF" stroke="none"/>',
+    "mountain.2": '<path d="M3 19.5l5.5-9 3.5 5 3-4 6 8z"/><circle class="spk-f" cx="18.5" cy="5.5" r="2"/>',
+    flame: '<path class="spk-fs" d="M12 3c1 3.5 5.5 5.5 5.5 11a5.5 5.5 0 0 1-11 0c0-2.8 1.8-4.6 2.8-5.6 0 1.8.9 2.8 1.9 2.8 0-2.8-1-5.6.8-8.2z"/>',
+    clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/><circle class="spk-f" cx="12" cy="12" r="1.3"/>',
+    "arrow.triangle.2.circlepath": '<path d="M4.5 12a7.5 7.5 0 0 1 13-5.1M19.5 12a7.5 7.5 0 0 1-13 5.1"/><path class="spk-s" d="M17.8 3.5v3.6h-3.6M6.2 20.5v-3.6h3.6"/>',
+    gearshape: '<path d="M4 7.5h9M18 7.5h2M4 16.5h3M11 16.5h9"/><circle cx="15.5" cy="7.5" r="2.3"/><circle class="spk-f" cx="9" cy="16.5" r="2.3"/>',
+  });
+  /** The section a screen belongs to → its custom icon. */
+  const SEC_ICON = { brief: "brief", calendar: "calendar", tasks: "checklist", mail: "envelope", settings: "gearshape", friday: "friday", health: "mountain.2" };
+  /** One shared gradient for the Friday ring (inline SVGs point at it by id). */
+  function ensureDefs() {
+    if (document.getElementById("fg-defs") || !document.body) return;
+    document.body.insertAdjacentHTML("afterbegin", '<svg id="fg-defs" width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true" focusable="false"><defs><linearGradient id="fg-fri" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00D4FF"/><stop offset="1" stop-color="#9D00FF"/></linearGradient><linearGradient id="fg-ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00D4FF"/><stop offset=".55" stop-color="#9D00FF"/><stop offset="1" stop-color="#FF0080"/></linearGradient><linearGradient id="fg-sun" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFD700"/><stop offset="1" stop-color="#FF6B00"/></linearGradient></defs></svg>');
+  }
   const icon = (name, attrs = "") => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${attrs}>${ICONS[name] || ICONS.dot}</svg>`;
   const addIcons = (o) => Object.assign(ICONS, o);
 
@@ -320,13 +340,27 @@ const F = (() => {
     if (TOK) return TOK;
     const cs = getComputedStyle(document.documentElement);
     const v = (name, fb) => { const x = cs.getPropertyValue(name).trim(); return /^#[0-9a-f]{6}$/i.test(x) ? x : fb; };
-    const t = { friday: v("--friday", "#0E7490"), fridayLight: v("--friday-light", "#22B8CF"), gold: v("--gold", "#C99A16"), hairline: v("--hairline", "#E2E4E8"), panel: v("--panel", "#FFFFFF") };
-    if (cs.getPropertyValue("--friday").trim()) TOK = t;   // cache only once style.css has loaded
+    const t = { friday: v("--core", "#00B8D9"), fridayLight: v("--friday-light", "#00D4FF"), gold: v("--core2", "#9D00FF"), hairline: v("--line", "#DDD0F0"), panel: v("--panel", "#FFFFFF") };
+    if (cs.getPropertyValue("--core").trim()) TOK = t;   // cache only once style.css has loaded
     return t;
   };
   /** MailAccount.palette — the one shared account palette. Used only for the 8px account dot. */
   const ACCOUNT_PALETTE = ["#6D28D9", "#57534E", "#9D174D", "#3F3F46", "#86198F", "#475569"];
   const accountColor = (colorIndex) => { const n = ACCOUNT_PALETTE.length, i = Number(colorIndex) || 0; return ACCOUNT_PALETTE[((i % n) + n) % n]; };
+
+  // ------------------------------------------------------------ role colors (Color spec 2026-11-18)
+  /** A role's place in the planner's roles list (case-insensitive name match), or -1. Same order on every device. */
+  function roleIndex(name) {
+    const n = String(name || "").trim().toLowerCase(); if (!n) return -1;
+    return (planner()?.roles || []).findIndex((r) => String(r?.name || "").trim().toLowerCase() === n);
+  }
+  /** Glow spec role palette: [fill, text, soft] — same order as --role0…7 in style.css */
+  const ROLE_HUES = [["#FF0080", "#A0145F", "#FFE0EF"], ["#00B8D9", "#0A6573", "#D6F5FA"], ["#9D00FF", "#6A00B0", "#EFDDFF"], ["#0063FF", "#0055C4", "#DCE8FF"],
+    ["#FF6B00", "#B35400", "#FFE6D3"], ["#8AA600", "#4F6400", "#EAF2C2"], ["#A2845E", "#694F2E", "#EDE1CF"], ["#4A2D8A", "#4A2D8A", "#E8E0F5"]];
+  /** "rcN" for a role name (wraps after 8), "" when it isn't one of the roles. */
+  const roleClass = (name) => { const i = roleIndex(name); return i < 0 ? "" : "rc" + (i % ROLE_HUES.length); };
+  /** {fill, dark, tint} hex colors for a role name, or null. */
+  const roleColor = (name) => { const i = roleIndex(name); if (i < 0) return null; const [fill, dark, tint] = ROLE_HUES[i % ROLE_HUES.length]; return { fill, dark, tint, next: ROLE_HUES[(i + 1) % ROLE_HUES.length][0], index: i }; };
 
   // ------------------------------------------------------------ UI kit (HTML strings; every piece mirrors a SwiftUI component)
   const attrs = (o = {}) => Object.entries(o).filter(([, v]) => v != null && v !== false).map(([k, v]) => (v === true ? k : `${k}="${esc(v)}"`)).join(" ");
@@ -341,21 +375,35 @@ const F = (() => {
     label2: (text, cls = "") => `<span class="label2 ${cls}">${esc(text)}</span>`,
     tag: (text, kind = "") => `<span class="tag ${kind}">${esc(text)}</span>`,
     /** Panel: white card with a section label and optional trailing controls */
-    panel: (title, trailing, content, cls = "") => `<section class="panel ${cls}"><div class="panel-head">${ui.label2(title)}${trailing || ""}</div>${content}</section>`,
+    panel: (title, trailing, content, cls = "", lead = "") => `<section class="panel ${cls}"><div class="panel-head">${lead}${ui.label2(title)}${trailing || ""}</div>${content}</section>`,
+    /** SectionTile: a rounded tile in the section's gradient with its custom glyph. sec = brief|calendar|tasks|mail|settings|friday|health */
+    secTile: (sec, ic) => `<span class="stile sec-${esc(sec)}" aria-hidden="true">${icon(ic || SEC_ICON[sec] || "dot")}</span>`,
+    /** Role chip: the role's tint with its dark text (neutral when the name isn't one of the planner's roles). */
+    roleTag: (name) => `<span class="tag role ${roleClass(name)}">${esc(name)}</span>`,
     seg: (act, options, selected, extra = {}) => `<div class="seg" role="group">${options.map((o) => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<button type="button" data-act="${esc(act)}" data-value="${esc(v)}" ${data(extra)} aria-pressed="${v === selected}">${esc(l)}</button>`; }).join("")}</div>`,
     search: (id, placeholder, value = "", act = "") => `<label class="search">${icon("magnifyingglass")}<span class="sr">${esc(placeholder)}</span><input id="${esc(id)}" type="search" placeholder="${esc(placeholder)}" value="${esc(value)}" ${act ? `data-input="${esc(act)}"` : ""} autocomplete="off" spellcheck="false"></label>`,
     check: (on, act, d = {}, label = "") => `<button type="button" class="check ${on ? "on" : ""}" data-act="${esc(act)}" ${data(d)} aria-label="${esc((on ? "Mark not done: " : "Check off: ") + label)}"><i></i></button>`,
-    /** ScreenHeader: the one header every tab uses, so every title starts at the same edge. lead = optional icon HTML before the title. */
-    header: ({ eyebrow = "", title, actions = "", lead = "" }) => `<div class="screen-head"><div class="tb">${eyebrow}<div class="tt">${lead}<h1>${esc(title)}</h1></div></div><div class="acts">${actions}</div></div>`,
-    /** FridayMark: cyan ring + gold ticks */
+    /** ScreenHeader: the one header every tab uses, so every title starts at the same edge.
+     *  Section label (dark shade) + large ink title with the section's icon tile beside it. lead = custom HTML instead of the tile; sec = false for none. */
+    header: ({ eyebrow = "", title, actions = "", lead = null, sec = null }) => {
+      const s = sec === false ? null : (sec || (SEC_ICON[S.tab] ? S.tab : null));
+      const l = lead ?? (s ? ui.secTile(s) : "");
+      return `<div class="screen-head"><div class="tb">${eyebrow}<div class="tt">${l}<h1>${esc(title)}</h1></div></div><div class="acts">${actions}</div></div>`;
+    },
+    /** FridayMark: the Friday icon — cyan→violet ring with a cyan hexagon at the center */
     fmark(size = 26) {
-      const s = size, r1 = s / 2 - s * 0.06 - s * 0.025, r2 = s / 2 - s * 0.25 - s * 0.055, k = tok();
-      return `<svg class="fmark" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}" aria-hidden="true"><circle cx="${s / 2}" cy="${s / 2}" r="${r1}" fill="none" stroke="${k.gold}" stroke-width="${s * 0.05}" stroke-dasharray="1 ${s * 0.11}"/><circle cx="${s / 2}" cy="${s / 2}" r="${r2}" fill="none" stroke="${k.friday}" stroke-width="${s * 0.11}"/><circle cx="${s / 2}" cy="${s / 2}" r="${s * 0.1}" fill="${k.friday}"/></svg>`;
+      ensureDefs();
+      return `<svg class="fmark" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="url(#fg-fri)" stroke-width="2.2"/><path d="M15.5 12l-1.75 3.03h-3.5L8.5 12l1.75-3.03h3.5z" fill="#00D4FF"/></svg>`;
     },
     switch: (name, on, act = "") => `<span class="switch"><input type="checkbox" role="switch" ${name ? `name="${esc(name)}"` : ""} ${on ? "checked" : ""} ${act ? `data-change="${esc(act)}"` : ""}></span>`,
     errorText: (t) => `<p class="err h g4 top">${icon("exclamationmark.triangle.fill", 'style="width:14px;height:14px;flex:none;margin-top:1px"')}<span>${esc(t)}</span></p>`,
     countBadge: (n, urgent) => (n > 0 ? `<span class="badge ${urgent ? "urgent" : ""}">${n > 99 ? "99+" : n}</span>` : ""),
     spinner: () => '<span class="spin" aria-hidden="true"></span>',
+    /** Progress bar (spec "Charts and graphs"): real numbers only; label = the plain-words text a screen reader hears. cls: "done-fill" when the fill is a done portion. */
+    pbar: (done, total, label, cls = "", fill = "") => {
+      const f = total > 0 ? Math.max(0, Math.min(1, done / total)) : 0;
+      return `<div class="pbar ${cls}" role="img" aria-label="${esc(label)}"><i class="${f ? "" : "zero"}" style="width:${(f * 100).toFixed(1)}%${fill ? ";--fill:" + fill : ""}"></i></div>`;
+    },
   };
 
   // ------------------------------------------------------------ toast, sheets, alerts
@@ -501,7 +549,7 @@ const F = (() => {
   const onChange = (name, fn) => { changes[name] = fn; };
   const onSubmit = (name, fn) => { forms[name] = fn; };
 
-  const TABS = [["brief", "Brief", "square.grid.2x2"], ["calendar", "Calendar", "calendar"], ["tasks", "Tasks", "checklist"], ["mail", "Mail", "envelope"]];   // Friday chat: iPhone and iPad only
+  const TABS = [["brief", "Brief", "brief"], ["calendar", "Calendar", "calendar"], ["tasks", "Tasks", "checklist"], ["mail", "Mail", "envelope"]];   // Friday chat: iPhone and iPad only
 
   function tabBadge(tab) {
     const today = D.start(new Date());
@@ -523,6 +571,7 @@ const F = (() => {
   function render() {
     const root = $("#root");
     if (!S.creds && !DEMO) return;
+    ensureDefs();
     const h = location.hash.slice(1).split("/")[0];
     S.tab = ["brief", "calendar", "tasks", "mail"].includes(h) ? h : "brief";
     let scr = $("#screen");
@@ -543,14 +592,14 @@ const F = (() => {
     if (focusId && !ae.closest("dialog")) { const el = document.getElementById(focusId); if (el) { el.focus(); try { el.setSelectionRange(selStart, selEnd); } catch {} } }
     $("#tabs").innerHTML = TABS.map(([k, label, ic]) => k === "friday"
       ? `<button type="button" class="tab fri" data-act="open-friday" aria-label="Friday"><span class="core"><canvas id="tabcore" width="34" height="34"></canvas></span>Friday</button>`
-      : `<button type="button" class="tab" role="tab" data-act="tab" data-tab="${k}" aria-selected="${S.tab === k}"><span class="ic">${icon(ic, S.tab === k ? 'stroke-width="2.3"' : "")}${tabBadge(k)}</span>${label}</button>`).join("");
+      : `<button type="button" class="tab sec-${k}" role="tab" data-act="tab" data-tab="${k}" aria-selected="${S.tab === k}"><span class="ic">${icon(ic, S.tab === k ? 'stroke-width="2"' : "")}${tabBadge(k)}</span>${label}</button>`).join("");
     const mac = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
-    $("#siderows").innerHTML = TABS.map(([k, label, ic], i) => `<button type="button" class="side-row" data-act="tab" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ""}
-        aria-keyshortcuts="${mac === "⌘" ? "Meta" : "Control"}+${i + 1}" title="${label} (${mac}${i + 1})">${icon(ic, S.tab === k ? 'stroke-width="2.3"' : "")}<span class="sl">${label}</span>${tabBadge(k)}</button>`).join("");
+    $("#siderows").innerHTML = TABS.map(([k, label, ic], i) => `<button type="button" class="side-row sec-${k}" data-act="tab" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ""}
+        aria-keyshortcuts="${mac === "⌘" ? "Meta" : "Control"}+${i + 1}" title="${label} (${mac}${i + 1})">${icon(ic)}<span class="sl">${label}</span>${tabBadge(k)}</button>`).join("");
     const synced = S.lastLoad ? D.time(new Date(S.lastLoad)) : "";
-    $("#sidefoot").innerHTML = `<button type="button" class="side-row ${S.syncingNow ? "is-syncing" : ""}" data-act="sync-now" ${S.syncingNow ? "disabled" : ""}>${icon("arrow.triangle.2.circlepath")}
+    $("#sidefoot").innerHTML = `<button type="button" class="side-row sec-settings ${S.syncingNow ? "is-syncing" : ""}" data-act="sync-now" ${S.syncingNow ? "disabled" : ""}>${icon("arrow.triangle.2.circlepath")}
         <span class="sl">${S.syncingNow ? "Syncing…" : "Sync now"}${synced && !S.syncingNow ? `<span class="sub">Updated ${esc(synced)}</span>` : ""}</span></button>
-      <button type="button" class="side-row" data-act="open-settings">${icon("gearshape")}<span class="sl">Settings</span></button>`;
+      <button type="button" class="side-row sec-settings" data-act="open-settings">${icon("gearshape")}<span class="sl">Settings</span></button>`;
     v?.after?.(scr);
     for (const s of sheets) s.refresh?.();
     for (const fn of renderHooks) { try { fn(); } catch (e) { console.error(e); } }
@@ -661,7 +710,7 @@ const F = (() => {
   // ------------------------------------------------------------ auth screens
   function authShell(inner) {
     $("#root").innerHTML = `<div class="auth"><div class="panel">
-      <div class="h g8" style="justify-content:center">${ui.fmark(28)}<span class="t17 w7" style="letter-spacing:2px">F.R.I.D.A.Y.</span></div>${inner}</div></div>`;
+      <div class="auth-band h g8" style="justify-content:center">${ui.fmark(28)}<span class="t17 w7" style="letter-spacing:2.4px">F.R.I.D.A.Y.</span></div>${inner}</div></div>`;
   }
   function renderSignIn(error = "") {
     authShell(`<h1 class="t20 w6" style="text-align:center">Sign in</h1>
@@ -713,18 +762,19 @@ const F = (() => {
   return {
     CONFIG, DEMO, S, D, ui, $, $$, esc, uuid, nowSec,
     // data
-    snap, queue, prefs, planner, todos, events, lists, calendars, defaultList, byPriority, prefsHiddenCalendars,
+    snap, queue, prefs, planner, roleIndex, roleClass, roleColor, todos, events, lists, calendars, defaultList, byPriority, prefsHiddenCalendars,
     mail: () => S.mail, devices: () => S.devices, status: () => S.status,
     cmd, savePlanner, setPref, writeSection, load, refresh, getFile, putFile, friendly,
     // ui
-    toast, sheet, alert, core, addIcons, icon, accountColor, render, refreshSheets, syncNow, syncButton, onRender, celebrate, isBig,
+    toast, sheet, alert, core, addIcons, icon, SEC_ICON, accountColor, render, refreshSheets, syncNow, syncButton, onRender, celebrate, isBig,
     view, on, onInput, onChange, onSubmit, signOut, boot,
   };
 })();
 // Text size dial for this computer only (kept in this browser). Wide screens start one step up.
 F.zoomSteps = [[0.9, "Smaller"], [1, "Normal"], [1.15, "Larger"], [1.3, "Large"], [1.5, "Largest"]];
 F.zoom = () => { let v = NaN; try { v = Number(localStorage.getItem("friday.zoom")); } catch {} return v > 0 ? v : (window.innerWidth >= 1200 ? 1.15 : 1); };
-F.setZoom = (v) => { try { localStorage.setItem("friday.zoom", String(v)); } catch {} document.documentElement.style.zoom = String(v); };
-document.documentElement.style.zoom = String(F.zoom());
+F.applyZoom = (v) => { const r = document.documentElement.style; r.zoom = String(v); r.setProperty("--zoom", String(v)); };
+F.setZoom = (v) => { try { localStorage.setItem("friday.zoom", String(v)); } catch {} F.applyZoom(v); };
+F.applyZoom(F.zoom());
 window.F = F;
 document.addEventListener("DOMContentLoaded", () => F.boot());

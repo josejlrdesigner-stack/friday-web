@@ -26,9 +26,9 @@
   function card({ icon, title, status, ok, tag, content = "" }) {
     return `<section class="card set-card">
       <div class="h g16">
-        <span class="set-ic" aria-hidden="true">${F.icon(icon)}</span>
+        <span class="set-ic sec-${({ calendar: "calendar", checklist: "tasks", envelope: "mail" })[icon] || "settings"}" aria-hidden="true">${F.icon(icon)}</span>
         <div class="v g2 grow"><span class="t17 w6 ink">${esc(title)}</span><span class="t13 ${ok ? "ink2" : "muted"}">${esc(status)}</span></div>
-        <span class="tag ${ok ? "ink" : "set-off"}">${esc(tag || (ok ? "Connected" : "Not set up"))}</span>
+        <span class="tag ${ok ? "done" : "set-off"}">${esc(tag || (ok ? "Connected" : "Not set up"))}</span>
       </div>${content}</section>`;
   }
 
@@ -116,7 +116,7 @@
     const devs = d?.devices || [];
     return `<section class="card set-card">
       <div class="h g16">
-        <span class="set-ic" aria-hidden="true">${F.icon("iphone")}</span>
+        <span class="set-ic sec-settings" aria-hidden="true">${F.icon("iphone")}</span>
         <div class="v g2 grow"><span class="t17 w6 ink">Update the app on your iPhone and iPad</span>
           <span class="t13 muted">Your Mac rebuilds F.R.I.D.A.Y. and installs it on every iPhone and iPad it can reach, over Wi-Fi or a cable. It takes about two minutes.</span></div>
       </div>

@@ -701,11 +701,18 @@
     }
     return "";
   }
+  /** The 90-day needle (spec "Charts and graphs"): days used ÷ 90 next to milestones done ÷ total; an invitation when there's no goal. */
+  function goalCard(setUp) {
+    const nd = F.ritualKit?.goal?.();
+    if (!nd) return setUp ? `<section class="card org-block sec-friday">${ui.label2("90-day goal")}<p class="invite">No 90-day goal yet. Redo the 6 questions (the last one sets it) to see it here.</p></section>` : "";
+    return `<section class="card org-block sec-friday">${ui.label2("90-day goal")}<p class="t16 w7 ink wrap">${esc(nd.g.title)}</p>${F.ritualKit.goalHTML(nd)}</section>`;
+  }
   function hubView() {
     const p = data(), setUp = isSetUp(p);
     return `<p class="t15 ink2">Everything in your planner traces back to what matters most. Open any part, any time.</p>
       ${setUp ? "" : quickStartCard(p)}
       ${pyramid(p)}
+      ${goalCard(setUp)}
       ${MODULES.map((m) => `<button type="button" class="plain card org-mcard press" data-act="org-module" data-m="${m.key}" aria-description="${esc(m.why)}">
         <span class="org-tile">${icon(m.icon)}</span><span class="v g4 grow"><span class="t16 w6 ink">${esc(m.name)}</span><span class="t13 muted">${esc(status(m, p))}</span></span>
         ${icon("chevron.right", 'class="chev"')}</button>`).join("")}
@@ -779,13 +786,13 @@
   function rolesModule() {
     const p = data(), w = week(p);
     return section("Roles", (p.roles.length ? "" : '<p class="t15 muted">No roles yet. Add one, like Parent or Job seeker.</p>')
-        + p.roles.map((r) => `<div class="h g8"><input id="org-role-${r.id}" class="input org-fb grow" type="text" value="${esc(r.name)}" placeholder="Role" aria-label="Role" data-change="org-role-name" data-id="${r.id}">
+        + p.roles.map((r, i) => `<div class="h g8 org-role-row rc${i % 8}"><span class="role-dot" aria-hidden="true"></span><input id="org-role-${r.id}" class="input org-fb grow" type="text" value="${esc(r.name)}" placeholder="Role" aria-label="Role" data-change="org-role-name" data-id="${r.id}">
             <button type="button" class="btn icon org-trash" data-act="org-del-role" data-id="${r.id}" aria-label="${esc("Remove role " + r.name)}">${icon("trash")}</button></div>`).join("")
         + addField("org-add-role", "Add a role", "role"),
         "Four to seven is typical. Renaming a role keeps its tasks.")
       + section("This week's Big Rocks", p.roles.map((role) => {
           const rocks = w.rocks.filter((k) => k.roleID === role.id);
-          return `<div class="v g4"><p class="t13 w6 muted">${esc(role.name)}</p>
+          return `<div class="v g4"><span>${ui.roleTag(role.name)}</span>
             ${rocks.map((k) => `<div class="h g8 org-rock">${`<button type="button" class="check ${k.done ? "on" : ""}" data-act="org-rock-done" data-id="${k.id}" aria-label="${esc((k.done ? "Done: " : "Mark done: ") + k.title)}"><i></i></button>`}
               <span class="t15 grow ${k.done ? "muted strike" : "ink"}">${esc(k.title)}</span>
               ${k.scheduled ? ui.tag("Scheduled", "done") : ui.btn({ label: "Block time", kind: "small", act: "org-block-time", data: { id: k.id } })}</div>`).join("")}

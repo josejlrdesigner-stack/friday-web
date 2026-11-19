@@ -45,7 +45,7 @@
   const fcCmp = (a, b) => rankL(a.fc?.letter) - rankL(b.fc?.letter) || (a.fc?.number ?? 999) - (b.fc?.number ?? 999);
   const QNAMES = { 1: "Q1 · Urgent & important (necessity)", 2: "Q2 · Important, not urgent (Big Rocks)", 3: "Q3 · Urgent, not important (deception)", 4: "Q4 · Neither (waste)" };
   const QSHORT = { 1: "Urgent", 2: "Important", 3: "Interruption", 4: "Waste" };
-  const QKIND = { 1: "danger", 2: "done", 3: "attention", 4: "" };
+  const QKIND = { 1: "q1", 2: "q2", 3: "q3", 4: "q4" };
   const SAW = ["Physical", "Social / Emotional", "Mental", "Spiritual"];
   const REPEATS = [["never", "Never"], ["daily", "Every day"], ["weekdays", "Every weekday"], ["weekly", "Every week"], ["biweekly", "Every 2 weeks"], ["monthly", "Every month"], ["yearly", "Every year"]];
   const fullFC = (m = {}) => ({ letter: m.letter ?? null, number: m.number ?? null, quadrant: m.quadrant ?? null, role: m.role ?? null, bigRock: !!m.bigRock, inProgress: !!m.inProgress, delegate: m.delegate ?? null, goal: m.goal ?? null });
@@ -156,6 +156,8 @@
     const aCount = list.filter((t) => t.fc?.letter === "A").length;
     return { tasks: list, needed, free, fits, aCount, basis, pace, reasons, overloaded: list.length > fits, excess: Math.max(0, list.length - fits), tooManyAs: aCount > 3, room: Math.max(0, free - needed) };
   }
+  /** Day load for the Brief (spec "Charts and graphs"): the same DayCapacity numbers plus that day's meeting minutes. */
+  F.capacity = (day) => ({ ...estimate(day), meetings: meetingMinutes(day), hm });
   function nextDays(day) {
     const start = max(D.start(day), today0());
     return [1, 2, 3, 4, 5, 6, 7].map((i) => { const d = D.add(start, i), e = estimate(d); return [d, e.free - e.needed]; });
@@ -218,7 +220,7 @@
   }
   function tags(t, day) {
     const m = t.fc || {}, out = [];
-    if (m.role) out.push(ui.tag(m.role));
+    if (m.role) out.push(ui.roleTag(m.role));
     if (m.quadrant) out.push(ui.tag(`Q${m.quadrant} ${QSHORT[m.quadrant] || ""}`, QKIND[m.quadrant]));
     if (m.bigRock) out.push(ui.tag("Big Rock", "done"));
     if (m.delegate) out.push(ui.tag(`D · ${m.delegate}`));
@@ -233,7 +235,8 @@
   function franklinRow(t, day, gc, { drag = null, trailing = "" } = {}) {
     T.rows.set(t.id, { t, day, gc });
     const m = t.fc || {};
-    return `<div class="tk-row fr" ${drag ? `draggable="true" data-dnd="${esc(drag)}" data-id="${esc(t.id)}"` : ""}>
+    const rc = F.roleClass(m.role);
+    return `<div class="tk-row fr ${rc ? "has-role " + rc : ""}" ${drag ? `draggable="true" data-dnd="${esc(drag)}" data-id="${esc(t.id)}"` : ""}>
       <button type="button" class="plain hit44" data-act="tk-done" data-id="${esc(t.id)}" aria-label="${esc(statusWord(t) + ", " + t.title)}" title="Tap to check off">${statusMark(t)}</button>
       <button type="button" class="plain hit44 pb" data-act="tk-prio" data-id="${esc(t.id)}" aria-label="${esc(`Priority ${code(m) ?? "none"}. Change priority, quadrant or role`)}">${priorityBadge(m)}</button>
       <button type="button" class="plain fr-main" data-act="tk-edit" data-id="${esc(t.id)}" aria-description="Opens the to-do to edit">
@@ -416,6 +419,7 @@
       <button type="button" class="plain card actas press" data-act="tk-actas" aria-description="Edit your Act As card">
         <span class="h"><span class="label2 ink2">${esc(`Act as · ${today ? "today" : dayWord(day)}`)}</span><span class="sp"></span>${icon("pencil", 'class="pen"')}</span>
         <span class="actas-text ${a ? "" : "empty"}">${esc(a || "Tap to write one sentence about how you'll show up today.")}</span></button>
+      ${aMeter(list, day)}
       <div class="flow">${canClose ? ui.btn({ label: "Close out day", icon: "checklist.checked", act: "tk-closeout" }) : ""}</div>
     </div>`;
     const groups = ["A", "B", "C", ""].map((letter) => {
@@ -441,13 +445,31 @@
     else await save((p) => { p.actAs = r.text; const k = D.key(day), x = normDay(p.days[k]); delete x.actAs; p.days[k] = x; });
   });
 
+  /** "Did I do my A's?" = A's done ÷ A's planned (spec "Charts and graphs"). No A's → a short invitation instead of a chart. */
+  function meter(label, done, total, invite, aria) {
+    if (!total) return `<div class="tk-meter">${ui.label2(label)}<p class="invite">${esc(invite)}</p></div>`;
+    return `<div class="tk-meter">${ui.label2(label)}<span class="chart-l"><span class="big">${done} of ${total}</span><span class="t13 w6 ink2">done</span></span>${ui.pbar(done, total, aria)}</div>`;
+  }
+  function aMeter(list, day) {
+    const as = list.filter((t) => t.fc?.letter === "A"), done = as.filter((t) => t.done).length;
+    return `<div class="tk-card sec-health">${meter(`A's done · ${dayWord(day)}`, done, as.length, `No A's planned for ${dayWord(day)} yet. Mark the must-dos A.`, `${done} of ${as.length} A tasks done ${dayWord(day)}`)}</div>`;
+  }
+  /** A's planned this week (open ones due this week, plus the ones finished on each day so far) and how many are done. */
+  function weekAs(wk) {
+    const t0 = today0(), end = D.add(wk, 7), ids = new Map();
+    for (const t of all()) if (t.fc?.letter === "A" && t.due && t.due >= wk && t.due < end) ids.set(t.id, t);
+    for (let i = 0; i < 7; i++) { const d = D.add(wk, i); if (d <= t0) for (const t of history(d)) if (t.fc?.letter === "A") ids.set(t.id, t); }
+    const list = [...ids.values()];
+    return { total: list.length, done: list.filter((t) => t.done).length };
+  }
   function bigRocks(p, day) {
     const w = pweek(p, day);
     const n = w.rocks.filter((r) => r.scheduled || r.done).length;
     const count = w.rocks.length ? `<span class="t12 ${n === w.rocks.length ? "c-done" : "ink2"} nowrap">${n} of ${w.rocks.length} in the calendar</span>` : "";
+    const rd = w.rocks.filter((r) => r.done).length;
     const body = w.rocks.length
-      ? w.rocks.map((r) => `<div class="tk-row rock">${ui.check(r.done, "tk-rock-done", { id: r.id, wk: weekKey(day) }, r.title)}
-          <div class="v g2 grow"><span class="t15 ${r.done ? "muted strike" : "ink"}">${esc(r.title)}</span><span class="t13 muted">${esc(roleName(p, r.roleID))}</span></div>
+      ? `<div class="tk-meter sec-health"><span class="chart-l"><span class="big">${rd} of ${w.rocks.length}</span><span class="t13 w6 ink2">done</span></span>${ui.pbar(rd, w.rocks.length, `${rd} of ${w.rocks.length} Big Rocks done this week`)}</div>` + w.rocks.map((r) => `<div class="tk-row rock">${ui.check(r.done, "tk-rock-done", { id: r.id, wk: weekKey(day) }, r.title)}
+          <div class="v g4 grow"><span class="t15 ${r.done ? "muted strike" : "ink"}">${esc(r.title)}</span>${roleName(p, r.roleID) ? `<span>${ui.roleTag(roleName(p, r.roleID))}</span>` : ""}</div>
           ${r.scheduled ? ui.tag("Scheduled", "done") : r.done ? "" : small("Block time", "tk-rock-block", { id: r.id, wk: weekKey(day) })}</div>`).join("")
       : `<div class="tk-row v g8 top pad"><p class="t15 muted">No Big Rocks yet this week. They're the one or two important things per role that you schedule first.</p>
           ${ui.btn({ label: "Set this week's Big Rocks", icon: "mountain.2", act: "tk-goweek" })}</div>`;
@@ -471,9 +493,8 @@
   function eventsOn(day) { const a = D.start(day), b = D.add(a, 1); return F.events().filter((e) => e.start < b && e.end > a); }
   function eventRow(e, now) {
     const past = e.end < now, live = e.start <= now && e.end > now;
-    return `<button type="button" class="plain tk-evrow press" data-act="tk-event" data-id="${esc(e.id)}">
+    return `<button type="button" class="plain tk-evrow evtint press" data-act="tk-event" data-id="${esc(e.id)}" style="--evc:${rgba(e.color, past ? 0.6 : 1)};--evt:${rgba(e.color, past ? 0.10 : 0.18)}">
       <span class="v g2 tk-evtime"><span class="t13 w6 ${past ? "muted" : "ink"}">${esc(D.time(e.start))}</span><span class="t13 muted">${esc(D.time(e.end))}</span></span>
-      <span class="tk-evbar" style="background:${rgba(e.color, past ? 0.35 : 1)}"></span>
       <span class="v g2 grow"><span class="t13 w6 ${past ? "muted" : "ink"} tk-evtime2">${esc(D.time(e.start) + " – " + D.time(e.end))}</span>
         <span class="flow"><span class="t15 w6 ${past ? "muted" : "ink"}">${esc(e.title)}</span>${past ? ui.tag("Ended") : ""}${live ? ui.tag("NOW", "ink") : ""}</span>
         <span class="t13 muted">${esc(e.location ? `${e.location} · ${e.calendar}` : e.calendar)}</span></span>
@@ -488,7 +509,7 @@
     const pct = Math.round(mins / 600 * 100);
     const head = `${ui.label2("Schedule")}<span class="sp"></span><span class="t12 w5 ${pct > 80 ? "c-warm" : "ink2"}">${pct > 80 ? `${pct}% booked · leave 15–20% open` : `${pct}% booked · ${100 - pct}% margin`}</span>`;
     const rows = evs.map((e) => `<div class="tk-row">${e.allDay
-      ? `<button type="button" class="plain tk-allday press" data-act="tk-event" data-id="${esc(e.id)}"><span class="tk-evbar short" style="background:${esc(e.color)}"></span><span class="t13 muted">All day</span><span class="t15 w6 ink">${esc(e.title)}</span></button>`
+      ? `<button type="button" class="plain tk-allday evtint press" data-act="tk-event" data-id="${esc(e.id)}" style="--evc:${rgba(e.color, 1)};--evt:${rgba(e.color, 0.18)}"><span class="t13 ink2">All day</span><span class="t15 w6 ink">${esc(e.title)}</span></button>`
       : eventRow(e, now)}</div>`).join("");
     return sec(head, `<div class="tk-row">${ui.btn({ label: "Event", icon: "plus", kind: "small", act: "tk-addevent" })}</div>${rows}${evs.length ? "" : textRow("Nothing on the calendar. Block time for your A tasks and Big Rocks first.")}`);
   }
@@ -667,7 +688,10 @@
     const head = `<div class="tk-clear v g8">
       <div class="h g8 datenav">${navBtn(-1, "tk-week", "Previous week")}<span class="t17 w6 ink grow center">${esc("Week of " + D.md(wk))}</span>${navBtn(1, "tk-week", "Next week")}
         ${thisWeek ? "" : small("This week", "tk-week", { dir: 0 })}</div>
-      <div class="flow">${ui.btn({ label: "Edit roles", icon: "person.2", act: "tk-roles" })}</div></div>`;
+      <div class="flow">${ui.btn({ label: "Edit roles", icon: "person.2", act: "tk-roles" })}</div>
+      ${(() => { const rd = w.rocks.filter((r) => r.done).length, a = weekAs(wk);
+        return `<div class="tk-card tk-meters two sec-health">${meter("Big Rocks done", rd, w.rocks.length, "No Big Rocks yet this week. Add one or two for each role below.", `${rd} of ${w.rocks.length} Big Rocks done this week`)}
+          ${meter("A's done this week", a.done, a.total, "No A tasks planned this week yet.", `${a.done} of ${a.total} A tasks done this week`)}</div>`; })()}</div>`;
     const roles = p.roles.map((role) => {
       const rocks = w.rocks.filter((r) => r.roleID === role.id);
       const rows = rocks.map((r) => `<div class="tk-row rock">${ui.check(r.done, "tk-rock-done", { id: r.id, wk: weekKey(wk) }, r.title)}
@@ -676,7 +700,9 @@
         <button type="button" class="btn icon rdel" data-act="tk-rock-del" data-id="${esc(r.id)}" aria-label="${esc("Remove " + r.title)}">${icon("trash")}</button></div>`).join("");
       const add = rocks.length >= 2 ? `<div class="tk-row"><p class="t13 muted">Two Big Rocks is the most for one role, so each gets real time. Finish or remove one to add another.</p></div>`
         : addRow("rock:" + role.id, `Big Rock for ${role.name}`, "tk-rockadd", { role: role.id });
-      return sec(ui.label2(role.name), rows + add);
+      const rn = rocks.filter((r) => r.done).length, rc = F.roleColor(role.name);
+      const mini = rocks.length >= 2 ? `<span class="sp"></span><span class="rk-mini">${ui.pbar(rn, rocks.length, `${role.name}: ${rn} of ${rocks.length} Big Rocks done`, "sm", rc ? `linear-gradient(90deg, ${rc.fill}, ${rc.next})` : "")}<span class="t12 w7 ink2 num">${rn}/${rocks.length}</span></span>` : "";
+      return sec(`<span class="h g8 ${F.roleClass(role.name)}"><span class="role-dot"></span>${ui.label2(role.name, "role-l")}</span>${mini}`, rows + add);
     }).join("");
     const saw = sec(ui.label2("Sharpen the saw · renew yourself"), SAW.map((dim) => `<div class="tk-row rock">${ui.check(!!w.sawDone[dim], "tk-saw-done", { dim }, dim)}
         <label class="v g2 grow"><span class="t13 w6 muted">${esc(dim)}</span><input id="tk-saw-${esc(dim.replace(/\W+/g, ""))}" class="bare t15" placeholder="This week's renewal" value="${esc(w.saw[dim] || "")}" data-change="tk-saw" data-dim="${esc(dim)}" autocomplete="off"></label></div>`).join(""),
@@ -983,6 +1009,7 @@
       body: () => `<div class="narrow form">
         <div class="fsec"><div class="fgroup">${roles.map((r) => `<div class="frow" draggable="true" data-dnd="roles" data-id="${esc(r.id)}">
             <span class="grip" aria-hidden="true">${icon("line.3.horizontal")}</span>
+            <span class="role-dot rc${roles.indexOf(r) % 8}" aria-hidden="true"></span>
             <input id="rs-${esc(r.id)}" class="bare" value="${esc(r.name)}" placeholder="Role" data-x="name" data-id="${esc(r.id)}" autocomplete="off">
             <button type="button" class="btn destructive lsdel" data-x="del" data-id="${esc(r.id)}" aria-label="${esc("Delete role " + r.name)}">${icon("trash")}</button></div>`).join("") || '<div class="frow"><span class="muted">No roles yet.</span></div>'}</div>
           <p class="ffoot">Tap a role to rename it, hold the ≡ handle and drag to reorder, tap the trash button to delete it. Most people have 4 to 7: work roles plus self, family, community.</p></div>
