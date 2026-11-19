@@ -66,7 +66,11 @@ button.plain.org-pcard, button.plain.org-mcard { display: flex; gap: 12px; paddi
 
 /* pyramid */
 .org-pyr { display: flex; flex-direction: column; gap: 4px; }
-.org-pyr-row { display: flex; align-items: center; min-height: 36px; padding: 0 16px; background: var(--panel); box-shadow: var(--shadow); border-radius: var(--r-control); font-size: 13px; font-weight: 700; }
+.org-pyr-row, button.plain.org-pyr-row { display: flex; align-items: center; gap: 8px; width: auto; min-height: 44px; padding: 0 16px; background: var(--soft, #EFE8F8);
+  border-radius: var(--r-control); font-size: 15px; font-weight: 600; color: var(--ink); text-align: left; cursor: pointer; }
+.org-pyr-row .sp { flex: 1; }
+.org-pyr-row .chev { width: 14px; height: 14px; color: var(--muted); flex: none; }
+button.plain.org-pyr-row:hover { background: var(--sel-fill); }
 .num { font-variant-numeric: tabular-nums; }
 hr.org-div { border: 0; border-top: 1px solid var(--hair); margin: 4px 0; width: 100%; }
 
@@ -129,3 +133,13 @@ hr.org-div { border: 0; border-top: 1px solid var(--hair); margin: 4px 0; width:
 /* hub modules: 2 columns in the wide sheet (v2 §3: pair small cards) */
 .org-mods { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--card-gap); }
 @media (min-width: 640px) { .org-mods { grid-template-columns: repeat(2, minmax(0, 1fr)); } .org-mods > .org-mcard { height: 100%; } }
+
+/* Goals page (QA 11-19): the link + "by when" sit under the goal's words, lined up with them (not the check),
+   as 44-tall capsules; the date box is only as wide as a date */
+.org-goal { padding: 4px 0; }
+.org-goal .top { align-items: flex-start; }
+.org-goal > .h > .input { flex: 1; min-width: 0; }
+.org-goal-meta { display: flex; flex-wrap: wrap; gap: 8px; padding-left: 52px; }
+.org-goal-meta .org-menu { position: relative; display: inline-flex; }
+.org-goal-meta .org-menu .tag { min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+.org-goal-meta .org-when { width: 140px; flex: none; min-height: 44px; border-radius: 999px; }

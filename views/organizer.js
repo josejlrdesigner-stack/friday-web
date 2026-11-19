@@ -635,6 +635,7 @@
   // ================================================================ F.openOrganizer — OrganizerHubView + OrganizerModuleView
   const MODULES = [
     { key: "values", name: "Values & Mission", icon: "heart", why: "What matters most, your mission and your Act As card. The top of the pyramid." },
+    { key: "goals", name: "Goals", icon: "flag", why: "Where you're headed: long-range goals (1 to 5 years) and the milestones that get you there. Tap any line to change it." },
     { key: "roles", name: "Roles & Weekly Compass", icon: "person.2", why: "The hats you wear and this week's Big Rocks for each one." },
     { key: "matrix", name: "Time Matrix", icon: "square.grid.2x2", why: "Sort work by urgent and important so Quadrant II gets your best time." },
     { key: "engine", name: "Task Engine", icon: "checklist", why: "How A-B-C priorities and the end-of-day marks work, and the rules you want." },
@@ -684,12 +685,17 @@
     const t0 = today();
     const rows = [["Values", p.values.length], ["Goals", p.longGoals.length], ["Roles", p.roles.length], ["Big Rocks this week", week(p).rocks.length],
       ["Today's A-B-C tasks", openTodos().filter((t) => t.fc.letter && t.due && D.same(t.due, t0)).length]];
-    return `<div class="org-pyr" role="img" aria-label="${esc("Your pyramid: " + rows.map((r) => `${r[0]} ${r[1]}`).join(", "))}">${rows.map((r, i) =>
-      `<div class="org-pyr-row" style="margin:0 ${i * 8}px"><span class="ink">${esc(r[0])}</span><span class="sp"></span><span class="${r[1] ? "ink2" : "muted"} num">${r[1]}</span></div>`).join("")}</div>`;
+    // every level is a TAB into the planner, like the paper binder: tap it and you're on that page, ready to type
+    const go = ["values", "goals", "roles", "roles", ""];
+    rows[0][0] = "Values & mission"; rows[1][1] = p.longGoals.length + p.midGoals.length;
+    return `<div class="v g8">${ui.label2("Turn to a page")}<div class="org-pyr">${rows.map((r, i) =>
+      `<button type="button" class="plain org-pyr-row press" style="margin:0 ${i * 8}px" ${go[i] ? `data-act="org-module" data-m="${go[i]}"` : 'data-act="org-today"'}
+        aria-label="${esc(`${r[0]}, ${r[1]}`)}"><span class="ink w6">${esc(r[0])}</span><span class="sp"></span><span class="${r[1] ? "ink2" : "muted"} num w6">${r[1]}</span>${icon("chevron.right", 'class="chev"')}</button>`).join("")}</div></div>`;
   }
   function status(m, p) {
     switch (m.key) {
       case "values": return !p.values.length ? "Not set yet · start here" : `${p.values.length} values · ${p.mission ? "mission set" : "no mission yet"} · ${p.actAs ? "Act As set" : "no Act As card"}`;
+      case "goals": return !p.longGoals.length && !p.midGoals.length ? "No goals yet · tap to add one" : `${p.longGoals.length} goals · ${p.midGoals.length} milestones`;
       case "roles": return !p.roles.length ? "No roles yet" : `${p.roles.length} roles · ${week(p).rocks.length} Big Rocks this week`;
       case "matrix": {
         const open = openTodos(), sorted = open.filter((t) => t.fc.quadrant != null), q2 = sorted.filter((t) => t.fc.quadrant === 2).length;
@@ -712,15 +718,15 @@
       ${setUp ? "" : quickStartCard(p)}
       ${pyramid(p)}
       ${goalCard(setUp)}
-      <div class="org-mods">${MODULES.map((m) => `<button type="button" class="plain card org-mcard press" data-act="org-module" data-m="${m.key}" aria-description="${esc(m.why)}">
+      <div class="v g8">${ui.label2("More pages")}<div class="org-mods">${MODULES.filter((m) => ["matrix", "engine", "energy"].includes(m.key)).map((m) => `<button type="button" class="plain card org-mcard press" data-act="org-module" data-m="${m.key}" aria-description="${esc(m.why)}">
         <span class="org-tile">${icon(m.icon)}</span><span class="v g4 grow"><span class="t-card-title">${esc(m.name)}</span><span class="t13 muted">${esc(status(m, p))}</span></span>
-        ${icon("chevron.right", 'class="chev"')}</button>`).join("")}</div>
+        ${icon("chevron.right", 'class="chev"')}</button>`).join("")}</div></div>
       ${setUp ? quickStartCard(p) : ""}`;
   }
   function moduleView(m) {
-    const body = { values: valuesModule, roles: rolesModule, matrix: matrixModule, engine: engineModule, energy: energyModule }[m.key]();
-    return `<div class="v g4">${ui.label2("Organizer › " + m.name)}<h2 class="t-title">${esc(m.name)}</h2><p class="t-secondary">${esc(m.why)}</p></div>
-      ${body}`;
+    const body = { values: valuesModule, goals: goalsModule, roles: rolesModule, matrix: matrixModule, engine: engineModule, energy: energyModule }[m.key]();
+    // the bar above names the page ("‹ Organizer" goes back); here, just what it's for
+    return `<p class="t-secondary">${esc(m.why)}</p>${body}`;
   }
 
   // ---------- shared module pieces
@@ -742,6 +748,7 @@
     form.querySelector("input").value = ""; form.querySelector("button").disabled = true;
     if (k === "value") await save((p) => p.values.push({ id: F.uuid(), title: t, detail: "" }));
     if (k === "goal") await save((p) => p.longGoals.push({ id: F.uuid(), title: t, target: "", done: false }));
+    if (k === "mile") await save((p) => p.midGoals.push({ id: F.uuid(), title: t, target: "", done: false }));
     if (k === "role") await save((p) => p.roles.push({ id: F.uuid(), name: t }));
     if (k === "rock") await save((p) => updWeek(p, new Date(), (w) => w.rocks.push({ id: F.uuid(), roleID: form.dataset.role, title: t, done: false, scheduled: false })));
     hDraw();
@@ -755,24 +762,51 @@
     return section("Mission", `<textarea id="org-mission" class="input org-fb" rows="2" data-grow="6" data-change="org-field" data-f="mission" placeholder="e.g. I take care of my family, do work I'm proud of, and keep growing." aria-label="Mission">${esc(p.mission)}</textarea>`,
         "A sentence or two about who you want to be, built from your values.")
       + section("Governing values", (p.values.length ? "" : '<p class="t15 muted">None yet. Add one, or tap an idea below.</p>')
-        + p.values.map((v) => removable(v.title, "org-del-value", { id: v.id })).join("")
+        + p.values.map((v) => `<div class="org-rrow top"><div class="v g4 grow">
+            <textarea id="org-v-${v.id}" class="input org-fb w6" rows="1" data-grow="3" placeholder="Value" aria-label="Value" data-change="org-gf" data-path="values.${v.id}.title">${esc(v.title)}</textarea>
+            <input id="org-vd-${v.id}" class="input org-fb ink2" value="${esc(v.detail || "")}" placeholder="What it means to you (optional)" aria-label="What it means to you" data-change="org-gf" data-path="values.${v.id}.detail" autocomplete="off"></div>
+          <button type="button" class="btn icon org-trash" data-act="org-del-value" data-id="${v.id}" aria-label="${esc("Delete " + v.title)}">${icon("trash")}</button></div>`).join("")
         + addField("org-add-value", "Add a value", "value")
         + `<div class="flow">${VALUE_IDEAS.filter((i) => !p.values.some((v) => v.title === i)).map((i) => ui.btn({ label: i, icon: "plus", kind: "small", act: "org-idea", data: { v: i } })).join("")}</div>`,
         "Two to five things you'd never trade away. When a day gets crowded, these decide what stays.")
       + section("Standing Act As card", `<textarea id="org-actas" class="input org-fb actas" rows="2" data-grow="4" data-change="org-field" data-f="actAs" placeholder="I act as…" aria-label="Standing Act As card">${esc(p.actAs)}</textarea>`,
         "Shows at the top of every day unless you write a different one that morning.")
-      + section("Long-range goals", p.longGoals.map((g) => {
-          const vn = p.values.find((v) => v.id === g.valueID)?.title || "";
-          return `<div class="v g4">${removable(g.title, "org-del-goal", { id: g.id })}
-            <label class="org-menu">${ui.tag(vn ? `Serves: ${vn}` : "Link a value")}
-              <select data-change="org-link" data-id="${g.id}" aria-label="${esc(vn ? `Serves: ${vn}` : "Link a value")}">
-                <option value="" disabled ${g.valueID ? "" : "selected"} hidden></option>
-                ${p.values.length ? "" : '<option disabled>Add a value first</option>'}
-                ${p.values.map((v) => `<option value="${v.id}" ${v.id === g.valueID ? "selected" : ""}>${esc(v.title)}</option>`).join("")}
-                ${g.valueID ? '<option value="__unlink">Unlink</option>' : ""}</select></label></div>`;
-        }).join("") + addField("org-add-goal", "Add a goal, e.g. Land a senior role", "goal"),
-        "One to five years out. Each should serve a value.");
+      + `<button type="button" class="plain card org-mcard press" data-act="org-module" data-m="goals"><span class="org-tile">${icon("flag")}</span>
+          <span class="v g4 grow"><span class="t-card-title">Goals</span><span class="t13 muted">${p.longGoals.length} goals · ${p.midGoals.length} milestones</span></span>${icon("chevron.right", 'class="chev"')}</button>`;
   }
+  /** Goals: long-range goals + milestones. Every line is a field (tap and type); link, target, done, delete. */
+  function goalsModule() {
+    const p = data();
+    const row = (g, coll) => {
+      const mile = coll === "midGoals", parent = p.longGoals.find((x) => x.id === g.parentID), vn = p.values.find((v) => v.id === g.valueID)?.title || "";
+      const opts = mile ? p.longGoals.map((x) => [x.id, x.title]) : p.values.map((v) => [v.id, v.title]);
+      const cur = mile ? g.parentID : g.valueID, label = mile ? (parent ? `Toward: ${parent.title}` : "Link to a goal") : (vn ? `Serves: ${vn}` : "Link to a value");
+      return `<div class="v g8 org-goal">
+        <div class="h g8 top">${ui.check(!!g.done, "org-g-done", { id: g.id, coll }, g.title)}
+          <textarea id="org-g-${g.id}" class="input org-fb grow w6 ${g.done ? "strike muted" : ""}" rows="1" data-grow="4" placeholder="${mile ? "Milestone" : "Goal"}" aria-label="${mile ? "Milestone" : "Goal"}" data-change="org-gf" data-path="${coll}.${g.id}.title">${esc(g.title)}</textarea>
+          <button type="button" class="btn icon org-trash" data-act="org-del-g" data-id="${g.id}" data-coll="${coll}" aria-label="${esc("Delete " + g.title)}">${icon("trash")}</button></div>
+        <div class="flow g8 org-goal-meta">
+          <label class="org-menu">${ui.tag(label)}<select data-change="org-g-link" data-id="${g.id}" data-coll="${coll}" aria-label="${esc(label)}">
+            <option value="" disabled ${cur ? "" : "selected"} hidden></option>
+            ${opts.length ? "" : `<option disabled>${mile ? "Add a long-range goal first" : "Add a value first"}</option>`}
+            ${opts.map(([id, t]) => `<option value="${id}" ${id === cur ? "selected" : ""}>${esc(t)}</option>`).join("")}
+            ${cur ? '<option value="__unlink">Unlink</option>' : ""}</select></label>
+          <input id="org-gt-${g.id}" class="input org-fb org-when" value="${esc(g.target || "")}" placeholder="${mile ? "By when" : "Target year"}" aria-label="${mile ? "By when" : "Target year"}" data-change="org-gf" data-path="${coll}.${g.id}.target" autocomplete="off"></div></div>`;
+    };
+    return section("Long-range goals", (p.longGoals.length ? "" : '<p class="t15 muted">None yet. Add your first goal below.</p>')
+        + p.longGoals.map((g) => row(g, "longGoals")).join("") + addField("org-add-goal", "Add a goal", "goal"),
+        "One to five years out. Tap a goal to change its words; link it to the value it serves.")
+      + section("Milestones", (p.midGoals.length ? "" : '<p class="t15 muted">None yet. Add a milestone below.</p>')
+        + p.midGoals.map((g) => row(g, "midGoals")).join("") + addField("org-add-mile", "Add a milestone", "mile"),
+        "Steps this year, quarter or month toward a goal. Check one off when it's done.");
+  }
+  F.onChange("org-gf", (el) => { const [coll, id, f] = el.dataset.path.split("."); save((p) => { const x = p[coll].find((y) => y.id === id); if (x) x[f] = el.value; }); });
+  F.on("org-g-done", (el) => save((p) => { const x = p[el.dataset.coll].find((y) => y.id === el.dataset.id); if (x) x.done = !x.done; }).then(() => hDraw()));
+  F.on("org-del-g", (el) => save((p) => { p[el.dataset.coll] = p[el.dataset.coll].filter((y) => y.id !== el.dataset.id); }).then(() => hDraw()));
+  F.onChange("org-g-link", (el) => save((p) => { const x = p[el.dataset.coll].find((y) => y.id === el.dataset.id); if (!x) return; const k = el.dataset.coll === "midGoals" ? "parentID" : "valueID"; if (el.value === "__unlink") delete x[k]; else x[k] = el.value; }).then(() => hDraw()));
+  F.on("open-organizer", () => F.openOrganizer());
+  F.on("org-compass", async () => { await F.editCompass?.(new Date()); hDraw(); });
+  F.on("org-today", () => { H?.api.close(); location.hash = "tasks"; });
   F.onChange("org-field", (el) => save((p) => { p[el.dataset.f] = el.value; }));
   F.on("org-del-value", (el) => save((p) => { p.values = p.values.filter((v) => v.id !== el.dataset.id); }));
   F.on("org-del-goal", (el) => save((p) => { p.longGoals = p.longGoals.filter((v) => v.id !== el.dataset.id); }));
@@ -783,7 +817,11 @@
   const SAW = ["Physical", "Social / Emotional", "Mental", "Spiritual"];
   function rolesModule() {
     const p = data(), w = week(p);
-    return section("Roles", (p.roles.length ? "" : '<p class="t15 muted">No roles yet. Add one, like Parent or Job seeker.</p>')
+    // this week's Compass sits on its own page now (the page is called Roles & Weekly Compass)
+    const compassCard = `<div class="v g8">${ui.label2("This week's Compass")}<button type="button" class="plain card actas press" data-act="org-compass" aria-description="Edit this week's Compass">
+        ${ui.compass(F.compassFor({ ...p, days: {} }, new Date()), { label: String(w.compass || "").trim() ? "Compass · this week" : w.suggestedCompass ? "Compass · suggested" : "Compass",
+          placeholder: "Tap to write this week's Compass: who you're being across your roles." })}</button></div>`;
+    return compassCard + section("Roles", (p.roles.length ? "" : '<p class="t15 muted">No roles yet. Add one, like Parent or Job seeker.</p>')
         + p.roles.map((r, i) => `<div class="h g8 org-role-row rc${i % 8}"><span class="role-dot" aria-hidden="true"></span><input id="org-role-${r.id}" class="input org-fb grow" type="text" value="${esc(r.name)}" placeholder="Role" aria-label="Role" data-change="org-role-name" data-id="${r.id}">
             <button type="button" class="btn icon org-trash" data-act="org-del-role" data-id="${r.id}" aria-label="${esc("Remove role " + r.name)}">${icon("trash")}</button></div>`).join("")
         + addField("org-add-role", "Add a role", "role"),

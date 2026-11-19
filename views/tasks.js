@@ -28,7 +28,7 @@
     drafts: {},            // add-row text fields, kept across redraws
     rows: new Map(),       // todo id → {t, day, gc} for the rows on screen
   };
-  const PAGES = [["day", "Day"], ["master", "Master"], ["lists", "Lists"], ["week", "Week"], ["values", "Values"]];
+  const PAGES = [["day", "Day"], ["master", "Master"], ["lists", "Lists"], ["week", "Week"], ["values", "Goals"]];
   const setPage = (p) => { T.page = p; try { localStorage.setItem("friday.plannerPage", p); } catch {} };
 
   // ------------------------------------------------------------ helpers
@@ -472,6 +472,7 @@
   F.on("tk-closeout", () => openCloseOut(D.key(T.day)));
   F.on("tk-wk-compass", () => editCompass(T.week));
   F.on("tk-actas", () => editCompass(T.day));
+  F.editCompass = (d) => editCompass(d || new Date());      // the Organizer's Roles & Weekly Compass page uses it too
   async function editCompass(day) {
     const sug = pweek(P(), day).suggestedCompass || "";
     const r = await F.alert({ title: "Compass", message: "Your north star for the week, from your roles: who you're being, in the present tense." + (sug ? ` Friday's suggestion: “${sug}”` : ""),
@@ -770,21 +771,22 @@
   function valuesPage() {
     const p = P();
     const fld = (path, value, placeholder, cls = "t15", multi = false) => multi
-      ? `<textarea id="tk-pf-${esc(path.replace(/\W+/g, ""))}" class="bare ${cls} auto" rows="${multi === 1 ? 1 : 2}" placeholder="${esc(placeholder)}" data-change="tk-pf" data-path="${esc(path)}">${esc(value)}</textarea>`
-      : `<input id="tk-pf-${esc(path.replace(/\W+/g, ""))}" class="bare ${cls}" placeholder="${esc(placeholder)}" value="${esc(value)}" data-change="tk-pf" data-path="${esc(path)}" autocomplete="off">`;
+      ? `<textarea id="tk-pf-${esc(path.replace(/\W+/g, ""))}" class="input org-fb ${cls} auto" rows="${multi === 1 ? 1 : 2}" placeholder="${esc(placeholder)}" data-change="tk-pf" data-path="${esc(path)}">${esc(value)}</textarea>`
+      : `<input id="tk-pf-${esc(path.replace(/\W+/g, ""))}" class="input org-fb ${cls}" placeholder="${esc(placeholder)}" value="${esc(value)}" data-change="tk-pf" data-path="${esc(path)}" autocomplete="off">`;
     const del = (coll, id, what) => `<button type="button" class="btn icon rdel" data-act="tk-pf-del" data-coll="${coll}" data-id="${esc(id)}" aria-label="${esc("Delete " + what)}">${icon("trash")}</button>`;
-    const values = p.values.map((v) => `<div class="tk-row top"><div class="v g4 grow">${fld(`values.${v.id}.title`, v.title, "Value", "t15 w6")}${fld(`values.${v.id}.detail`, v.detail || "", "What it means to you", "t15 ink2", 1)}</div>${del("values", v.id, v.title)}</div>`).join("");
-    const longs = p.longGoals.map((g) => `<div class="tk-row top"><div class="v g8 grow">${fld(`longGoals.${g.id}.title`, g.title, "Goal", "t15 w6")}
-        <div class="h g8"><button type="button" class="plain linktag" data-act="tk-linkval" data-id="${esc(g.id)}">${ui.tag(valueName(p, g.valueID) ? "← " + valueName(p, g.valueID) : "Link a value")}</button>${fld(`longGoals.${g.id}.target`, g.target || "", "Target (e.g. 2027)", "t13 muted")}</div></div>${del("longGoals", g.id, g.title)}</div>`).join("");
+    const values = p.values.map((v) => `<div class="tk-row top"><div class="v g4 grow">${fld(`values.${v.id}.title`, v.title, "Value", "t15 w6", 1)}${fld(`values.${v.id}.detail`, v.detail || "", "What it means to you", "t15 ink2", 1)}</div>${del("values", v.id, v.title)}</div>`).join("");
+    const longs = p.longGoals.map((g) => `<div class="tk-row top"><div class="v g8 grow">${fld(`longGoals.${g.id}.title`, g.title, "Goal", "t15 w6", 1)}
+        <div class="h g8"><button type="button" class="plain linktag" data-act="tk-linkval" data-id="${esc(g.id)}">${ui.tag(valueName(p, g.valueID) ? "← " + valueName(p, g.valueID) : "Link a value")}</button>${fld(`longGoals.${g.id}.target`, g.target || "", "Target year", "t13 tk-when")}</div></div>${del("longGoals", g.id, g.title)}</div>`).join("");
     const mids = p.midGoals.map((g) => { const parent = p.longGoals.find((x) => x.id === g.parentID);
-      return `<div class="tk-row top">${ui.check(!!g.done, "tk-mid-done", { id: g.id }, g.title)}<div class="v g8 grow">${fld(`midGoals.${g.id}.title`, g.title, "Milestone", "t15 w6")}
-        <div class="h g8"><button type="button" class="plain linktag" data-act="tk-linkgoal" data-id="${esc(g.id)}">${ui.tag(parent ? "← " + parent.title : "Link a goal")}</button>${fld(`midGoals.${g.id}.target`, g.target || "", "By when", "t13 muted")}</div></div>${del("midGoals", g.id, g.title)}</div>`; }).join("");
+      return `<div class="tk-row top">${ui.check(!!g.done, "tk-mid-done", { id: g.id }, g.title)}<div class="v g8 grow">${fld(`midGoals.${g.id}.title`, g.title, "Milestone", "t15 w6", 1)}
+        <div class="h g8"><button type="button" class="plain linktag" data-act="tk-linkgoal" data-id="${esc(g.id)}">${ui.tag(parent ? "← " + parent.title : "Link a goal")}</button>${fld(`midGoals.${g.id}.target`, g.target || "", "By when", "t13 tk-when")}</div></div>${del("midGoals", g.id, g.title)}</div>`; }).join("");
+    // Tasks › Goals (his word): goals first, then what they serve. Every line is a tinted field: tap and type.
     return `<div class="tk-list tk-cols">
+      ${sec(ui.label2("Long-range goals"), longs + addRow("long", "Add a goal", "tk-pfadd", { coll: "longGoals" }), { foot: "One to five years out. Tap a goal to change its words; link it to the value it serves." })}
+      ${sec(ui.label2("Milestones"), mids + addRow("mid", "Add a milestone", "tk-pfadd", { coll: "midGoals" }), { foot: "Steps this year, quarter or month toward a goal. Check one off when it's done." })}
       ${sec(ui.label2("Mission"), `<div class="tk-row">${fld("mission", p.mission, "What matters most, in a sentence or two", "t15", true)}</div>`)}
-      ${sec(ui.label2("Standing Compass"), `<div class="tk-row">${fld("actAs", p.actAs, "I act as…", "t15", true)}</div>`, { foot: "Your Compass for every week you don't write a new one. Leave it empty and Friday writes one each week from your roles, values and the week ahead." })}
-      ${sec(ui.label2("1 · Governing values"), values + addRow("value", "Add a governing value", "tk-pfadd", { coll: "values" }))}
-      ${sec(ui.label2("2 · Long-range goals"), longs + addRow("long", "Add a long-range goal (1–5 years)", "tk-pfadd", { coll: "longGoals" }))}
-      ${sec(ui.label2("3 · Intermediate goals"), mids + addRow("mid", "Add a milestone (this year / quarter / month)", "tk-pfadd", { coll: "midGoals" }), { foot: "4 · Daily tasks connect upward through their role and goal tags." })}</div>`;
+      ${sec(ui.label2("Governing values"), values + addRow("value", "Add a governing value", "tk-pfadd", { coll: "values" }))}
+      ${sec(ui.label2("Standing Compass"), `<div class="tk-row">${fld("actAs", p.actAs, "I act as…", "t15", true)}</div>`, { foot: "Your Compass for every week you don't write a new one. Leave it empty and Friday writes one each week from your roles, values and the week ahead." })}</div>`;
   }
   F.on("tk-valuesfriday", () => F.openChat?.("Help me clarify my governing values and write my mission statement, Franklin style. Ask me one question at a time."));
   F.onChange("tk-pf", (el) => {

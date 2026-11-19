@@ -631,7 +631,9 @@ const F = (() => {
       : `<button type="button" class="tab sec-${k}" role="tab" data-act="tab" data-tab="${k}" aria-selected="${S.tab === k}"><span class="ic">${icon(ic, S.tab === k ? 'stroke-width="2"' : "")}${tabBadge(k)}</span>${label}</button>`).join("");
     const mac = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
     $("#siderows").innerHTML = TABS.map(([k, label, ic], i) => `<button type="button" class="side-row sec-${k}" data-act="tab" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ""}
-        aria-keyshortcuts="${mac === "⌘" ? "Meta" : "Control"}+${i + 1}" title="${label} (${mac}${i + 1})">${icon(ic)}<span class="sl">${label}</span>${tabBadge(k)}</button>`).join("");
+        aria-keyshortcuts="${mac === "⌘" ? "Meta" : "Control"}+${i + 1}" title="${label} (${mac}${i + 1})">${icon(ic)}<span class="sl">${label}</span>${tabBadge(k)}</button>`).join("")
+      // the Organizer from anywhere (values, goals, roles, Compass, time matrix, rules, energy)
+      + `<button type="button" class="side-row sec-settings" data-act="open-organizer">${icon("target")}<span class="sl">Organizer</span></button>`;
     const synced = S.lastLoad ? D.time(new Date(S.lastLoad)) : "";
     $("#sidefoot").innerHTML = `<button type="button" class="side-row sec-settings ${S.syncingNow ? "is-syncing" : ""}" data-act="sync-now" ${S.syncingNow ? "disabled" : ""}>${icon("arrow.triangle.2.circlepath")}
         <span class="sl">${S.syncingNow ? "Syncing…" : "Sync now"}${synced && !S.syncingNow ? `<span class="sub">Updated ${esc(synced)}</span>` : ""}</span></button>

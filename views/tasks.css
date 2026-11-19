@@ -182,3 +182,7 @@ dialog.tmenu::backdrop { background: transparent; }
 .tk-meter + .tk-row::before { content: ""; position: absolute; top: 0; left: 16px; right: 16px; border-top: 1px solid var(--hair); }
 /* v2 §4: dividers start at the text column (after the 44px check) */
 .tk-row.rock + .tk-row.rock::before { --sep: 68px; }
+
+/* Tasks › Goals (QA 11-19): the date box is a date's width, never squeezed to "by" */
+.tk-row .tk-when { width: 140px; flex: none; }
+.tk-row .h.g8 { flex-wrap: wrap; }

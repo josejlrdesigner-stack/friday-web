@@ -66,7 +66,7 @@
     return `<section class="band">
       <div class="band-top">
         <span class="band-mark">${ui.fmark(24)}<b>F.R.I.D.A.Y.</b></span><span class="sp"></span>${streak}
-        ${F.syncButton()}${ui.btn({ icon: "gearshape", kind: "icon", filled: true, act: "brief-settings", aria: "Settings and connections" })}
+        ${ui.btn({ icon: "target", kind: "icon", filled: true, act: "open-organizer", aria: "Organizer: values, goals, roles and more" })}${F.syncButton()}${ui.btn({ icon: "gearshape", kind: "icon", filled: true, act: "brief-settings", aria: "Settings and connections" })}
       </div>
       <div class="band-main">
         <span class="bigdate" aria-hidden="true">${now.getDate()}</span>
