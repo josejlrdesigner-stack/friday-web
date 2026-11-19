@@ -8,9 +8,6 @@
     iphone: '<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 5.5h3"/>',
     "arrow.down.circle": '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v8.5M8.5 12.5L12 16l3.5-3.5"/>',
   });
-  const MODELS = () => F.claudeModels || [
-    { id: "claude-opus-5-5", label: "Claude Opus 5.5 — smartest" }, { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5 — balanced" }, { id: "claude-haiku-5-5", label: "Claude Haiku 5.5 — cheapest" }];
-  const keySaved = () => { const k = F.S.payload?.claude?.value; return typeof k === "string" && !!k.trim(); };
   const later = (what) => F.toast(`${what} isn't on the website yet. Open F.R.I.D.A.Y. on your iPhone.`);
   const U = { requested: null, polling: false };
 
@@ -51,7 +48,7 @@
       <hr class="set-div">
       <div class="h g16 set-toggle">
         <label class="v g2 grow" for="set-zoom"><span class="t15 w6 ink">Text size on this computer</span>
-          <span class="t13 muted">Makes everything on the website bigger or smaller. Your browser's ⌘+ and ⌘− work too.</span></label>
+          <span class="t13 muted">Makes everything on the website bigger or smaller. Your browser's ⌘+ and ⌘− work too.${F.zoom() > Math.max(1, F.zoomCap()) + 0.001 ? " This window is too narrow for the size you picked, so it stops a little smaller; ⌘+ goes bigger still." : ""}</span></label>
         <select id="set-zoom" data-change="set-zoom">${F.zoomSteps.map(([v, n]) => `<option value="${v}" ${Math.abs(F.zoom() - v) < 0.01 ? "selected" : ""}>${n}</option>`).join("")}</select>
       </div>
       ${setUp ? `<hr class="set-div">
@@ -185,7 +182,7 @@
           <div class="frow"><span class="lbl">Last sync</span><span class="val">${esc(last)}</span></div>
           <div class="frow"><span class="lbl">From your phone</span><span class="val">${snap ? esc(`${snap.device || "iPhone"}, ${D.ago(new Date(snap.at * 1000))}`) : "Not yet"}</span></div>
           ${F.S.error ? `<div class="frow">${ui.errorText(F.friendly(F.S.error))}</div>` : ""}
-          <div class="frow"><button type="button" class="rowlink" data-act="sync-now" ${F.S.loading ? "disabled" : ""}>${F.S.loading ? "Syncing…" : "Sync now"}</button></div>
+          <div class="frow"><button type="button" class="rowlink" data-act="sync-now" ${F.S.syncingNow ? "disabled" : ""}>${F.S.syncingNow ? "Syncing…" : "Sync now"}</button></div>
           <div class="frow"><button type="button" class="rowlink destructive" data-act="sync-signout">Sign out on this device</button></div>
         </div>
         <p class="ffoot">Tasks, calendar, planner, Friday's memory, settings and your Claude key stay in step with your iPhone and iPad, every minute while the app is open there. Everything is scrambled with your password before it leaves a device.</p>
@@ -194,7 +191,6 @@
         <div class="fgroup">${fails.map(([, m]) => `<div class="frow"><span class="lbl t15">${esc(m)}</span></div>`).join("")}</div></div>` : ""}
     </div>`;
   }
-  F.on("sync-now", async () => { F.S.loading = true; F.refreshSheets(); await F.refresh(); F.refreshSheets(); });
   F.on("sync-signout", async () => {
     const ok = await F.alert({ title: "Sign out on this device?", message: "This browser forgets your sign-in. Your iPhone, iPad and their data are not affected.",
       buttons: [{ label: "Sign out", kind: "destructive", value: true }, { label: "Cancel", kind: "cancel" }] });
@@ -225,7 +221,7 @@
           ${p.anniversary ? `<div class="frow"><label class="sr" for="fs-annlabel">What it's for</label><input id="fs-annlabel" class="bare" type="text" placeholder="What it's for (e.g. wedding anniversary)" value="${esc(p.anniversaryLabel || "")}" data-change="fs-text" data-key="anniversaryLabel"></div>` : ""}</div>
         <p class="ffoot">Friday wishes you a happy birthday, congratulates you on anniversaries, and gives you a heads-up on holidays and birthdays from your calendars.</p></div>
       <div class="fsec"><div class="fhead">Email signature</div>
-        <div class="fgroup"><div class="frow"><label class="sr" for="fs-sig">Signature</label><textarea id="fs-sig" class="bare" rows="3" placeholder="Signature" data-change="fs-text" data-key="mailSignature">${esc(p.mailSignature ?? "Jose")}</textarea></div></div>
+        <div class="fgroup"><div class="frow"><label class="sr" for="fs-sig">Signature</label><textarea id="fs-sig" class="bare" rows="3" placeholder="Signature" data-change="fs-text" data-key="mailSignature">${esc(p.mailSignature ?? (F.mail()?.signature || F.firstName()))}</textarea></div></div>
         <p class="ffoot">Added to the end of every email you write. Leave it empty for none.</p></div>
       <div class="fsec"><div class="fhead">What F.R.I.D.A.Y. remembers</div>
         <div class="fgroup">
@@ -236,28 +232,9 @@
     </div>`;
   }
   const save = async (key, value, msg) => { try { await F.setPref(key, value); if (msg) F.toast(msg); } catch (e) { F.toast("Couldn't save that: " + F.friendly(e.message)); } F.refreshSheets(); };
-  F.onChange("fs-model", (el) => save("claudeModel", el.value, "Friday uses " + (MODELS().find((m) => m.id === el.value)?.label.split(" — ")[0] || "that model") + " now."));
   F.onChange("fs-text", (el) => save(el.dataset.key, el.value));
   F.onChange("fs-md", (el) => { const m = /^\d{4}-(\d{2}-\d{2})$/.exec(el.value); if (m) save(el.dataset.key, m[1]); });
   F.on("fs-md-add", (el) => { const d = new Date(); return save(el.dataset.key, `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`); });
   F.on("fs-md-clear", (el) => save(el.dataset.key, null));
-  F.on("fs-newconv", () => { if (F.newConversation) { F.newConversation(); F.toast("New conversation started."); } });
 
-  // Claude key (SettingsView "Claude" section): saved into the synced, encrypted claude section; the iPhone puts it in its Keychain.
-  F.onInput("fs-key", (el) => { const b = document.getElementById("fs-key-save"); if (b) b.disabled = !el.value.trim(); });
-  F.on("fs-key-save", async () => {
-    const v = document.getElementById("fs-key")?.value.trim();
-    if (!v) return;
-    await F.writeSection("claude", () => v);
-    F.toast("Key saved. Friday uses Claude now.");
-    F.render(); F.refreshSheets();
-  });
-  F.on("fs-key-remove", async () => {
-    const ok = await F.alert({ title: "Remove your Claude key?", message: "Friday on the website stops working until you add a key again. Your iPhone falls back to its built-in brain.",
-      buttons: [{ label: "Remove key", kind: "destructive", value: true }, { label: "Cancel", kind: "cancel" }] });
-    if (!ok) return;
-    await F.writeSection("claude", () => "");
-    F.toast("Key removed.");
-    F.render(); F.refreshSheets();
-  });
 })();

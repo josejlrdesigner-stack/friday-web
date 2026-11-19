@@ -226,12 +226,12 @@
     });
     d.showModal();
     const place = () => {
-      const r = anchor.getBoundingClientRect(), w = d.offsetWidth, h = d.offsetHeight, vw = innerWidth, vh = innerHeight;
+      const z = F.zoomScale(), r = anchor.getBoundingClientRect(), w = d.offsetWidth * z, h = d.offsetHeight * z, vw = innerWidth, vh = innerHeight;
       let left = Math.min(Math.max(8, r.left), vw - w - 8);
       if (r.right > vw / 2) left = Math.max(8, Math.min(r.right - w, vw - w - 8));
       let top = r.bottom + 4;
       if (top + h > vh - 8) top = Math.max(8, r.top - h - 4);
-      d.style.left = left + "px"; d.style.top = top + "px";
+      d.style.left = left / z + "px"; d.style.top = top / z + "px";   // CSS pixels under the text-size zoom
     };
     place();
     d.querySelector(".mi:not(.note)")?.focus();
@@ -381,7 +381,8 @@
     const actions = [ui.btn({ label: "Organizer", icon: "target", act: "tk-organizer", title: "Values, roles, time matrix, rules, focus time, and setup" }),
       ui.btn({ label: "To-do", icon: "plus", kind: "primary", act: "tk-new" })].join("");
     const top = `<div class="tk-top">
-      ${ui.header({ eyebrow: ui.label2(`${open.length} open`), title: "Tasks", actions })}
+      <div class="phc">${ui.header({ eyebrow: ui.label2(`${open.length} open`), title: "Tasks", actions,
+        tools: `<span class="ph-tools">${ui.btn({ kind: "icon", filled: true, icon: "target", act: "tk-organizer", aria: "Organizer", title: "Organizer: values, roles, time matrix, rules, focus time" })}${ui.btn({ kind: "icon", icon: "plus", cls: "primary-ic", act: "tk-new", aria: "New to-do", title: "New to-do" })}</span>` })}</div>
       ${s && s.access && s.access.reminders === false ? `<div class="card attention p16 h g16"><span class="h g8 t15 w5 c-attention">${icon("exclamationmark.triangle.fill", 'style="width:17px;height:17px;flex:none"')}Reminders access is off, so nothing can show here.</span></div>` : ""}
       <label class="search">${icon("magnifyingglass")}<span class="sr">Search all to-dos</span><input id="tk-q" type="text" placeholder="Search all to-dos" value="${esc(T.query)}" data-input="tk-q" autocomplete="off" spellcheck="false" autocapitalize="none">${T.query ? `<button type="button" class="plain clearq" data-act="tk-clearq" aria-label="Clear search">${icon("xmark.circle.fill")}</button>` : ""}</label>
       ${failedCard()}
@@ -468,7 +469,6 @@
     return `<div class="tk-list tk-split"><div class="tk-main">${head}${groups}${markSec}${empty}</div><div class="tk-side">${bigRocks(p, day)}${schedule(day)}${record(p, day)}</div></div>`;
   }
   F.on("tk-day", (el) => { const d = +el.dataset.dir; T.day = d === 0 ? today0() : D.add(T.day, d); F.render(); });
-  F.on("tk-plan", () => F.openChat?.(`Let's do my 15-minute Franklin daily plan for ${dayWord(T.day)}.`));
   F.on("tk-closeout", () => openCloseOut(D.key(T.day)));
   F.on("tk-wk-compass", () => editCompass(T.week));
   F.on("tk-actas", () => editCompass(T.day));
@@ -547,7 +547,8 @@
     for (const s of spans) { if (cur && s[0] <= cur[1]) cur[1] = max(cur[1], s[1]); else { if (cur) mins += (cur[1] - cur[0]) / 60000; cur = [...s]; } }
     if (cur) mins += (cur[1] - cur[0]) / 60000;
     const pct = Math.round(mins / 600 * 100);
-    const head = `${ui.label2("Schedule")}<span class="sp"></span><span class="t12 w5 ${pct > 80 ? "c-warm" : "ink2"}">${pct > 80 ? `${pct}% booked · leave 15–20% open` : `${pct}% booked · ${100 - pct}% margin`}</span>`;
+    const warn = pct >= 85 && F.rule("bufferWarn", true);   // DayCapacity.bookedWarning: the Task Engine rule can turn it off
+    const head = `${ui.label2("Schedule")}<span class="sp"></span><span class="t12 w5 ${warn ? "c-warm" : "ink2"}">${warn ? `${pct}% booked · leave 15–20% open` : `${pct}% booked · ${Math.max(0, 100 - pct)}% margin`}</span>`;
     const rows = evs.map((e) => `<div class="tk-row">${e.allDay
       ? `<button type="button" class="plain tk-allday evtint press" data-act="tk-event" data-id="${esc(e.id)}" style="--evc:${rgba(e.color, 1)};--evt:${rgba(e.color, 0.18)}"><span class="t13 ink2">All day</span><span class="t15 w6 ink">${esc(e.title)}</span></button>`
       : eventRow(e, now)}</div>`).join("");
@@ -722,7 +723,9 @@
   F.on("tk-fold", (el) => { const n = el.dataset.list; T.folded.has(n) ? T.folded.delete(n) : T.folded.add(n); F.render(); });
   F.onSubmit("tk-listadd", async (f, form) => {
     const list = form.dataset.list, t = takeDraft("list:" + list); if (!t) return;
-    await F.cmd("add_todo", { title: t, list }, `Added “${t}” to ${list}`);
+    // Task Engine rule "quick tasks get a C" (the app does it for spoken ones; a one-line add is the website's quick task)
+    const c = F.rule("quickDefaultC", false) ? { letter: "C", number: F.todos().filter((x) => !x.done && x.fc?.letter === "C").length + 1 } : {};
+    await F.cmd("add_todo", { title: t, list, ...c }, `Added “${t}” to ${list}` + (c.letter ? ` as ${c.letter}${c.number}` : ""));
   });
 
   // ------------------------------------------------------------ Week page (Weekly Compass)
@@ -751,13 +754,12 @@
       const mini = rocks.length >= 2 ? `<span class="sp"></span><span class="rk-mini">${ui.pbar(rn, rocks.length, `${role.name}: ${rn} of ${rocks.length} Big Rocks done`, "sm", rc ? `linear-gradient(90deg, ${rc.fill}, ${rc.next})` : "")}<span class="t12 w7 ink2 num">${rn}/${rocks.length}</span></span>` : "";
       return sec(`<span class="h g8 ${F.roleClass(role.name)}"><span class="role-dot"></span>${ui.label2(role.name, "role-l")}</span>${mini}`, rows + add);
     }).join("");
-    const saw = sec(ui.label2("Sharpen the saw · renew yourself"), SAW.map((dim) => `<div class="tk-row rock">${ui.check(!!w.sawDone[dim], "tk-saw-done", { dim }, dim)}
+    const saw = sec(ui.label2("Sharpen the saw · renew yourself", "lwrap"), SAW.map((dim) => `<div class="tk-row rock">${ui.check(!!w.sawDone[dim], "tk-saw-done", { dim }, dim)}
         <label class="v g2 grow"><span class="t13 w6 muted">${esc(dim)}</span><input id="tk-saw-${esc(dim.replace(/\W+/g, ""))}" class="bare t15" placeholder="This week's renewal" value="${esc(w.saw[dim] || "")}" data-change="tk-saw" data-dim="${esc(dim)}" autocomplete="off"></label></div>`).join(""),
       { foot: "One small thing this week for each part of you: body, mind, heart and spirit." });
     return `<div class="tk-list tk-cols">${head}${roles}${saw}</div>`;
   }
   F.on("tk-week", (el) => { const d = +el.dataset.dir; T.week = d === 0 ? D.weekStart(new Date()) : D.add(T.week, 7 * d); F.render(); });
-  F.on("tk-planweek", () => F.openChat?.("Let's do my weekly Franklin planning: review my values and roles, pick 1–2 Big Rocks per role, and schedule them first."));
   F.on("tk-roles", () => openRolesSheet());
   F.on("tk-rock-del", (el) => updateWeek(T.week, (w) => { w.rocks = w.rocks.filter((r) => r.id !== el.dataset.id); }));
   F.on("tk-saw-done", (el) => updateWeek(T.week, (w) => { w.sawDone[el.dataset.dim] = !w.sawDone[el.dataset.dim]; }));
@@ -788,7 +790,6 @@
       ${sec(ui.label2("Governing values"), values + addRow("value", "Add a governing value", "tk-pfadd", { coll: "values" }))}
       ${sec(ui.label2("Standing Compass"), `<div class="tk-row">${fld("actAs", p.actAs, "I act as…", "t15", true)}</div>`, { foot: "Your Compass for every week you don't write a new one. Leave it empty and Friday writes one each week from your roles, values and the week ahead." })}</div>`;
   }
-  F.on("tk-valuesfriday", () => F.openChat?.("Help me clarify my governing values and write my mission statement, Franklin style. Ask me one question at a time."));
   F.onChange("tk-pf", (el) => {
     const [coll, id, field] = el.dataset.path.split(".");
     save((p) => { if (!id) p[coll] = el.value; else { const x = p[coll].find((y) => y.id === id); if (x) x[field] = el.value; } }).catch((e) => F.toast(F.friendly(e.message)));
@@ -931,7 +932,10 @@
     after();
     if (!todo) s.el.querySelector("#te-title")?.focus();
     const primary = () => s.el.querySelector(".sheetbar .btn.primary");
-    s.el.addEventListener("cancel", (e) => { if (!todo && trim(d.title)) e.preventDefault(); });     // interactiveDismissDisabled
+    // Esc with something typed asks first (same Keep/Discard as Compose); the Cancel button is his explicit choice and just closes
+    const startTitle = d.title, startNotes = d.notes;
+    s.guard = { dirty: () => d.title !== startTitle || d.notes !== startNotes || trim(newItem) !== "" || (!todo && checklist.length > 0),
+      title: todo ? "Discard your changes?" : "Discard this to-do?", message: todo ? "Your changes to this to-do aren't saved yet." : "It hasn't been added yet.", leave: todo ? "Discard changes" : "Discard", stay: "Keep editing" };
     s.el.addEventListener("input", (e) => {
       const f = e.target.dataset?.f; if (!f) return;
       const v = e.target.value;

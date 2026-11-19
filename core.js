@@ -181,6 +181,8 @@ const F = (() => {
   const applied = () => new Set(snap()?.applied || []);
   const queue = () => (S.payload?.queue?.value || []).filter((c) => !applied().has(c.id));
   const prefs = () => S.payload?.prefs?.value || {};
+  /** A Task Engine rule (the app's @AppStorage bools, synced as prefs "1"/"0"). */
+  const rule = (k, def) => { const v = prefs()[k]; return v == null ? def : v === "1" || v === "true"; };
   function planner() { try { return JSON.parse(prefs().franklinPlanner || "null"); } catch { return null; } }
 
   /** Open + done to-dos, with the website's not-yet-applied changes laid over them (marked pending). */
@@ -200,12 +202,14 @@ const F = (() => {
         case "complete_todo": if (t) { t.done = true; t.pending = true; } break;
         case "uncomplete_todo": if (t) { t.done = false; t.pending = true; } break;
         case "delete_todo": if (t) byId.delete(c.todoID); break;
-        case "move_todo": if (t) { t.due = c.due ? new Date(c.due + "T00:00") : null; t.dueHasTime = false; t.pending = true; } break;
+        case "move_todo": if (t) { t.due = c.due ? new Date(c.due + "T00:00") : null; t.dueHasTime = false; t.pending = true;
+          // Store.moveTodo: moved to another day it is re-prioritized there, unless the Task Engine rule keeps letters
+          if (!rule("forwardKeepsLetter", false) && (!t.due || !D.same(t.due, new Date()))) t.fc = { ...t.fc, letter: null, number: null }; } break;
         case "set_franklin": if (t) { t.fc = { ...t.fc, ...c.meta }; t.pending = true; } break;
         case "update_todo": if (t) { Object.assign(t, { title: c.title ?? t.title, list: c.list ?? t.list, notes: c.notes ?? t.notes, important: c.important ?? t.important,
           due: c.hasDue === false ? null : c.due ? new Date(c.due + "T" + (c.time || "00:00")) : t.due, dueHasTime: c.hasDue === false ? false : (c.time ? true : (c.due ? false : t.dueHasTime)) });
           if (c.fc) t.fc = { ...t.fc, ...c.fc }; if (c.repeat) t.repeats = c.repeat !== "never"; t.pending = true; } break;
-        case "forward_todos": for (const id of c.ids || []) { const x = byId.get(id); if (x) { x.due = c.due ? new Date(c.due + "T00:00") : null; x.dueHasTime = false; if (!c.keepLetter) { x.fc = { ...x.fc, letter: null, number: null }; } if (c.inProgress) x.fc.inProgress = true; x.pending = true; } } break;
+        case "forward_todos": for (const id of c.ids || []) { const x = byId.get(id); if (x) { x.due = c.due ? new Date(c.due + "T00:00") : null; x.dueHasTime = false; if (!c.keepLetter && !rule("forwardKeepsLetter", false)) { x.fc = { ...x.fc, letter: null, number: null }; } if (c.inProgress) x.fc.inProgress = true; x.pending = true; } } break;
         case "renumber": (c.ids || []).forEach((id, i) => { const x = byId.get(id); if (x) { x.fc = { ...x.fc, letter: c.letter, number: i + 1 }; x.pending = true; } }); break;
       }
     }
@@ -446,7 +450,11 @@ const F = (() => {
   let toastTimer;
   /** AppToast: text, plus an Undo button like the app when {undo} is given. */
   function toast(t, opts = {}) {
-    const el = $("#toast"); if (!el) return;
+    let el = $("#toast");
+    if (!el) { el = document.createElement("div"); el.id = "toast"; el.setAttribute("role", "status"); el.setAttribute("aria-live", "polite"); document.body.appendChild(el); }
+    // over an open sheet the toast must ride in the sheet (the top layer), or its Undo sits hidden behind it
+    const host = [...document.querySelectorAll("dialog.sheet[open]")].pop() || document.body;
+    if (el.parentElement !== host) host.appendChild(el);
     el.innerHTML = `<span>${esc(t)}</span>${opts.undo ? '<button type="button" class="btn link" id="toast-undo">Undo</button>' : ""}`;
     el.classList.toggle("has-undo", !!opts.undo);
     if (opts.undo) $("#toast-undo").onclick = async () => { el.classList.remove("show"); try { await opts.undo(); } catch (e) { toast("Couldn't undo: " + friendly(e.message)); } };
@@ -464,19 +472,61 @@ const F = (() => {
       const l = typeof leading === "function" ? leading() : leading;
       const r = typeof trailing === "function" ? trailing() : trailing;
       const f = typeof foot === "function" ? foot() : foot;
+      const keepToast = d.querySelector("#toast"), keepAsk = d.querySelector(".leave-scrim");   // a redraw must not wipe the toast (its Undo) or an open question
       d.innerHTML = `<div class="sheetbar"><div class="sb-l">${l ? ui.btn({ label: l.label, act: l.act || "sheet-close", data: l.data }) : ""}</div>
           <h2 class="title">${esc(t)}</h2><div class="sb-r">${r ? ui.btn({ label: r.label, labelHTML: r.busy ? ui.spinner() : null, kind: "primary", act: r.act, data: r.data, disabled: r.disabled || r.busy }) : ""}</div></div>
         <div class="sheetbody">${typeof body === "function" ? body() : body}</div>${f ? `<div class="sheetfoot">${f}</div>` : ""}`;
+      if (keepToast) d.appendChild(keepToast);
+      if (keepAsk) d.appendChild(keepAsk);
     };
     draw();
     document.body.appendChild(d);
     const api = {
       el: d,
-      close() { if (d.open) d.close(); },
+      /** guard = {dirty(): bool, title, message, leave, stay}: Esc (or any close the page didn't ask for) asks Keep/Leave first, like Compose. */
+      guard: null,
+      close() { api._ok = true; if (d.open) d.close(); else finish(); },
       update() { const sb = d.querySelector(".sheetbody"), top = sb?.scrollTop || 0; const focusId = document.activeElement?.id; draw(); const nb = d.querySelector(".sheetbody"); if (nb) nb.scrollTop = top; if (focusId) d.querySelector("#" + CSS.escape(focusId))?.focus(); },
     };
-    d.addEventListener("close", () => { d.remove(); sheets.delete(api); onClose?.(); });
-    d.addEventListener("cancel", (e) => { if (d.dataset.noEscape) e.preventDefault(); });
+    let done = false;
+    const finish = () => { if (done) return; done = true; const t = d.querySelector("#toast"); if (t) ([...document.querySelectorAll("dialog.sheet[open]")].filter((x) => x !== d).pop() || document.body).appendChild(t); d.remove(); sheets.delete(api); onClose?.(); };
+    // The Keep/Discard question sits inside the sheet (not a second dialog), so Chrome never closes the two together on Esc.
+    // Esc again, or Keep editing, puts him back where he was typing.
+    const focusField = () => (api._lastField?.isConnected ? api._lastField : d.querySelector(".sheetbody textarea, .sheetbody input:not([type=checkbox])"))?.focus();
+    const askLeave = () => {
+      const open = d.querySelector(".leave-scrim");
+      if (open) { open.remove(); focusField(); return; }
+      const g = api.guard || {};
+      if (d.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) api._lastField = document.activeElement;
+      const o = document.createElement("div");
+      o.className = "leave-scrim";
+      o.innerHTML = `<div class="leave-card" role="alertdialog" aria-modal="true" aria-labelledby="leave-t"><div class="ab"><h3 id="leave-t">${esc(g.title || "Discard this?")}</h3>${g.message ? `<p>${esc(g.message)}</p>` : ""}</div>
+        <div class="aa"><button type="button" class="destructive" data-leave="1">${esc(g.leave || "Discard")}</button><button type="button" class="cancel" data-leave="0">${esc(g.stay || "Keep editing")}</button></div></div>`;
+      o.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-leave]"); if (!b && e.target !== o) return;
+        e.stopPropagation(); o.remove();
+        if (b?.dataset.leave === "1") api.close(); else focusField();
+      });
+      d.appendChild(o);
+      o.querySelector("button.cancel").focus();
+    };
+    const guarded = () => { try { return !!(api.guard && api.guard.dirty()); } catch { return false; } };
+    d.addEventListener("close", () => {
+      // Chrome lets a second quick Esc close a dialog even when cancel is prevented: put it back and ask
+      if (!api._ok && guarded() && d.isConnected && !d.querySelector(".leave-scrim")) { setTimeout(() => { if (api._ok) return finish(); try { if (!d.open) d.showModal(); } catch {} askLeave(); }, 0); return; }
+      finish();
+    });
+    // Esc is caught as a key first: stopping its default keeps Chrome from closing the sheet at all (a dialog's own
+    // cancel can't always be stopped), so there's one prompt and nothing to put back
+    d.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape" || e.isComposing || !(guarded() || d.querySelector(".leave-scrim"))) return;
+      e.preventDefault(); e.stopPropagation(); askLeave();
+    });
+    d.addEventListener("cancel", (e) => {
+      if (d.dataset.noEscape) { e.preventDefault(); return; }
+      // when Chrome won't let Esc be stopped (no tap since the last one), the close handler puts the sheet back and asks
+      if (guarded() && e.cancelable) { e.preventDefault(); askLeave(); }
+    });
     d._api = api;
     sheets.add(api);
     d.showModal();
@@ -626,9 +676,7 @@ const F = (() => {
     scr.innerHTML = `<div class="screen-inner">${v ? v.render() : '<p class="muted">Loading…</p>'}</div>`;
     if (prevTab === S.tab) scr.scrollTop = top; else scr.scrollTop = 0;
     if (focusId && !ae.closest("dialog")) { const el = document.getElementById(focusId); if (el) { el.focus(); try { el.setSelectionRange(selStart, selEnd); } catch {} } }
-    $("#tabs").innerHTML = TABS.map(([k, label, ic]) => k === "friday"
-      ? `<button type="button" class="tab fri" data-act="open-friday" aria-label="Friday"><span class="core"><canvas id="tabcore" width="34" height="34"></canvas></span>Friday</button>`
-      : `<button type="button" class="tab sec-${k}" role="tab" data-act="tab" data-tab="${k}" aria-selected="${S.tab === k}"><span class="ic">${icon(ic, S.tab === k ? 'stroke-width="2"' : "")}${tabBadge(k)}</span>${label}</button>`).join("");
+    $("#tabs").innerHTML = TABS.map(([k, label, ic]) => `<button type="button" class="tab sec-${k}" role="tab" data-act="tab" data-tab="${k}" aria-selected="${S.tab === k}"><span class="ic">${icon(ic, S.tab === k ? 'stroke-width="2"' : "")}${tabBadge(k)}</span>${label}</button>`).join("");
     const mac = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
     $("#siderows").innerHTML = TABS.map(([k, label, ic], i) => `<button type="button" class="side-row sec-${k}" data-act="tab" data-tab="${k}" ${S.tab === k ? 'aria-current="page"' : ""}
         aria-keyshortcuts="${mac === "⌘" ? "Meta" : "Control"}+${i + 1}" title="${label} (${mac}${i + 1})">${icon(ic)}<span class="sl">${label}</span>${tabBadge(k)}</button>`).join("")
@@ -659,7 +707,8 @@ const F = (() => {
     for (const cls of ["cel-ring", "cel-ring r2"]) {
       const ring = document.createElement("span");
       ring.className = cls; ring.setAttribute("aria-hidden", "true");
-      ring.style.left = x + "px"; ring.style.top = y + "px";
+      const z = window.F?.zoomScale ? F.zoomScale() : 1;
+      ring.style.left = x / z + "px"; ring.style.top = y / z + "px";
       (el.closest("dialog[open]") || document.body).appendChild(ring);
       setTimeout(() => ring.remove(), 900);
     }
@@ -800,7 +849,7 @@ const F = (() => {
   return {
     CONFIG, DEMO, S, D, ui, $, $$, esc, uuid, nowSec,
     // data
-    snap, queue, prefs, planner, roleIndex, roleClass, roleColor, todos, events, lists, calendars, defaultList, byPriority, prefsHiddenCalendars,
+    snap, queue, prefs, rule, planner, roleIndex, roleClass, roleColor, todos, events, lists, calendars, defaultList, byPriority, prefsHiddenCalendars,
     mail: () => S.mail, devices: () => S.devices, status: () => S.status,
     cmd, savePlanner, setPref, writeSection, load, refresh, getFile, putFile, friendly,
     // ui
@@ -811,12 +860,27 @@ const F = (() => {
 // Text size dial for this computer only (kept in this browser). Wide screens start one step up.
 F.zoomSteps = [[0.9, "Smaller"], [1, "Normal"], [1.15, "Larger"], [1.3, "Large"], [1.5, "Largest"]];
 F.zoom = () => { let v = NaN; try { v = Number(localStorage.getItem("friday.zoom")); } catch {} return v > 0 ? v : (window.innerWidth >= 1200 ? 1.15 : 1); };
-F.applyZoom = (v) => { const r = document.documentElement.style; r.zoom = String(v); r.setProperty("--zoom", String(v)); };
+/** How many screen pixels one CSS pixel takes under the text-size zoom (measured, so it holds in every browser).
+ *  Fixed-position things placed from getBoundingClientRect divide by it. */
+F.zoomScale = () => { const p = document.createElement("div"); p.style.cssText = "position:fixed;left:0;top:0;width:100px;height:1px;visibility:hidden;pointer-events:none"; document.body.appendChild(p); const z = p.getBoundingClientRect().width / 100; p.remove(); return z > 0 ? z : 1; };
+/** The layout picks phone / tablet / sidebar / wide from the window's width, which the dial's zoom doesn't change; so the dial
+ *  stops where the zoomed page would be narrower than the layout it's in (else names and buttons get cut to "Sam…").
+ *  Past that, the browser's own ⌘+ zoom still works (it re-picks the layout). */
+F.zoomCap = (w = window.innerWidth) => (w < 640 ? w / 320 : w < 900 ? w / 640 : w < 1000 ? w / 900 : w / 1000);
+F.applyZoom = (v) => { v = Math.max(0.9, Math.min(v, Math.max(1, F.zoomCap()))); const r = document.documentElement.style; r.zoom = String(v); r.setProperty("--zoom", String(v)); };
+window.addEventListener("resize", () => { clearTimeout(F._zt); F._zt = setTimeout(() => F.applyZoom(F.zoom()), 150); });
 F.setZoom = (v) => { try { localStorage.setItem("friday.zoom", String(v)); } catch {} F.applyZoom(v); };
 F.applyZoom(F.zoom());
 /** The Compass shown for a day (Franklin.swift actAs): his line for that day, else this week's Compass, else his
  *  standing card, else Friday's suggested Compass for the week (the iPhone/Mac write it). */
 /** Marks (→ ✗) left on a day's page, minus tasks that are back on it. presentIds: ids on that day now. */
+/** His first name: Friday settings' "From" name, else his email account's name; "" when neither is known (callers drop the ", name"). */
+F.firstName = () => {
+  const pick = (v) => String(v || "").trim().split(/\s+/)[0] || "";
+  return pick(F.prefs().fromName) || pick((F.mail()?.accounts || []).find((a) => String(a.fullName || "").trim())?.fullName);
+};
+/** ", Jose" when his name is known, else "" (so lines read "Good morning" rather than naming someone else). */
+F.withName = () => { const n = F.firstName(); return n ? ", " + n : ""; };
 F.dayMarks = (date, presentIds = []) => {
   const p = F.planner && F.planner(); if (!p || !p.days) return [];
   const ids = new Set(presentIds);

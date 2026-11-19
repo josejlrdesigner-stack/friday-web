@@ -11,7 +11,6 @@
   let open = null;
 
   // ------------------------------------------------------------ the data
-  const firstName = () => { const n = String(F.prefs().fromName || "").trim().split(/\s+/)[0]; return n || "Jose"; };
   const greeting = (h) => (h < 5 ? "Late night" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : h < 21 ? "Good evening" : "Late night");
   const planner = () => { const p = F.planner() || {}; p.days ||= {}; p.weeks ||= {}; p.midGoals ||= []; p.longGoals ||= []; p.profile ||= {}; return p; };
   const actAsToday = (p, d) => F.compassFor(p, d);
@@ -108,7 +107,7 @@
       <div class="rit-band"><div class="rit-band-in">
         <div class="rit-brand">${ui.fmark(24)}<span>F.R.I.D.A.Y.</span>${ui.btn({ icon: "xmark", kind: "icon", cls: "rit-x", act: "rit-close", aria: "Not now", title: "Not now (Esc)" })}</div>
         <div class="rit-hero" aria-hidden="true"><canvas id="rit-core"></canvas></div>
-        <div class="v g4 rit-greet"><span class="band-label">${esc(dateLine)}</span><h1 id="rit-title" class="band-greet">${esc(greeting(now.getHours()))}, ${esc(firstName())}</h1></div>
+        <div class="v g4 rit-greet"><span class="band-label">${esc(dateLine)}</span><h1 id="rit-title" class="band-greet">${esc(greeting(now.getHours()) + F.withName())}</h1></div>
       </div></div>
       <div class="rit-in">
         <section class="rit-card rit-actcard sec-friday actas-l">${act ? "" : ui.label2("Compass")}${actCard}</section>

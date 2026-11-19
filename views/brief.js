@@ -16,7 +16,6 @@
   });
 
   // ------------------------------------------------------------ helpers
-  const firstName = () => { const n = String(F.prefs().fromName || "").trim().split(/\s+/)[0]; return n || "Jose"; };
   const plural = (v, w) => `${v} ${w}${v === 1 ? "" : "s"}`;
   const fcSort = (a, b) => { const k = (t) => [{ A: 0, B: 1, C: 2 }[t.fc?.letter] ?? 3, t.fc?.number ?? 999]; const x = k(a), y = k(b); return x[0] - y[0] || x[1] - y[1]; };
   const dueSort = (a, b) => (a.due ?? Infinity) - (b.due ?? Infinity);
@@ -72,7 +71,7 @@
         <span class="bigdate" aria-hidden="true">${now.getDate()}</span>
         <div class="v g4 grow">
           <span class="band-label"><span class="sr">${esc(D.wide(now))}. </span><span aria-hidden="true">${esc(label)}</span></span>
-          <h1 class="band-greet">${esc(greet)}, ${esc(firstName())}</h1>
+          <h1 class="band-greet">${esc(greet + F.withName())}</h1>
         </div>
       </div>
       ${act ? ui.compass(act, { band: true }) : ""}
@@ -93,7 +92,7 @@
     return `<section class="card p16 v g12 first sec-brief">${head}
       <div class="h g12"><span class="a1tile" aria-hidden="true">${esc(code)}</span>
       <div class="v g4 grow">
-        <button type="button" class="plain" data-act="brief-todo" data-id="${esc(t.id)}" aria-label="${esc(`${code}: ${t.title}. Edit, move or delete`)}"><span class="t-card-title wrap">${esc(t.title)}</span></button>
+        <button type="button" class="plain a1open" data-act="brief-todo" data-id="${esc(t.id)}" aria-label="${esc(`${code}: ${t.title}. Edit, move or delete`)}"><span class="t-card-title wrap">${esc(t.title)}</span></button>
         ${t.fc.bigRock || t.fc.role ? `<span class="flow">${t.fc.bigRock ? ui.tag("Big Rock", "done") : ""}${t.fc.role ? ui.roleTag(t.fc.role) : ""}</span>` : ""}
       </div>
       ${ui.check(false, "brief-toggle", { id: t.id }, t.title, t.fc)}</div>
@@ -398,7 +397,7 @@
     const trailing = ui.btn({ label: "Compose", icon: "square.and.pencil", kind: "small", act: "brief-compose" });
     const nd = ms.drafts.length;
     const body = `<div class="flow">${ui.tag(`${unread} unread`, unread > 0 ? "ink" : "")}${nd ? ui.tag(`${nd} draft${nd === 1 ? "" : "s"} by Friday`, "friday") : ""}</div>
-      ${latest.length ? "" : '<p class="t13 muted">Your inbox is empty, Jose.</p>'}
+      ${latest.length ? "" : '<p class="t13 muted">Your inbox is empty${esc(F.withName())}.</p>'}
       <div class="rows">${latest.map((m) => messageRow(m, accById.get(m.accountID), ms.accounts.length > 1)).join("")}</div>
       ${ms.inbox.length > latest.length ? `<button type="button" class="plain viewall" data-act="brief-mail">View all ${ms.inbox.length} in Mail ${F.icon("chevron.right")}</button>` : ""}`;
     return ui.panel("Latest email", trailing, body, "comms sec-mail", ui.secTile("mail"));

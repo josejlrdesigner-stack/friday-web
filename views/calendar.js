@@ -131,7 +131,7 @@
   function openEventEdit(event, opts = {}) {
     const cals = F.calendars();
     const writableCals = cals.filter((c) => c.writable !== false && !F.prefsHiddenCalendars().includes(c.id));
-    const d = { title: "", location: "", allDay: false, start: new Date(), end: new Date(), calendar: "Jose", notes: "", recurring: false, writable: true, links: [] };
+    const d = { title: "", location: "", allDay: false, start: new Date(), end: new Date(), calendar: "", notes: "", recurring: false, writable: true, links: [] };
     if (event) {
       const cal = cals.find((c) => c.id === event.calendarID || c.title === event.calendar);
       Object.assign(d, { title: event.title || "", location: event.location || "", allDay: !!event.allDay, start: event.start, end: event.end,
@@ -145,7 +145,8 @@
       if (opts.start instanceof Date) start = new Date(opts.start);   // a tapped slot on the time grid
       d.start = start; d.end = new Date(start.getTime() + 3600000);
       if (opts.title) d.title = opts.title;
-      if (!writableCals.some((c) => c.title === "Jose") && writableCals[0]) d.calendar = writableCals[0].title;
+      // his own calendar (named after him, like the app's default) else the first one he can write to
+      d.calendar = (writableCals.find((c) => F.firstName() && c.title === F.firstName()) || writableCals[0] || { title: "" }).title;
     }
     const readOnly = !!event && !d.writable;
     ev = { event, d, readOnly, opts, busy: false };
@@ -159,7 +160,11 @@
       onClose: () => { ev = null; },
     });
     ev.api = api;
-    if (!event && d.title.trim()) api.el.dataset.noEscape = "1";
+    // Esc with something typed asks first (same Keep/Discard as Compose); Cancel just closes
+    const start0 = { title: d.title, location: d.location, notes: d.notes };
+    api.guard = { dirty: () => !readOnly && ["title", "location", "notes"].some((k) => d[k] !== start0[k]),
+      title: event ? "Discard your changes?" : "Discard this event?", message: event ? "Your changes to this event aren't saved yet." : "It hasn't been added to your calendar yet.",
+      leave: event ? "Discard changes" : "Discard", stay: "Keep editing" };
     setTimeout(() => api.el.querySelector("#ev-title")?.focus(), 30);
     return api;
   }
@@ -200,7 +205,6 @@
     if (el.dataset.k === "title") {
       const b = ev.api.el.querySelector('.sheetbar [data-act="ev-save"]');
       if (b) b.disabled = !el.value.trim();
-      if (!ev.event) { if (el.value.trim()) ev.api.el.dataset.noEscape = "1"; else delete ev.api.el.dataset.noEscape; }
     }
   });
   F.onChange("ev-allday", (el) => { if (!ev) return; ev.d.allDay = el.checked; ev.api.update(); });
@@ -246,7 +250,7 @@
         await F.cmd("update_event", { itemID: s.event.itemID, occurrenceStart: sec(s.event.start), allFuture: !!allFuture, title: d.title, start: sec(start), end: sec(end),
           allDay: d.allDay, location: d.location, notes: d.notes, calendar: d.calendar }, toastText);
       } else {
-        await F.cmd("add_event", { title: d.title, start: sec(start), end: sec(end), allDay: d.allDay, location: d.location, notes: d.notes || undefined, calendar: d.calendar }, toastText);
+        await F.cmd("add_event", { title: d.title, start: sec(start), end: sec(end), allDay: d.allDay, location: d.location, notes: d.notes || undefined, calendar: d.calendar || undefined }, toastText);
       }
       s.opts.onSaved?.();
       s.api.close();
@@ -353,6 +357,7 @@
       const evs = eventsOn(d, all).filter((e) => e.allDay);
       return `<div class="tg-ad">${evs.map((e) => { const col = evColor(e); return `<button type="button" class="plain press tg-chip evtint" data-act="cal-open-event" data-id="${esc(e.id)}" style="--evc:${hexRGBA(col, 1)};--evt:${hexRGBA(col, 0.18)}" title="${esc(e.title)}"><span class="ell">${esc(e.title)}</span></button>`; }).join("")}</div>`;
     }).join("");
+    const hasAllDay = days.some((d) => eventsOn(d, all).some((e) => e.allDay));   // no empty "All day" strip eating the hours
     const lines = Array.from({ length: 24 }, (_, h) => `<i class="tg-hr" style="top:${h * H}px"></i><i class="tg-half" style="top:${h * H + H / 2}px"></i>`).join("");
     const nowY = days.some((d) => D.same(d, now)) ? (now - D.start(now)) / 3600000 * H : null;
     const labels = Array.from({ length: 23 }, (_, k) => (nowY != null && Math.abs((k + 1) * H - nowY) < 14 ? "" : `<span class="tg-hl" style="top:${(k + 1) * H}px">${hhLabel(k + 1)}</span>`)).join("");
@@ -366,10 +371,12 @@
         const bar = rc ? rc.fill : col;
         const w = 100 / it.n, left = it.c * w;
         const time = `${D.time(e.start)} – ${D.time(e.end)}`;
-        return `<button type="button" class="tg-ev ${past ? "past" : ""} ${h < 36 ? "short" : ""} ${e.pending ? "pending" : ""}" data-act="cal-open-event" data-id="${esc(e.id)}"
+        // the title gets the room first: the time line shows only when the title still has two lines above it
+        const fit = Math.max(1, Math.floor((h - 8) / 17)), showTm = h >= 36, tLines = Math.max(1, fit - 1), tight = showTm && fit < 3;
+        return `<button type="button" class="tg-ev ${past ? "past" : ""} ${h < 36 ? "short" : ""} ${tight ? "tight" : ""} ${e.pending ? "pending" : ""}" data-act="cal-open-event" data-id="${esc(e.id)}"
           style="top:${top}px;height:${h}px;left:calc(${left}% + 2px);width:calc(${w}% - 4px);--evc:${hexRGBA(bar, past ? 0.6 : 1)};--evt:${hexRGBA(col, past ? 0.09 : 0.18)}"
           aria-label="${esc(`${e.title}, ${time}${rock ? ", Big Rock" : ""}`)}">
-          <span class="tg-et">${rock ? F.icon("mountain.2", 'class="tg-rock"') : ""}<span class="ell">${esc(e.title)}</span></span>${h >= 36 ? `<span class="tg-tm">${esc(time)}</span>` : ""}</button>`;
+          <span class="tg-et">${rock ? F.icon("mountain.2", 'class="tg-rock"') : ""}<span class="${h < 36 ? "ell" : "tg-tt"}" style="--lines:${tLines};--lines-n:${fit}">${esc(e.title)}</span></span>${showTm ? `<span class="tg-tm">${esc(D.time(e.start))}<span class="tg-end"> – ${esc(D.time(e.end))}</span></span>` : ""}</button>`;
       }).join("");
       let nowLine = "";
       if (today) {
@@ -381,7 +388,7 @@
     }).join("");
     return { html: `<section class="card tg" style="--hour:${H}px;--tg-cols:${cols}" data-key="${calView}:${D.key(start)}:${n}">
       <div class="tg-head"><span class="tg-gut"></span>${head}</div>
-      <div class="tg-allrow"><span class="tg-gut tg-adl">All day</span>${allDay}</div>
+      ${hasAllDay ? `<div class="tg-allrow"><span class="tg-gut tg-adl">All day</span>${allDay}</div>` : ""}
       <div class="tg-scroll"><div class="tg-body" style="height:${24 * H}px">
         <div class="tg-gutter">${labels}${nowGutter}</div>
         <div class="tg-lines">${lines}</div>
@@ -408,6 +415,8 @@
     render() {
       const now = new Date();
       const actions = filterButton() + ui.btn({ label: "Event", icon: "plus", kind: "primary", act: "cal-new" });
+      // phones: the same two buttons as icons beside the title, so the hours get the room (D10 on the web); CSS picks one set
+      const tools = `<span class="ph-tools">${filterButton()}${ui.btn({ kind: "icon", icon: "plus", cls: "primary-ic", act: "cal-new", aria: "New event", title: "New event" })}</span>`;
       const banners = (calendarAccess() ? "" : accessOffRow("Calendar")) + failedCard(EVENT_KINDS);
       if (calView === "agenda") {
         const start = anchor ? D.start(anchor) : D.start(now);
@@ -415,13 +424,13 @@
         const eyebrow = ui.label2((anchor || now).toLocaleDateString([], { month: "long", year: "numeric" }));
         let days = "";
         for (let i = 0; i < span; i++) { const day = D.add(start, i); days += dayBlock(day, eventsOn(day, all), now, D.same(day, now)); }
-        return `${ui.header({ eyebrow, title: "Calendar", actions })}${banners}
+        return `<div class="phc">${ui.header({ eyebrow, title: "Calendar", actions, tools })}</div>${banners}
           <div class="v cgap">${toolbar(now)}<div class="caldays">${days}</div>
           ${ui.actbar([ui.btn({ label: "Show 30 more days", icon: "chevron.down", act: "cal-more" })])}</div>`;
       }
       const g = timeGrid(now);
       const eyebrow = ui.label2(g.start.toLocaleDateString([], { month: "long", year: "numeric" }));
-      return `${ui.header({ eyebrow, title: "Calendar", actions })}${banners}<div class="v cgap">${toolbar(now, g.title)}${g.html}</div>`;
+      return `<div class="phc">${ui.header({ eyebrow, title: "Calendar", actions, tools })}</div>${banners}<div class="v cgap">${toolbar(now, g.title)}${g.html}</div>`;
     },
     after(root) {
       const grid = root.querySelector(".tg"); if (!grid) { tg.key = ""; return; }

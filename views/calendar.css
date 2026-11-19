@@ -110,6 +110,12 @@
 .tg-ev:focus-visible { z-index: 5; }
 .tg-ev.short { flex-direction: row; align-items: center; padding-top: 0; padding-bottom: 0; }
 .tg-et { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 13px; font-weight: 600; line-height: 1.3; }
+/* a tall event in a narrow column wraps its title over the lines it has room for, instead of cutting it to "W…" (D10, web) */
+.tg-tt { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--lines, 1); overflow: hidden; overflow-wrap: anywhere; min-width: 0; }
+.tg-et:has(.tg-tt) { align-items: flex-start; }
+.tg-ev:not(.short) { container-type: inline-size; }   /* the event block itself (side-by-side events are narrower than the day) */
+/* narrow column: start time only (the full span is in the label); a short event there gives its time line to the title */
+@container (max-width: 120px) { .tg-end { display: none; } .tg-ev.tight .tg-tm { display: none; } .tg-ev.tight .tg-tt { -webkit-line-clamp: var(--lines-n, 1); } }
 .tg-tm { font-size: 12px; color: var(--ink2); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .tg-ev.past { color: var(--muted); }
 .tg-ev.past .tg-tm { color: var(--muted); }
@@ -118,3 +124,6 @@
 /* GRID-SNAP: the day stepper spans the full width ([‹] date [›] [Today]) */
 .stepper-d { flex: 1 1 0; justify-content: space-between; width: 100%; }
 .stepper-d .sd-t { flex: 1 1 auto; }
+
+/* Header: on phones the Calendars + Event buttons sit beside the title as 44 px icons (style.css .phc) */
+.ph-tools .calfilter .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

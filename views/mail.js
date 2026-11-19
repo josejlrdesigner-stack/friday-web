@@ -40,7 +40,7 @@
     scrollTo: null,
     menu: null, menuAt: null, swipe: null,
     local: [],                    // commands being written right now (shown before GitHub confirms)
-    asText: new Set(), loadImg: { has: () => true, add() {} },   // the app opens email with images loaded (MessageView loadImages = true)
+    asText: new Set(),   // the app opens email with images loaded (MessageView loadImages = true), so there is no Load images step
     autoSeen: new Set(), askedBody: new Set(), bodyAt: {},       // bodyAt: mailID → when this page last asked the iPhone for it
     listTop: 0, paneTop: 0, paneFor: null,
   };
@@ -472,16 +472,6 @@
       }
       return out;
     }
-    if (key === "chan") {
-      const a = account(X, M.acct), fl = X.folders[a.id] || [];
-      const primary = fl.filter((f) => f.role && f.role !== "inbox").sort((x, y) => order(x.role) - order(y.role));
-      const others = fl.filter((f) => !f.role && f.name.toUpperCase() !== "INBOX").sort((x, y) => x.name.localeCompare(y.name));
-      return [mi("Inbox", "mail-folder", { icon: "tray", data: { acct: a.id, folder: "INBOX" } }),
-        ...primary.map((f) => mi(displayName(f.name), "mail-folder", { icon: roleIcon(f.role), data: { acct: a.id, folder: f.name } })),
-        ...(others.length ? [{ header: "More folders" }, ...others.map((f) => mi(f.name, "mail-folder", { data: { acct: a.id, folder: f.name } }))] : []),
-        { divider: true }, mi("Unsubscribe & block", "mail-subs", { icon: "envelope.badge.shield.half.filled" }),
-        mi("New folder…", "mail-new-folder", { icon: "folder.badge.plus", data: { acct: a.id } })];
-    }
     if (key === "more") {
       const m = X.byId.get(selectedId()); if (!m) return [];
       const b = X.bodies[m.id];
@@ -490,14 +480,13 @@
           : [mi("Mark as Junk", "mail-junk", { icon: "xmark.bin", data: { id: m.id } }), mi("Junk and block sender", "mail-junk", { icon: "hand.raised", data: { id: m.id, block: 1 } })]),
         ...(blockedSenders(X).includes(e) ? [mi(`Unblock ${m.from.email}`, "mail-unblock", { icon: "hand.raised.slash", data: { email: e } })] : []),
         ...((m.unsubscribe || "").trim() ? [mi("Unsubscribe", "mail-unsub", { icon: "envelope.badge.shield.half.filled", data: { id: m.id } })] : [])];
-      return [...(innerWidth < 380 ? [mi("Reply all", "mail-reply", { icon: "arrowshape.turn.up.left.2", data: { all: 1 } })] : []),
+      return [...(innerWidth / F.zoomScale() < 380 ? [mi("Reply all", "mail-reply", { icon: "arrowshape.turn.up.left.2", data: { all: 1 } })] : []),
         ...junk, { divider: true },
         mi(m.flagged ? "Unflag" : "Flag", "mail-flag", { icon: "flag", data: { id: m.id } }),
         mi("Mark unread", "mail-unread", { icon: "envelope.badge" }),
         mi("Move to…", "mail-move", { icon: "folder", data: { id: m.id } }),
         mi("Make a task", "mail-task", { icon: "checklist", data: { id: m.id } }),
-        ...(b?.html ? [mi(M.asText.has(m.id) ? "Show formatted" : "Show plain text", "mail-astext", { icon: "doc.plaintext" })] : []),
-        ...(!M.loadImg.has(m.id) ? [mi("Load images", "mail-load-images", { icon: "photo" })] : [])];
+        ...(b?.html ? [mi(M.asText.has(m.id) ? "Show formatted" : "Show plain text", "mail-astext", { icon: "doc.plaintext" })] : [])];
     }
     if (key === "filter") {      // CommsView.moreMenu: Apple Mail's filter button + mailbox actions
       const showIcon = (o) => (M.show === o ? "checkmark" : o === "Unread only" ? "envelope.badge" : o === "Flagged only" ? "flag" : "tray.full");
@@ -676,7 +665,9 @@
     const boxN = X && boxRole() ? current(X).length : 0;
     const head = (extraTool = "") => ui.header({ eyebrow: ui.label2(boxRole() ? `${boxN} email${boxN === 1 ? "" : "s"}` : `${unread} unread`), title: X ? folderTitle(X) : "Mail",
       tools: ui.btn({ icon: "gearshape", kind: "icon", filled: true, act: "mail-settings", aria: "Settings: email accounts and signature" })
-        + F.syncButton() + extraTool,
+        + F.syncButton() + extraTool
+        // phones: Compose as a 44 px icon here too, so the labelled row (Select · Compose) can step aside; Select stays in the filter menu
+        + (hasAccounts ? ui.btn({ icon: "square.and.pencil", kind: "icon", cls: "primary-ic m-ph-compose", act: "mail-compose", aria: "Compose a new email", title: "Compose" }) : ""),
       actions: (hasAccounts ? ui.btn({ label: M.selecting ? "Done" : "Select", act: "mail-select" }) : "")
         + ui.btn({ label: "Compose", icon: "square.and.pencil", kind: "primary", act: "mail-compose", aria: "Compose a new email" }) });
     const header = head();
@@ -700,11 +691,10 @@
       ${ui.search("mail-q", "Search all mail", M.query, "mail-q")}
       ${M.folder === "INBOX" && !M.query.trim() ? ui.seg("mail-lane", ["Priority", "Updates", "All"], M.lane) : ""}
       <div class="flow">${trigger("acct", acctLabel, "", `Account: ${a?.label || "All accounts"}`)}<span class="mpair">${trigger("boxes", chan, "", `Mailbox: ${boxTitle}. Inbox, Sent, Junk, Trash and folders`)}</span></div></div>`;
-    return `<div class="mhead">${head(filterTrigger)}</div>${controls}<div class="mlist" id="mail-list">${listHTML(X)}</div>${M.selecting ? bulkBar(X) : ""}`;
+    return `<div class="mhead ${M.selecting ? "selecting" : ""}">${head(filterTrigger)}</div>${controls}<div class="mlist" id="mail-list">${listHTML(X)}</div>${M.selecting ? bulkBar(X) : ""}`;
   }
 
   // ------------------------------------------------------------ one email (MessageView)
-  const hasRemoteImages = (h) => !!h && /(src|srcset|background)\s*=\s*["']?\s*(https?:)?\/\/|url\(\s*["']?\s*(https?:)?\/\//i.test(h);
   /** "//cdn.example.com/logo.png" has no website to borrow "https:" from here, so give it one. */
   const fixLinks = (h) => h.replace(/((?:src|srcset|background|href)\s*=\s*["']?\s*)\/\//gi, "$1https://").replace(/(url\(\s*["']?\s*)\/\//gi, "$1https://");
   /** EmailWebView.page(): scripts never run; remote images stay blocked until "Load images"; links open in a new tab. */
@@ -757,7 +747,7 @@
   function messageHTML(X, m) {
     const a = account(X, m.accountID), b = X.bodies[m.id], asked = X.askedBody.has(m.id) || M.askedBody.has(m.id);
     const wait = bodyWait(X, m.id);
-    const narrow = innerWidth < 380;
+    const narrow = innerWidth / F.zoomScale() < 380;   // the width the page really has under the text-size dial
     const tile = (label, ic, act, extra = {}) => `<button type="button" class="tile ${extra.destructive ? "destructive" : ""}" data-act="${act}" ${extra.data ? Object.entries(extra.data).map(([k, v]) => `data-${k}="${esc(v)}"`).join(" ") : ""} aria-label="${esc(extra.aria || label)}" ${extra.menu ? `data-menu="more" aria-haspopup="menu" aria-expanded="${M.menu === "more"}"` : ""}>${extra.inner || icon(ic)}<span>${esc(label)}</span></button>`;
     const actions = `<div class="tiles">${tile("Reply", "arrowshape.turn.up.left", "mail-reply")}${narrow ? "" : tile("Reply all", "arrowshape.turn.up.left.2", "mail-reply", { data: { all: 1 } })}
       ${tile("Forward", "arrowshape.turn.up.right", "mail-forward")}${tile("Archive", "archivebox", "mail-archive")}${tile("Delete", "trash", "mail-delete", { destructive: true })}
@@ -767,10 +757,9 @@
     const convoHTML = convo.length > 1 ? `<div class="card edge p16 v g8">${ui.label2(`${convo.length} messages in this conversation`)}
       ${convo.map((c) => `<button type="button" class="convo h g8" data-act="mail-open-id" data-id="${esc(c.id)}" ${c.id === m.id ? "disabled" : ""}><i class="convo-dot ${c.id === m.id ? "on" : ""}"></i>
         <span class="ell t15 ${c.id === m.id ? "w6" : ""}">${esc(display(c.from))}</span><span class="sp"></span><span class="t12 muted nowrap">${esc(D.md(c.date) + ", " + D.time(c.date))}</span></button>`).join("")}</div>` : "";
-    const showImgRow = b?.html && !M.asText.has(m.id) && hasRemoteImages(b.html) && !M.loadImg.has(m.id);
     let bodyHTML;
     if (b) {
-      const src = page(M.asText.has(m.id) ? null : b.html, b.text ? b.text : "(This message has no text.)", M.loadImg.has(m.id));
+      const src = page(M.asText.has(m.id) ? null : b.html, b.text ? b.text : "(This message has no text.)", true);
       const partial = !b.partial ? "" : asked && wait.failed
         ? `<div class="mbodyfail h g8">${ui.errorText("Couldn't get the rest of this email from your iPhone" + (wait.why ? ": " + wait.why : "."))}${ui.btn({ label: "Try again", kind: "small", act: "mail-full" })}</div>`
         : `<p class="t12 muted h g8">${asked ? ui.spinner() : ""}<span>${asked ? "Showing the start of this email. The rest will appear once your iPhone downloads it." : "Showing the start of this email."}</span>${asked ? "" : `<button type="button" class="btn link t12" style="min-height:32px" data-act="mail-full">Get the whole email</button>`}</p>`;
@@ -793,7 +782,6 @@
         ${unsubscribeBanner(X, m)}
         ${b?.attachments?.length ? `<div class="atts" title="Attachments stay on your iPhone">${b.attachments.map((n) => `<span class="att">${icon("paperclip")}<span class="ell">${esc(n)}</span></span>`).join("")}</div>` : ""}
         ${convoHTML}
-        ${showImgRow ? `<div class="h g8"><span class="t12 muted">Images hidden for privacy</span><span class="sp"></span><button type="button" class="btn link t12 w5" style="min-height:32px" data-act="mail-load-images">Load images</button></div>` : ""}
       </div>
       <div class="mbodywrap">${bodyHTML}</div></div>`;
   }
@@ -846,16 +834,17 @@
     let r;
     if (M.menu.startsWith("row:") && M.menuAt) r = { left: M.menuAt.x, right: M.menuAt.x, top: M.menuAt.y, bottom: M.menuAt.y };
     else { const t = root.querySelector(`[data-menu="${CSS.escape(M.menu)}"]:not(.mmenu)`); if (!t) return; r = t.getBoundingClientRect(); }
-    const w = el.offsetWidth, vh = innerHeight, vw = innerWidth;
+    // measured in screen pixels; written back in CSS pixels (the text-size zoom scales both)
+    const z = F.zoomScale(), w = el.offsetWidth * z, sh = el.scrollHeight * z, vh = innerHeight, vw = innerWidth;
     const tabbar = document.querySelector(".tabbar")?.getBoundingClientRect().top || vh;
     const below = tabbar - r.bottom - 8, above = r.top - 8;
-    const h = Math.min(el.scrollHeight, Math.max(below, above));
-    el.style.maxHeight = h + 2 + "px";
-    el.style.top = (below >= Math.min(el.scrollHeight, 240) || below >= above ? r.bottom + 4 : r.top - 4 - h) + "px";
+    const h = Math.min(sh, Math.max(below, above));
+    el.style.maxHeight = (h + 2) / z + "px";
+    el.style.top = (below >= Math.min(sh, 240) || below >= above ? r.bottom + 4 : r.top - 4 - h) / z + "px";
     const alignRight = M.menu === "more";
     let left = alignRight ? r.right - w : r.left;
     left = Math.max(8, Math.min(left, vw - w - 8));
-    el.style.left = left + "px";
+    el.style.left = left / z + "px";
     el.querySelector("[role=menuitem]")?.focus({ preventScroll: true });
   }
   function closeMenuOnScroll() { if (M.menu) { M.menu = null; F.render(); } }
@@ -1229,7 +1218,6 @@
   });
   F.on("mail-unread", () => { const { m } = selected(); if (!m) return; M.autoSeen.add(m.id); closeMessage(); return setSeen([m], false); });
   F.on("mail-astext", () => { const id = selectedId(); M.menu = null; if (M.asText.has(id)) M.asText.delete(id); else M.asText.add(id); F.render(); });
-  F.on("mail-load-images", () => { M.menu = null; M.loadImg.add(selectedId()); F.render(); });
   /** Get the whole email / Try again: ask the iPhone (again); an old failure for it is set aside. */
   F.on("mail-full", () => {
     const { X, m } = selected(); if (!m) return;
@@ -1385,7 +1373,7 @@
           <span class="v g2 grow">
             <span class="t15 w6 ink ell">${esc(s.name)}</span>
             <span class="t12 muted ell">${esc(s.email)}</span>
-            <span class="t12 ink2 ell">${plural(s.count, "email")} · ${s.opened === 0 ? "never opened" : `${s.opened} opened`} · last ${esc(D.md(s.last))}</span>
+            <span class="t12 ink2">${plural(s.count, "email")} · ${s.opened === 0 ? "never opened" : `${s.opened} opened`} · last ${esc(D.md(s.last))}</span>
             ${done || opened || blocked ? `<span class="flow g4">${done ? ui.tag(`Unsubscribed ${D.md(done)}`) : ""}${opened ? ui.tag("Unsubscribe page opened, not confirmed") : ""}${blocked ? ui.tag("Blocked") : ""}</span>` : ""}
           </span>
         </button>
@@ -1515,9 +1503,9 @@
       draftID: input.draftID || null,          // sending a draft: the iPhone deletes that draft (mail_send{draftID})
       retryOf: input.retryOf || null };        // a "Not sent" being tried again: its failure is set aside once this one is queued
     if (!X.accounts.some((a) => a.id === d.accountID)) d.accountID = X.accounts[0].id;
-    // signature: only look above any quoted original ("Hi Jose" in the quote isn't his signature)
+    // signature: only look above any quoted original ("Hi <name>" in the quote isn't his signature)
     const p = F.prefs().mailSignature;
-    const sig = (p != null ? p : (X.md.signature || "Jose")).trim();
+    const sig = (p != null ? p : (X.md.signature || F.firstName())).trim();
     const mine = d.body.split("\n\nOn ")[0];
     if (sig && !d.byFriday && !d.draftID && !d.retryOf && !mine.includes(sig)) d.body = !d.body ? "\n\n" + sig : "\n\n" + sig + "\n" + d.body;
     const startBody = d.body;

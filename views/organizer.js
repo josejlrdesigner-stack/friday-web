@@ -407,7 +407,9 @@
       foot: () => (W.finished != null ? finishFooter() : setupFooter()),
       onClose: () => { if (W === inst) W = null; },
     });
-    W.api.el.dataset.noEscape = "1";          // .interactiveDismissDisabled()
+    // Esc mid-setup asks first (nothing is saved until Build); untouched or finished, it just closes
+    W.api.guard = { dirty: () => W === inst && W.finished == null && !W.busy && (W.step > 1 || Object.values(W.answers).some((a) => a.chips.size || a.text.trim())),
+      title: "Leave setup?", message: "Your answers aren't saved until you tap Build. You can come back to it from Settings.", leave: "Leave setup", stay: "Keep going" };
     W.api.el.classList.add("org-sheet");
     autosize(W.api.el);
     if (mode === "starter") openStarter();
@@ -475,7 +477,7 @@
     const rocks = week(d).rocks.filter((r) => !r.done);
     const g = d.midGoals[d.midGoals.length - 1] || d.longGoals[d.longGoals.length - 1];
     return `<div class="v g16">
-      <div class="v g8">${icon("checkmark.circle.fill", 'class="org-bigcheck"')}<h2 class="t24 w6 ink">You're set up, Jose</h2>
+      <div class="v g8">${icon("checkmark.circle.fill", 'class="org-bigcheck"')}<h2 class="t24 w6 ink">You're set up${esc(F.withName())}</h2>
         <p class="t15 ink2">${esc(profileName ? `Started from the ${profileName} profile. Change anything later in the Organizer.` : "Built from your answers. Change anything later in the Organizer.")}</p></div>
       ${block("What you have now", summaryRow("heart", `${d.values.length} governing value${d.values.length === 1 ? "" : "s"}`, d.values.slice(0, 4).map((v) => v.title).join(", "))
         + summaryRow("person.2", `${d.roles.length} role${d.roles.length === 1 ? "" : "s"}`, d.roles.map((r) => r.name).join(", "))
@@ -669,7 +671,6 @@
   const hDraw = () => H && redraw(H.api, paintBar);
   F.on("org-home", () => { H.module = null; H.focus = null; H.energy = null; H.saved = null; hDraw(); H.api.el.querySelector(".sheetbody").scrollTop = 0; });
   F.on("org-module", (el) => { H.module = el.dataset.m; H.focus = null; H.energy = null; H.saved = null; hDraw(); H.api.el.querySelector(".sheetbody").scrollTop = 0; });
-  F.on("org-coach", () => F.openChat?.(undefined, { context: "organizer:" + (H?.module ? modOf(H.module).name : "Organizer") }));
   F.on("org-quick", (el) => F.openSetup(el.dataset.m, { fromHub: true }));
 
   function quickStartCard(p) {
@@ -802,16 +803,17 @@
   }
   F.onChange("org-gf", (el) => { const [coll, id, f] = el.dataset.path.split("."); save((p) => { const x = p[coll].find((y) => y.id === id); if (x) x[f] = el.value; }); });
   F.on("org-g-done", (el) => save((p) => { const x = p[el.dataset.coll].find((y) => y.id === el.dataset.id); if (x) x.done = !x.done; }).then(() => hDraw()));
-  F.on("org-del-g", (el) => save((p) => { p[el.dataset.coll] = p[el.dataset.coll].filter((y) => y.id !== el.dataset.id); }).then(() => hDraw()));
+  F.on("org-del-g", (el) => {
+    const coll = el.dataset.coll;
+    return removeWithUndo(el, coll, el.dataset.id, (g) => (coll === "midGoals" ? `Deleted the milestone “${g.title}”` : `Deleted the goal “${g.title}”`));
+  });
   F.onChange("org-g-link", (el) => save((p) => { const x = p[el.dataset.coll].find((y) => y.id === el.dataset.id); if (!x) return; const k = el.dataset.coll === "midGoals" ? "parentID" : "valueID"; if (el.value === "__unlink") delete x[k]; else x[k] = el.value; }).then(() => hDraw()));
   F.on("open-organizer", () => F.openOrganizer());
   F.on("org-compass", async () => { await F.editCompass?.(new Date()); hDraw(); });
   F.on("org-today", () => { H?.api.close(); location.hash = "tasks"; });
   F.onChange("org-field", (el) => save((p) => { p[el.dataset.f] = el.value; }));
-  F.on("org-del-value", (el) => save((p) => { p.values = p.values.filter((v) => v.id !== el.dataset.id); }));
-  F.on("org-del-goal", (el) => save((p) => { p.longGoals = p.longGoals.filter((v) => v.id !== el.dataset.id); }));
+  F.on("org-del-value", (el) => removeWithUndo(el, "values", el.dataset.id, (v) => `Deleted the value “${v.title}”`));
   F.on("org-idea", (el) => save((p) => { p.values.push({ id: F.uuid(), title: el.dataset.v, detail: "" }); }));
-  F.onChange("org-link", (el) => save((p) => { const g = p.longGoals.find((x) => x.id === el.dataset.id); if (!g) return; if (el.value === "__unlink") delete g.valueID; else g.valueID = el.value; }));
 
   // ---------- Roles & Weekly Compass
   const SAW = ["Physical", "Social / Emotional", "Mental", "Spiritual"];
@@ -840,11 +842,34 @@
         "One small renewal for each part of you this week.");
   }
   F.onChange("org-role-name", (el) => save((p) => { const r = p.roles.find((x) => x.id === el.dataset.id); if (r) r.name = el.value; }));
-  F.on("org-del-role", async (el) => {
-    const name = data().roles.find((r) => r.id === el.dataset.id)?.name || "";
-    await save((p) => { p.roles = p.roles.filter((r) => r.id !== el.dataset.id); for (const w of Object.values(p.weeks)) w.rocks = w.rocks.filter((k) => k.roleID !== el.dataset.id); });
-    F.toast(`Removed role ${name}`);
+  F.on("org-del-role", (el) => {
+    // the role and its Big Rocks (every week) go at once; Undo puts both back in their places
+    const id = el.dataset.id, rocks = {};
+    for (const [k, w] of Object.entries(data().weeks)) { const rs = (w.rocks || []).map((x, i) => [i, x]).filter(([, x]) => x.roleID === id); if (rs.length) rocks[k] = rs; }
+    const n = Object.values(rocks).reduce((a, rs) => a + rs.length, 0);
+    return removeWithUndo(el, "roles", id, (r) => `Removed the role “${r.name}”` + (n ? ` and its ${n === 1 ? "Big Rock" : n + " Big Rocks"}` : ""),
+      (p) => { for (const w of Object.values(p.weeks)) w.rocks = w.rocks.filter((k) => k.roleID !== id); },
+      (p) => { for (const [k, rs] of Object.entries(rocks)) { const w = p.weeks[k]; if (!w) continue; for (const [i, x] of rs) if (!w.rocks.some((y) => y.id === x.id)) w.rocks.splice(Math.min(i, w.rocks.length), 0, x); } });
   });
+  /** Delete one line with Undo instead of "Are you sure?" (spec 4b Forgiving): the row folds away (200 ms, a fade with
+   *  Reduce Motion), it's saved, and the toast's Undo puts it back where it was. also/back = extra changes and their reverse. */
+  async function removeWithUndo(el, coll, id, say, also, back) {
+    const p0 = data(), idx = p0[coll].findIndex((x) => x.id === id), item = p0[coll][idx];
+    if (!item) return;
+    const row = el.closest(".org-rrow, .org-goal, .org-role-row");
+    if (row?.dataset.removing) return;
+    if (row) row.dataset.removing = "1";
+    if (row && row.animate) {
+      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches, h = row.offsetHeight;
+      await row.animate(reduce ? [{ opacity: 1 }, { opacity: 0 }] : [{ opacity: 1, height: h + "px", transform: "none" }, { opacity: 0, height: "0px", transform: "translateX(-12px)" }],
+        { duration: reduce ? 150 : 220, easing: "cubic-bezier(.2,.8,.2,1)", fill: "forwards" }).finished.catch(() => {});
+    }
+    await save((p) => { p[coll] = p[coll].filter((x) => x.id !== id); also?.(p); });
+    F.toast(say(item), { undo: async () => {
+      await save((p) => { if (!p[coll].some((x) => x.id === id)) p[coll].splice(Math.min(idx, p[coll].length), 0, item); back?.(p); });
+      F.toast("Put back");
+    } });
+  }
   F.on("org-rock-done", (el) => save((p) => updWeek(p, new Date(), (w) => { const k = w.rocks.find((x) => x.id === el.dataset.id); if (k) k.done = !k.done; })));
   F.onChange("org-saw", (el) => save((p) => updWeek(p, new Date(), (w) => { w.saw[el.dataset.dim] = el.value; })));
   F.on("org-block-time", (el) => {
@@ -905,7 +930,7 @@
   // ---------- Task Engine (rules are the app's @AppStorage keys, written as prefs "1"/"0")
   const RULES = [["closeOutForwardRest", true, "Close-out: Done forwards anything unmarked to tomorrow"],
     ["forwardKeepsLetter", false, "Forwarded tasks keep their A-B-C letter (Franklin says re-prioritize, so off by default)"],
-    ["quickDefaultC", false, "Quick tasks I say out loud get a C"],
+    ["quickDefaultC", false, "Quick tasks I say out loud (or add in one line here) get a C"],
     ["bufferWarn", true, "Warn me when a day is more than 85% booked"]];
   const rule = (k, def) => { const v = F.prefs()[k]; return v == null ? def : v === "1" || v === "true"; };
   function engineModule() {

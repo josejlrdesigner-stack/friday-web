@@ -141,5 +141,5 @@ hr.org-div { border: 0; border-top: 1px solid var(--hair); margin: 4px 0; width:
 .org-goal > .h > .input { flex: 1; min-width: 0; }
 .org-goal-meta { display: flex; flex-wrap: wrap; gap: 8px; padding-left: 52px; }
 .org-goal-meta .org-menu { position: relative; display: inline-flex; }
-.org-goal-meta .org-menu .tag { min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 600; }
-.org-goal-meta .org-when { width: 140px; flex: none; min-height: 44px; border-radius: 999px; }
+.org-goal-meta .org-menu .tag { min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: var(--r-control); font-size: 13px; font-weight: 600; }
+.org-goal-meta .org-when { width: 140px; flex: none; min-height: 44px; border-radius: var(--r-control); }

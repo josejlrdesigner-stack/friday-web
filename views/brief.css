@@ -117,3 +117,4 @@ button.plain.card.press:hover { background: #FCFAFE; }
 @media (max-width: 339px) { .pair { grid-template-columns: 1fr; } }
 .pair .inbox .base { flex-wrap: wrap; row-gap: 2px; }
 .pair .inbox .base > .sp { display: none; }
+.first .a1open { min-height: 44px; display: flex; align-items: center; }   /* the A1 title is the 44 px target to open it */
