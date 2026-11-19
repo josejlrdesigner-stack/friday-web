@@ -739,7 +739,7 @@ This conversation started ${new Date().toLocaleDateString("en-US", { weekday: "l
     const evs = eventsOn(d).map((e) => e.allDay ? `- all day: ${e.title}` : `- ${time(e.start)}-${time(e.end)} ${e.title}`);
     return `PLANNER FOR ${day(d)}
 MISSION: ${p.mission || "(not written yet)"}
-ACT AS: ${dp.actAs || p.actAs || "(not written yet)"}
+COMPASS (this week's Act As): ${F.compassFor(p, new Date()) || "(not written yet)"}
 GOVERNING VALUES: ${(p.values || []).map((v) => v.title + (v.detail ? ` (${v.detail})` : "")).join("; ") || "(none yet)"}
 LONG-RANGE GOALS: ${(p.longGoals || []).map((g) => `${g.title}${g.target ? " [" + g.target + "]" : ""}${valName(g.valueID) ? " ← " + valName(g.valueID) : ""}${g.done ? " (done)" : ""}`).join("; ") || "(none yet)"}
 INTERMEDIATE GOALS: ${(p.midGoals || []).map((g) => `${g.title}${g.target ? " [" + g.target + "]" : ""}${g.done ? " (done)" : ""}`).join("; ") || "(none yet)"}

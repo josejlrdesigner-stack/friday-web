@@ -101,7 +101,7 @@
   const weekKey = (d) => D.key(D.weekStart(d));
   const pday = (p, d) => normDay(p.days[D.key(d)]);
   const pweek = (p, d) => normWeek(p.weeks[weekKey(d)]);
-  const actAs = (p, d) => pday(p, d).actAs ?? p.actAs;
+  const actAs = (p, d) => F.compassFor(p, d);
   const roleName = (p, id) => p.roles.find((r) => r.id === id)?.name || "";
   const valueName = (p, id) => p.values.find((v) => v.id === id)?.title || "";
   const save = (mutate) => F.savePlanner((p) => mutate(norm(p)));
@@ -112,7 +112,23 @@
   // ------------------------------------------------------------ DayCapacity (Capacity.swift)
   const OWN = new Set(["Deep work · A1 & Big Rocks (Quadrant II)", "Crisis buffer · leave open", "Batch & triage · messages and requests", "Low-energy window · C tasks"]);
   const LIFE = /parent|partner|spouse|family|home|son|daughter|caregiv|community|friend|self-renewal/i;
-  const minutesFor = (letter) => ({ A: 60, B: 40, C: 20 }[letter] ?? 30);
+  // v2 (Capacity.swift): work and home are weighed apart. Work to-dos are mostly quick; home ones carry travel and setup.
+  const minutesFor = (letter, ctx = "work") => (ctx === "home" ? { A: 60, B: 40, C: 25 }[letter] ?? 30 : { A: 45, B: 30, C: 15 }[letter] ?? 25);
+  const LIFE_CTX = /parent|partner|spouse|family|home|son|daughter|caregiv|community|friend|self-renewal|health|finance|money|self/i;
+  function taskContext(t, weekend) {
+    const r = String(t.fc?.role || "").toLowerCase();
+    if (r) {
+      if (LIFE_CTX.test(r)) return "home";
+      if (/career|work|job|leader|manager|professional|business|employee|team|client/.test(r)) return "work";
+    }
+    const l = String(t.list || t.listTitle || "").toLowerCase();
+    if (/work|job|career|office|project|client|team|search|apply/.test(l)) return "work";
+    if (/home|family|personal|grocer|shopping|errand|house|kids|health|finance|bills|chores/.test(l)) return "home";
+    const s = String(t.title || "").toLowerCase();
+    if (/\b(email|e-mail|call|meeting|interview|resume|résumé|apply|application|recruiter|linkedin|cover letter|deck|report|review|draft|prep|zoom|sync|follow ?up|send|proposal|invoice|slides)\b/.test(s)) return "work";
+    if (/\b(buy|pick up|groceries|grocery|clean|laundry|gym|exercise|workout|run|walk|doctor|dentist|pay|bill|kids|school|cook|dinner|fix|car|errand|yard|dishes|vacuum|wash|haircut|pharmacy|vet|bank)\b/.test(s)) return "home";
+    return weekend ? "home" : "work";
+  }
   function hm(m) { if (m < 60) return `${m} min`; return m % 60 === 0 ? `${m / 60} h` : `${Math.floor(m / 60)} h ${m % 60} min`; }
   const dayName = (d) => (isToday(d) ? "Today" : isTomorrow(d) ? "Tomorrow" : D.wd(d));
   function capTasks(day) {
@@ -133,7 +149,7 @@
     let free, basis, reasons, cap = Infinity, pace = null;
     if (c && typeof c.free === "number") {
       free = c.free; basis = c.basis || "standard"; reasons = c.reasons || [];
-      if (basis === "pace" && c.pace) { pace = c.pace; cap = Math.max(3, Math.round(c.pace * 1.25)); }
+      if (basis === "pace" && c.pace) { pace = c.pace; }
     } else {
       const p = P(), weekend = [0, 6].includes(day.getDay()), meetings = meetingMinutes(day);
       reasons = meetings > 0 ? [`${hm(meetings)} of meetings`] : [];
@@ -150,11 +166,24 @@
       } else { basis = "standard"; free = (weekend ? 300 : 480) - meetings - 90; reasons.push("90 min for home, family and the unexpected"); }
       free = Math.max(free, 60);
     }
-    let used = adding, fits = 0;
-    for (const t of [...list].sort(fcCmp)) { const m = minutesFor(t.fc?.letter); if (used + m > free || fits >= cap) break; used += m; fits++; }
-    const needed = list.reduce((n, t) => n + minutesFor(t.fc?.letter), adding);
+    const weekend = [0, 6].includes(day.getDay());
+    // the iPhone's split (v2); older snapshots: treat it all as one pool, the work side
+    const workFree = typeof c?.workFree === "number" ? c.workFree : free, homeFree = typeof c?.homeFree === "number" ? c.homeFree : 0;
+    const work = list.filter((t) => taskContext(t, weekend) === "work").sort(fcCmp), home = list.filter((t) => taskContext(t, weekend) === "home").sort(fcCmp);
+    const fit = (ts, ctx, capM, start) => { let used = start, n = 0; for (const t of ts) { const m = minutesFor(t.fc?.letter, ctx); if (used + m > capM) break; used += m; n++; } return [n, used]; };
+    const capW = Math.floor(workFree * 1.1), capH = Math.floor(homeFree * 1.1);
+    const exW = weekend ? 0 : adding, exH = weekend ? adding : 0;
+    let [wf, wu] = fit(work, "work", capW, exW);
+    const [hf, hu] = fit(home, "home", capH + Math.floor(Math.max(0, capW - wu) / 2), exH);
+    if (wf < work.length) [wf, wu] = fit(work, "work", capW + Math.floor(Math.max(0, capH - hu) / 2), exW);
+    const workNeeded = work.reduce((n, t) => n + minutesFor(t.fc?.letter, "work"), exW), homeNeeded = home.reduce((n, t) => n + minutesFor(t.fc?.letter, "home"), exH);
+    const needed = workNeeded + homeNeeded, fits = Math.min(wf + hf, cap);
     const aCount = list.filter((t) => t.fc?.letter === "A").length;
-    return { tasks: list, needed, free, fits, aCount, basis, pace, reasons, overloaded: list.length > fits, excess: Math.max(0, list.length - fits), tooManyAs: aCount > 3, room: Math.max(0, free - needed) };
+    const aMinutes = list.filter((t) => t.fc?.letter === "A").reduce((n, t) => n + minutesFor("A", taskContext(t, weekend)), 0);
+    const tot = workFree + homeFree;
+    return { tasks: list, needed, free: tot, fits, aCount, basis, pace, reasons, overloaded: list.length > fits, excess: Math.max(0, list.length - fits),
+      tooManyAs: aCount > 3 && aMinutes > tot * 0.6, room: Math.max(0, tot - needed),
+      workCount: work.length, homeCount: home.length, workNeeded, homeNeeded, workFree, homeFree, workFits: wf, homeFits: hf, workOver: wf < work.length, homeOver: hf < home.length };
   }
   /** Day load for the Brief (spec "Charts and graphs"): the same DayCapacity numbers plus that day's meeting minutes. */
   F.capacity = (day) => ({ ...estimate(day), meetings: meetingMinutes(day), hm });
@@ -417,9 +446,9 @@
         ${navBtn(1, "tk-day", "Next day")}${today ? "" : small("Today", "tk-day", { dir: 0 })}</div>
       ${overloadBanner(day)}
       <div class="tk-pair">
-      <button type="button" class="plain card actas press" data-act="tk-actas" aria-description="Edit your Act As card">
-        <span class="lockup">${ui.secTile("friday", "pencil")}${ui.label2(`Act as · ${today ? "today" : dayWord(day)}`)}</span>
-        <span class="actas-s ${a ? "" : "empty"}">${esc(a || "Tap to write one sentence about how you'll show up today.")}</span></button>
+      <button type="button" class="plain card actas press" data-act="tk-actas" aria-description="Edit your Compass">
+        ${ui.compass(a, { label: pday(p, day).actAs != null ? `Compass · ${today ? "today" : dayWord(day)}` : F.compassSuggested(p, day) ? "Compass · suggested" : "Compass · this week",
+                          placeholder: "Tap to write this week's Compass: one sentence about how you'll show up." })}</button>
       ${aMeter(list, day)}</div>
       ${canClose ? ui.actbar([ui.btn({ label: "Close out day", icon: "checklist.checked", act: "tk-closeout" })]) : ""}
     </div>`;
@@ -439,14 +468,19 @@
   F.on("tk-day", (el) => { const d = +el.dataset.dir; T.day = d === 0 ? today0() : D.add(T.day, d); F.render(); });
   F.on("tk-plan", () => F.openChat?.(`Let's do my 15-minute Franklin daily plan for ${dayWord(T.day)}.`));
   F.on("tk-closeout", () => openCloseOut(D.key(T.day)));
-  F.on("tk-actas", async () => {
-    const day = T.day;
-    const r = await F.alert({ title: "Act as", message: "Present tense: who you're being today.", input: { placeholder: "I act as…", value: actAs(P(), day) },
-      buttons: [{ label: "Save for today", value: "day" }, { label: "Save as my standing card", value: "standing" }, { label: "Cancel", kind: "cancel" }] });
+  F.on("tk-wk-compass", () => editCompass(T.week));
+  F.on("tk-actas", () => editCompass(T.day));
+  async function editCompass(day) {
+    const sug = pweek(P(), day).suggestedCompass || "";
+    const r = await F.alert({ title: "Compass", message: "Your north star for the week, from your roles: who you're being, in the present tense." + (sug ? ` Friday's suggestion: “${sug}”` : ""),
+      input: { placeholder: "I act as…", value: actAs(P(), day) },
+      buttons: [{ label: "Save for this week", value: "week" }, { label: `Just for ${dayWord(day)}`, value: "day" }, { label: "Cancel", kind: "cancel" }] });
     if (!r) return;
-    if (r.value === "day") await updateDay(day, (x) => { x.actAs = r.text; });
-    else await save((p) => { p.actAs = r.text; const k = D.key(day), x = normDay(p.days[k]); delete x.actAs; p.days[k] = x; });
-  });
+    const text = String(r.text || "").trim();
+    if (r.value === "day") { if (text) await updateDay(day, (x) => { x.actAs = text; }); }
+    else await save((p) => { const w = normWeek(p.weeks[weekKey(day)]); if (text && text !== sug) w.compass = text; else delete w.compass; p.weeks[weekKey(day)] = w;
+      const k = D.key(day), x = normDay(p.days[k]); delete x.actAs; p.days[k] = x; });
+  }
 
   /** "Did I do my A's?" = A's done ÷ A's planned (spec "Charts and graphs"). No A's → a short invitation instead of a chart. */
   function meter(label, done, total, invite, aria) {
@@ -542,7 +576,10 @@
     if (!e.overloaded && !e.tooManyAs) return "";
     return `<div class="card attention p16 v g8 overload">
       <span class="h g8 t16 w6 c-attention">${icon("exclamationmark.triangle.fill", 'style="width:18px;height:18px;flex:none"')}${esc(e.overloaded ? `${dayName(day)} looks overloaded` : "A lot of A's")}</span>
-      ${e.overloaded ? `<p class="t15 ink">${esc(`${e.tasks.length} to-dos, about ${hm(e.needed)} of work. About ${e.fits} fit${e.reasons.length ? " around " + e.reasons.join(", ") : ""}. The rest tend to roll over.`)}</p>` : ""}
+      ${e.overloaded ? `<p class="t15 ink">${esc([
+        e.workOver ? `Work: ${e.workCount} to-do${e.workCount === 1 ? "" : "s"}, about ${hm(e.workNeeded)}, with about ${hm(e.workFree)} open around meetings.` : "",
+        e.homeOver ? `Home: ${e.homeCount} to-do${e.homeCount === 1 ? "" : "s"}, about ${hm(e.homeNeeded)}, with about ${hm(e.homeFree)} once family time is set aside.` : "",
+        `About ${e.fits} of ${e.tasks.length} fit${e.reasons.length ? " around " + e.reasons.join(", ") : ""}. The rest tend to roll over.`].filter(Boolean).join(" "))}</p>` : ""}
       ${e.tooManyAs ? `<p class="t15 ink">${esc(`${e.aCount} are marked A. A's are the few that truly must happen today; consider making some of them B.`)}</p>` : ""}
       <p class="t13 muted">${esc(basisLine(e))}</p>
       ${ui.actbar([e.basis !== "profile" && !nudgeHidden() ? ui.btn({ label: "Not now", kind: "small", act: "tk-nudge-hide" }) : "",
@@ -693,6 +730,9 @@
       <div class="h g8 datenav">${navBtn(-1, "tk-week", "Previous week")}<span class="t17 w6 ink grow center">${esc("Week of " + D.md(wk))}</span>${navBtn(1, "tk-week", "Next week")}
         ${thisWeek ? "" : small("This week", "tk-week", { dir: 0 })}</div>
       ${ui.actbar([ui.btn({ label: "Edit roles", icon: "person.2", act: "tk-roles" })])}
+      <button type="button" class="plain card actas press" data-act="tk-wk-compass" aria-description="Edit this week's Compass">
+        ${ui.compass(F.compassFor({ ...p, days: {} }, wk), { label: String(w.compass || "").trim() ? "Compass · this week" : w.suggestedCompass ? "Compass · suggested" : "Compass",
+                          placeholder: "Tap to write this week's Compass: who you're being across your roles." })}</button>
       ${(() => { const rd = w.rocks.filter((r) => r.done).length, a = weekAs(wk);
         return `<div class="tk-card tk-meters two sec-health">${meter("Big Rocks done", rd, w.rocks.length, "No Big Rocks yet this week. Add one or two for each role below.", `${rd} of ${w.rocks.length} Big Rocks done this week`)}
           ${meter("A's done this week", a.done, a.total, "No A tasks planned this week yet.", `${a.done} of ${a.total} A tasks done this week`)}</div>`; })()}</div>`;
@@ -739,7 +779,7 @@
         <div class="h g8"><button type="button" class="plain linktag" data-act="tk-linkgoal" data-id="${esc(g.id)}">${ui.tag(parent ? "← " + parent.title : "Link a goal")}</button>${fld(`midGoals.${g.id}.target`, g.target || "", "By when", "t13 muted")}</div></div>${del("midGoals", g.id, g.title)}</div>`; }).join("");
     return `<div class="tk-list tk-cols">
       ${sec(ui.label2("Mission"), `<div class="tk-row">${fld("mission", p.mission, "What matters most, in a sentence or two", "t15", true)}</div>`)}
-      ${sec(ui.label2("Standing Act As card"), `<div class="tk-row">${fld("actAs", p.actAs, "I act as…", "t15", true)}</div>`, { foot: "Shown on every daily page unless you change it for that day." })}
+      ${sec(ui.label2("Standing Compass"), `<div class="tk-row">${fld("actAs", p.actAs, "I act as…", "t15", true)}</div>`, { foot: "Your Compass for every week you don't write a new one. Leave it empty and Friday writes one each week from your roles, values and the week ahead." })}
       ${sec(ui.label2("1 · Governing values"), values + addRow("value", "Add a governing value", "tk-pfadd", { coll: "values" }))}
       ${sec(ui.label2("2 · Long-range goals"), longs + addRow("long", "Add a long-range goal (1–5 years)", "tk-pfadd", { coll: "longGoals" }))}
       ${sec(ui.label2("3 · Intermediate goals"), mids + addRow("mid", "Add a milestone (this year / quarter / month)", "tk-pfadd", { coll: "midGoals" }), { foot: "4 · Daily tasks connect upward through their role and goal tags." })}</div>`;

@@ -152,6 +152,15 @@ svg .spk-fs { fill: var(--spark, currentColor); }
 .stat { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 /* Act As = eyebrow "ACT AS" + statement 15 Demi Bold */
 .actas-l { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+/* Compass (mockup band line): COMPASS 12/600/+2 · "Today I act as " 14 regular · the phrase 14/600. One flowing line. */
+.compass { margin: 0; font-size: 14px; line-height: 1.45; color: var(--ink2); overflow-wrap: anywhere; text-align: left; }
+.compass .cp-tag { font-size: 12px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--sec-dark, var(--muted)); margin-right: 10px; }
+.compass b { font-weight: 600; color: var(--ink); }
+.compass .cp-empty { color: var(--muted); }
+.compass.on-band { color: var(--band-sub); margin-top: -2px; }      /* band gap 16 − 2 = the mockup's 14 */
+.compass.on-band .cp-tag { color: var(--band-accent); }
+.compass.on-band b { color: #fff; }
+.card.actas .compass { width: 100%; }
 .actas-s { font-size: 15px; font-weight: 600; line-height: 1.4; color: var(--ink); overflow-wrap: anywhere; }
 .actas-s.empty { color: var(--muted); font-weight: 400; }
 /* Action bar (v2 §6): related CTAs in ONE row. Phone: equal widths, primary last; wraps only when a label can't fit.

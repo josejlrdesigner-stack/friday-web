@@ -373,6 +373,12 @@ const F = (() => {
       return `<button type="${o.type || "button"}" class="${cls}" ${o.act ? `data-act="${esc(o.act)}"` : ""} ${data(o.data)} ${attrs({ disabled: o.disabled, "aria-label": o.aria || (o.kind === "icon" ? o.title || o.label : null), title: o.title })}>${o.icon ? icon(o.icon) : ""}${o.kind === "icon" ? "" : (o.labelHTML ?? (o.icon && o.label ? `<span class="btn-l">${esc(o.label)}</span>` : esc(o.label ?? "")))}</button>`;
     },
     label2: (text, cls = "") => `<span class="label2 ${cls}">${esc(text)}</span>`,
+    /** The Compass line (mockup band): COMPASS · "Today I act as " · the phrase in bold. Same on every screen. */
+    compass: (text, { band = false, label = "Compass", placeholder = "" } = {}) => {
+      const rest = String(text || "").trim().replace(/^(today i act as|i act as|act as)\s+/i, "");
+      return `<p class="compass${band ? " on-band" : ""}"><span class="cp-tag">${esc(label)}</span>${rest
+        ? `<span class="cp-lead">Today I act as </span><b>${esc(rest)}</b>` : `<span class="cp-empty">${esc(placeholder)}</span>`}</p>`;
+    },
     tag: (text, kind = "") => `<span class="tag ${kind}">${esc(text)}</span>`,
     /** Card header lockup (v2 §5): tile 28 + 8 + EYEBROW, optional trailing meta/action. sec = section key for the tile (or "" for none). */
     cardHead: (sec, title, trailing = "", ic = "") => `<div class="lockup">${sec ? ui.secTile(sec, ic) : ""}${ui.label2(title)}${trailing ? `<span class="lk-trail">${trailing}</span>` : ""}</div>`,
@@ -784,5 +790,18 @@ F.zoom = () => { let v = NaN; try { v = Number(localStorage.getItem("friday.zoom
 F.applyZoom = (v) => { const r = document.documentElement.style; r.zoom = String(v); r.setProperty("--zoom", String(v)); };
 F.setZoom = (v) => { try { localStorage.setItem("friday.zoom", String(v)); } catch {} F.applyZoom(v); };
 F.applyZoom(F.zoom());
+/** The Compass shown for a day (Franklin.swift actAs): his line for that day, else this week's Compass, else his
+ *  standing card, else Friday's suggested Compass for the week (the iPhone/Mac write it). */
+F.compassFor = (p, d) => {
+  if (!p) return "";
+  const day = p.days?.[F.D.key(d)] || {};
+  if (day.actAs != null) return String(day.actAs).trim();
+  const w = p.weeks?.[F.D.key(F.D.weekStart(d))] || {};
+  if (String(w.compass || "").trim()) return String(w.compass).trim();
+  if (String(p.actAs || "").trim()) return String(p.actAs).trim();
+  return String(w.suggestedCompass || "").trim();
+};
+F.compassSuggested = (p, d) => !!p && p.days?.[F.D.key(d)]?.actAs == null && !String(p.weeks?.[F.D.key(F.D.weekStart(d))]?.compass || "").trim()
+  && !String(p.actAs || "").trim() && !!String(p.weeks?.[F.D.key(F.D.weekStart(d))]?.suggestedCompass || "").trim();
 window.F = F;
 document.addEventListener("DOMContentLoaded", () => F.boot());

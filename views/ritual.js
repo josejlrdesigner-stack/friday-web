@@ -14,7 +14,7 @@
   const firstName = () => { const n = String(F.prefs().fromName || "").trim().split(/\s+/)[0]; return n || "Jose"; };
   const greeting = (h) => (h < 5 ? "Late night" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : h < 21 ? "Good evening" : "Late night");
   const planner = () => { const p = F.planner() || {}; p.days ||= {}; p.weeks ||= {}; p.midGoals ||= []; p.longGoals ||= []; p.profile ||= {}; return p; };
-  const actAsToday = (p, d) => String(p.days[D.key(d)]?.actAs ?? p.actAs ?? "").trim();
+  const actAsToday = (p, d) => F.compassFor(p, d);
 
   /** When the 90 days started: 13 weeks before the goal's "by …" date, else the first week holding one of its milestones. */
   function goalStart(p, g) {
@@ -82,7 +82,7 @@
     const now = new Date(), p = planner(), act = actAsToday(p, now), nd = needle(p), top = a1(), st = streak(p);
     const dateLine = now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
     const actCard = act
-      ? `<p class="actas-s">${esc(act)}</p>`
+      ? ui.compass(act)
       : `<label class="v g8"><span class="t13 muted">Who do you want to be today? One line is enough.</span>
           <textarea id="rit-actas" class="input rit-field" rows="2" placeholder="Today I act as a calm, focused…" maxlength="240"></textarea></label>`;
     const goalCard = nd ? `<section class="rit-card sec-friday">
@@ -111,7 +111,7 @@
         <div class="v g4 rit-greet"><span class="band-label">${esc(dateLine)}</span><h1 id="rit-title" class="band-greet">${esc(greeting(now.getHours()))}, ${esc(firstName())}</h1></div>
       </div></div>
       <div class="rit-in">
-        <section class="rit-card rit-actcard sec-friday actas-l">${ui.label2(act ? "Today I act as" : "Act as")}${actCard}</section>
+        <section class="rit-card rit-actcard sec-friday actas-l">${act ? "" : ui.label2("Compass")}${actCard}</section>
         ${goalCard}${a1Card}${streakCard}
       </div>
     </div>

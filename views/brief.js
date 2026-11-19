@@ -50,7 +50,7 @@
   const hm = (m) => { m = Math.max(0, Math.round(m)); if (m < 60) return `${m}m`; return m % 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m / 60}h`; };
   function actAsLine(now) {
     const p = F.planner(); if (!p) return "";
-    return String(p.days?.[D.key(now)]?.actAs ?? p.actAs ?? "").trim();
+    return F.compassFor(p, now);
   }
   function header(now) {
     const h = now.getHours();
@@ -73,9 +73,9 @@
         <div class="v g4 grow">
           <span class="band-label"><span class="sr">${esc(D.wide(now))}. </span><span aria-hidden="true">${esc(label)}</span></span>
           <h1 class="band-greet">${esc(greet)}, ${esc(firstName())}</h1>
-          ${act ? `<div class="actas-l band-act">${ui.label2("Act as")}<p class="actas-s">${esc(act)}</p></div>` : ""}
         </div>
       </div>
+      ${act ? ui.compass(act, { band: true }) : ""}
     </section>`;
   }
 
