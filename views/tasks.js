@@ -24,6 +24,7 @@
     day: D.start(new Date()),
     week: D.weekStart(new Date()),
     query: "",
+    searching: false,      // search box opens from the 🔍 icon on the title row (same as the app, UAT D19)
     folded: new Set(),
     drafts: {},            // add-row text fields, kept across redraws
     rows: new Map(),       // todo id → {t, day, gc} for the rows on screen
@@ -378,13 +379,17 @@
     T.rows.clear();
     const s = F.snap();
     const open = openTodos();
+    const searchIc = ui.btn({ kind: "icon", filled: true, icon: T.searching || T.query ? "xmark" : "magnifyingglass", act: "tk-search", aria: T.searching || T.query ? "Close search" : "Search all to-dos", title: "Search all to-dos" });
     const actions = [ui.btn({ label: "Organizer", icon: "target", act: "tk-organizer", title: "Values, roles, time matrix, rules, focus time, and setup" }),
-      ui.btn({ label: "To-do", icon: "plus", kind: "primary", act: "tk-new" })].join("");
+      ui.btn({ label: "To-do", icon: "plus", kind: "primary", act: "tk-new" }), searchIc].join("");
+    // "77 open · 29 late": the same late number as the tab badge and the Brief (UAT D18)
+    const today0 = D.start(new Date());
+    const late = open.filter((t) => t.due && D.start(t.due) < today0).length;   // same rule as the tab badge (core.js)
     const top = `<div class="tk-top">
-      <div class="phc">${ui.header({ eyebrow: ui.label2(`${open.length} open`), title: "Tasks", actions,
-        tools: `<span class="ph-tools">${ui.btn({ kind: "icon", filled: true, icon: "target", act: "tk-organizer", aria: "Organizer", title: "Organizer: values, roles, time matrix, rules, focus time" })}${ui.btn({ kind: "icon", icon: "plus", cls: "primary-ic", act: "tk-new", aria: "New to-do", title: "New to-do" })}</span>` })}</div>
+      <div class="phc">${ui.header({ eyebrow: ui.label2(`${open.length} open` + (late ? ` · ${late} late` : "")), title: "Tasks", actions,
+        tools: `<span class="ph-tools">${searchIc}${ui.btn({ kind: "icon", filled: true, icon: "target", act: "tk-organizer", aria: "Organizer", title: "Organizer: values, roles, time matrix, rules, focus time" })}${ui.btn({ kind: "icon", icon: "plus", cls: "primary-ic", act: "tk-new", aria: "New to-do", title: "New to-do" })}</span>` })}</div>
       ${s && s.access && s.access.reminders === false ? `<div class="card attention p16 h g16"><span class="h g8 t15 w5 c-attention">${icon("exclamationmark.triangle.fill", 'style="width:17px;height:17px;flex:none"')}Reminders access is off, so nothing can show here.</span></div>` : ""}
-      <label class="search">${icon("magnifyingglass")}<span class="sr">Search all to-dos</span><input id="tk-q" type="text" placeholder="Search all to-dos" value="${esc(T.query)}" data-input="tk-q" autocomplete="off" spellcheck="false" autocapitalize="none">${T.query ? `<button type="button" class="plain clearq" data-act="tk-clearq" aria-label="Clear search">${icon("xmark.circle.fill")}</button>` : ""}</label>
+      ${T.searching || T.query ? `<label class="search">${icon("magnifyingglass")}<span class="sr">Search all to-dos</span><input id="tk-q" type="text" placeholder="Search all to-dos" value="${esc(T.query)}" data-input="tk-q" autocomplete="off" spellcheck="false" autocapitalize="none">${T.query ? `<button type="button" class="plain clearq" data-act="tk-clearq" aria-label="Clear search">${icon("xmark.circle.fill")}</button>` : ""}</label>` : ""}
       ${failedCard()}
       ${T.query ? "" : ui.seg("tk-page", PAGES, T.page)}
     </div>`;
@@ -415,6 +420,10 @@
   F.on("tk-new", () => openTodoEdit(null, T.page === "day" ? { due: D.key(T.day) } : {}));
   F.on("tk-page", (el) => { setPage(el.dataset.value); F.render(); });
   F.onInput("tk-q", (el) => { T.query = el.value; F.render(); });
+  F.on("tk-search", () => {
+    T.searching = !(T.searching || T.query); if (!T.searching) T.query = "";
+    F.render(); if (T.searching) document.getElementById("tk-q")?.focus();
+  });
   F.on("tk-clearq", () => { T.query = ""; F.render(); document.getElementById("tk-q")?.focus(); });
 
   // ------------------------------------------------------------ search
