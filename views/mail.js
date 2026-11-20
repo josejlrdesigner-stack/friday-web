@@ -649,13 +649,13 @@
     return `<div class="bulk v g8"><div class="h bulk-top"><span class="t13 w6 ink tnum bcount">${n} selected</span><span class="sp"></span>
         <button type="button" class="btn link t13" style="min-height:24px;padding:0" data-act="mail-pick-all">${n === all.length && n ? "Select none" : "Select all"}</button></div>
       <div class="bulk-row">
-      ${ui.btn({ label: "Read", icon: "envelope.open", kind: "small", act: "mail-bulk-read", disabled: none })}
-      ${ui.btn({ label: "Move", icon: "folder", kind: "small", act: "mail-bulk-move", disabled: none })}
-      ${ui.btn({ label: "Archive", icon: "archivebox", kind: "small", act: "mail-bulk-archive", disabled: none })}
-      ${boxRole() === "junk" ? ui.btn({ label: "Not Junk", icon: "tray.and.arrow.up", kind: "small", act: "mail-bulk-notjunk", disabled: none })
-        : ui.btn({ label: "Junk", icon: "xmark.bin", kind: "small", act: "mail-bulk-junk", disabled: none })}
-      <button type="button" class="btn small mbmore" data-act="mail-menu" data-menu="bulk-more" aria-haspopup="menu" aria-expanded="${M.menu === "bulk-more"}" aria-label="More actions for the selected emails" ${none ? "disabled" : ""}>${icon("ellipsis.circle")}</button>
-      ${ui.btn({ label: "Delete", icon: "trash", kind: "destructive", cls: "small", act: "mail-bulk-delete", disabled: none })}</div></div>`;
+      ${ui.btn({ label: "Read", title: "Read", icon: "envelope.open", kind: "small", act: "mail-bulk-read", disabled: none })}
+      ${ui.btn({ label: "Move", title: "Move", icon: "folder", kind: "small", act: "mail-bulk-move", disabled: none })}
+      ${ui.btn({ label: "Archive", title: "Archive", icon: "archivebox", kind: "small", act: "mail-bulk-archive", disabled: none })}
+      ${boxRole() === "junk" ? ui.btn({ label: "Not Junk", title: "Not Junk", icon: "tray.and.arrow.up", kind: "small", act: "mail-bulk-notjunk", disabled: none })
+        : ui.btn({ label: "Junk", title: "Junk", icon: "xmark.bin", kind: "small", act: "mail-bulk-junk", disabled: none })}
+      <button type="button" class="btn small mbmore" data-act="mail-menu" data-menu="bulk-more" aria-haspopup="menu" aria-expanded="${M.menu === "bulk-more"}" aria-label="More actions for the selected emails" title="More" ${none ? "disabled" : ""}>${icon("ellipsis.circle")}</button>
+      ${ui.btn({ label: "Delete", title: "Delete", icon: "trash", kind: "destructive", cls: "small", act: "mail-bulk-delete", disabled: none })}</div></div>`;
   }
 
   function streamHTML(X) {

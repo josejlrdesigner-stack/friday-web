@@ -254,6 +254,14 @@ kbd { display: inline-flex; align-items: center; justify-content: center; min-wi
   .bulk-row > .btn .btn-l { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 .bulk-row > .btn { width: 100%; max-width: none; }
+/* Jose 11-19: on a wide screen the list is a narrow COLUMN, so the window rule above never fired and "Move"/"Archive"
+   overflowed their buttons. Key off the column: under 620px it's icons only (names stay for VoiceOver and the tooltip). */
+@container (max-width: 620px) {
+  .bulk-row > .btn .btn-l { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .bulk-row > .btn { gap: 0; padding: 0; }
+  .bulk-row > .btn svg { width: 19px; height: 19px; }
+}
+.bulk-row > .btn .btn-l { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
 /* QA 11-19: the mail list is a narrow COLUMN on a wide screen, so the phone header rules (which key off the window)
    never applied: the tools dropped to their own row and Select / Compose stacked. Key off the column instead. */
