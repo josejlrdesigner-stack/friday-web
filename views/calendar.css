@@ -11,7 +11,7 @@
 .freeday { min-height: 24px; }
 
 /* EventRow */
-.evrow { border-radius: var(--r-control); padding: 8px 8px 8px 16px; container-type: inline-size; }
+.evrow, button.plain.evrow { border-radius: var(--r-control); padding: 8px 8px 8px 16px; container-type: inline-size; }   /* button.plain zeroed it */
 .evrow, .plain.evrow, .allday, .plain.allday { background: var(--soft); }   /* fallback; .evtint (style.css) tints it with the calendar colour */
 .plain.press.evtint { background: var(--evt, var(--soft)); }
 .evrow-in { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -32,7 +32,7 @@
 }
 
 /* AllDayChips */
-.allday { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 8px; border-radius: var(--r-control); }
+.allday, button.plain.allday { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 8px; border-radius: var(--r-control); }
 .allday .bar { width: 4px; height: 18px; border-radius: 2px; flex: none; }
 .plain.allday { display: flex; }   /* beats button.plain's display:block so the gap shows */
 
