@@ -118,3 +118,6 @@ button.plain.msgrow { display: flex !important; align-items: flex-start; gap: 12
 .pair .inbox .base { flex-wrap: wrap; row-gap: 2px; }
 .pair .inbox .base > .sp { display: none; }
 .first .a1open { min-height: 44px; display: flex; align-items: center; }   /* the A1 title is the 44 px target to open it */
+
+/* Big Rocks: the card body is the tap target to the week; Edit sits in the header */
+.rk-body { width: 100%; text-align: left; align-items: stretch; }

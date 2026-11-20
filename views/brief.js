@@ -150,12 +150,16 @@
         : (n ? `<span class="rk-ok" role="img" aria-label="Done">${F.icon("checkmark")}</span>` : `<span class="rk-open" role="img" aria-label="Not done yet"></span>`);
       return `<div class="rk-row ${F.roleClass(name)}"><span class="role-dot"></span><span class="t13 w6 ink grow ell">${esc(name)}</span>${right}</div>`;
     }).join("");
-    return `<button type="button" class="plain card p16 v g12 rockscard sec-health press" data-act="brief-go" data-go="week" aria-label="${esc(`Big Rocks this week: ${done} of ${rocks.length} done. Open the week`)}">
-      ${head}
+    // Edit in the header, like the app (Jose 11-19: "I do like the Edit in the app"); the body still opens the week
+    const edit = ui.btn({ label: "Edit", kind: "link", act: "brief-go", data: { go: "week" }, cls: "t13", title: "Edit this week's Big Rocks" });
+    return `<section class="card p16 v g12 rockscard sec-health">
+      ${ui.cardHead("health", "Big Rocks this week", edit, "mountain.2")}
+      <button type="button" class="plain v g12 press rk-body" data-act="brief-go" data-go="week" aria-label="${esc(`Big Rocks this week: ${done} of ${rocks.length} done. Open the week`)}">
       <span class="h g8 base"><span class="t-stat">${done} of ${rocks.length}</span><span class="t15 w6 ink2">done</span></span>
       ${ui.pbar(done, rocks.length, `${done} of ${rocks.length} Big Rocks done`)}
       <span class="v g4 rk-rows">${rows}</span>
-    </button>`;
+      </button>
+    </section>`;
   }
 
   // ------------------------------------------------------------ PlannerGuideCard
