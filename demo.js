@@ -43,7 +43,7 @@ window.FDemo = (() => {
     { id: "E6@x", itemID: "E6", title: "Holiday", start: at(8), end: at(9), allDay: true, calendar: "Holidays", calendarID: "C4", color: "#9AA1AC", location: "", notes: "", repeats: false },
   ];
   const capacity = {};
-  for (let i = 0; i < 14; i++) capacity[key(i)] = i === 0 ? { n: 6, fits: 4, room: 0, free: 210, needed: 290, aCount: 2, basis: "profile", reasons: ["3h 30m of meetings", "1h 30m crisis buffer", "1h for home and family"] } : { n: todos.filter((t) => t.due && key(Math.round((t.due - at(0)) / 86400)) === key(i)).length, fits: 6, room: 240, free: 300, needed: 60, aCount: 0, basis: "profile", reasons: [] };
+  for (let i = 0; i < 14; i++) capacity[key(i)] = i === 0 ? { n: 6, fits: 4, room: 0, free: 210, needed: 290, aCount: 2, basis: "profile", meetings: 90, reasons: ["3h 30m of meetings", "1h 30m crisis buffer", "1h for home and family"] } : { n: todos.filter((t) => t.due && key(Math.round((t.due - at(0)) / 86400)) === key(i)).length, fits: 6, room: 240, free: 300, needed: 60, aCount: 0, basis: "profile", reasons: [] };
   const payload = () => ({
     version: 1, device: "iPhone",
     prefs: { stamp: Date.now() / 1000, value: { franklinPlanner: JSON.stringify(planner), claudeModel: "claude-sonnet-5-5", plannerSetupDone: "1", fromName: "Sample User",

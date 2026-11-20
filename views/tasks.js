@@ -138,7 +138,13 @@
   }
   function meetingMinutes(day) {
     const a = D.start(day), b = D.add(a, 1);
-    const spans = F.events().filter((e) => !e.allDay && !OWN.has(e.title)).map((e) => [max(e.start, a), e.end < b ? e.end : b]).filter((s) => s[0] < s[1]).sort((x, y) => x[0] - y[0]);
+    // the app's own number for the day (same calendars, same rules) unless the website has an event change waiting
+    const own = F.snap()?.capacity?.[D.key(day)]?.meetings;
+    if (typeof own === "number" && !F.queue().some((c) => /_event$/.test(c.kind))) return own;
+    // same rules as Capacity.swift: no all-day, no Friday blocks, no 12 h+ blocks, one copy of an event shown in two calendars
+    const seen = new Set();
+    const spans = F.events().filter((e) => !e.allDay && !OWN.has(e.title) && e.end - e.start <= 12 * 3600000)
+      .filter((e) => { const k = (e.title || "").toLowerCase() + "|" + e.start.getTime(); if (seen.has(k)) return false; seen.add(k); return true; }).map((e) => [max(e.start, a), e.end < b ? e.end : b]).filter((s) => s[0] < s[1]).sort((x, y) => x[0] - y[0]);
     const merged = [];
     for (const s of spans) { const l = merged[merged.length - 1]; if (l && s[0] <= l[1]) l[1] = max(l[1], s[1]); else merged.push([...s]); }
     return Math.round(merged.reduce((n, s) => n + (s[1] - s[0]) / 60000, 0));
