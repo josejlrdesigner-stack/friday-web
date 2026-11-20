@@ -169,7 +169,9 @@
   }
   function guideCard(now) {
     const p = F.planner();
-    const setUp = F.prefs().plannerSetupDone === "1" && (p?.values || []).length > 0 && (p?.roles || []).length > 0;
+    // same rule as the app (Planner.isSetUp): the flag OR a planner that has values and roles (11-19: the flag was off
+    // on every device while his planner was built, so only the website kept asking him to set it up)
+    const setUp = F.prefs().plannerSetupDone === "1" || ((p?.values || []).length > 0 && (p?.roles || []).length > 0);
     if (!setUp) {
       return `<section class="card p16 guide v g12 sec-friday">
         ${ui.cardHead("friday", "Start here")}

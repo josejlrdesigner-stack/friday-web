@@ -154,7 +154,7 @@
     } else {
       const p = P(), weekend = [0, 6].includes(day.getDay()), meetings = meetingMinutes(day);
       reasons = meetings > 0 ? [`${hm(meetings)} of meetings`] : [];
-      if (F.prefs().plannerSetupDone === "1" && p.roles.length) {
+      if ((F.prefs().plannerSetupDone === "1" || p.values.length) && p.roles.length) {   // same set-up rule as the app
         basis = "profile";
         const pr = p.profile || {};
         free = (weekend ? 360 : 600) - meetings;

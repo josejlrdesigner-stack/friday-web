@@ -995,5 +995,5 @@
   });
 
   // for QA / other screens
-  F.organizer = { build, taskPhrase, timeIn, bufferStart, PRESETS, QUESTIONS, isSetUp: () => isSetUp() && F.prefs().plannerSetupDone !== "0" };
+  F.organizer = { build, taskPhrase, timeIn, bufferStart, PRESETS, QUESTIONS, isSetUp: () => isSetUp() || F.prefs().plannerSetupDone === "1" };
 })();
