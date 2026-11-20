@@ -490,22 +490,9 @@
   F.on("cal-earlier", () => { anchor = D.add(anchor ? D.start(anchor) : D.start(new Date()), -7); F.render(); });
   F.on("cal-today", () => { anchor = null; cursor = null; span = 30; tg.key = ""; F.render(); });
   F.on("cal-more", () => { span += 30; F.render(); });
-  F.on("cal-goto", () => {
-    let pick = D.key(anchor || new Date());
-    F.sheet({
-      title: "Go to date", id: "goto",
-      leading: { label: "Cancel", act: "sheet-close" },
-      trailing: { label: "Go", act: "cal-goto-go" },
-      body: `<div class="narrow v g12"><label class="field"><span>Go to</span><input class="input" type="date" id="cal-goto-date" value="${pick}"></label></div>`,
-    });
-  });
-  F.on("cal-goto-go", (el) => {
-    const dlg = el.closest("dialog");
-    const v = dlg.querySelector("#cal-goto-date")?.value;
-    if (v) { const d = D.parse(v); anchor = D.same(d, new Date()) ? null : D.start(d); }
-    dlg._api.close();
-    F.render();
-  });
+  // the app's "pick a day" pop-up (quick picks + a month), not the browser's date box
+  F.on("cal-goto", () => F.pickDate({ title: "Go to date", confirm: "Go", value: anchor || cursor || new Date(),
+    onPick: (d) => { const t = D.same(d, new Date()); anchor = t ? null : D.start(d); cursor = t ? null : D.start(d); tg.key = ""; F.render(); } }));
 
   // TimelineView(.periodic(by: 60)): keep "Now", NOW tags and countdowns current
   setInterval(() => {

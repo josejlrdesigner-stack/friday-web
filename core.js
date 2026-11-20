@@ -631,6 +631,13 @@ const F = (() => {
   const forms = {};       // data-form → handler(formData, form, event)
   const view = (name, def) => { views[name] = def; };
   const on = (name, fn) => { actions[name] = fn; };
+  // the pick-a-day pop-up (pickDate)
+  const pk = (el) => el.closest("dialog")?._pick;
+  on("pk-day", (el) => { const p = pk(el); if (!p) return; const d = D.parse(el.dataset.day); p.st.pick = d;
+    if (d.getMonth() !== p.st.month.getMonth() || d.getFullYear() !== p.st.month.getFullYear()) p.st.month = new Date(d.getFullYear(), d.getMonth(), 1);
+    p.api.update(); });
+  on("pk-step", (el) => { const p = pk(el); if (!p) return; const m = p.st.month; p.st.month = new Date(m.getFullYear(), m.getMonth() + Number(el.dataset.n), 1); p.api.update(); });
+  on("pk-go", async (el) => { const p = pk(el); if (!p) return; p.api.close(); await p.onPick(p.st.pick); });
   const onInput = (name, fn) => { inputs[name] = fn; };
   const onChange = (name, fn) => { changes[name] = fn; };
   const onSubmit = (name, fn) => { forms[name] = fn; };
@@ -718,6 +725,38 @@ const F = (() => {
   const isBig = (t) => !!(t && (t.fc?.bigRock || (t.fc?.letter === "A" && t.fc?.number === 1)));
   /** Redraw only the sheets that asked to follow data changes (call after data loads). */
   function refreshSheets() { for (const s of sheets) s.refresh?.(); }
+
+  /** The one "pick a day" pop-up, 1:1 with the app's DatePickSheet (Go to date, Forward to): quick picks
+   *  (Today · Tomorrow · Next week), then a month card you tap through — chosen day a filled blue circle, today ringed,
+   *  always six weeks tall so it never changes size. pickDate({title, confirm, value: Date, onPick(Date)}). */
+  function pickDate({ title, confirm = "Go", value, onPick }) {
+    const today = D.start(new Date());
+    const nextMonday = (() => { let d = D.add(today, 1); while (d.getDay() !== 1) d = D.add(d, 1); return d; })();
+    const quick = [["Today", today], ["Tomorrow", D.add(today, 1)], ["Next week", nextMonday]];
+    const st = { pick: D.start(value || today), month: new Date((value || today).getFullYear(), (value || today).getMonth(), 1) };
+    const body = () => {
+      const m = st.month, lead = m.getDay(), days = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+      const cells = [];
+      for (let i = 0; i < 42; i++) {
+        const n = i - lead + 1;
+        if (n < 1 || n > days) { cells.push('<span class="pk-cell" aria-hidden="true"></span>'); continue; }
+        const d = new Date(m.getFullYear(), m.getMonth(), n), on = D.same(d, st.pick), isToday = D.same(d, today);
+        cells.push(`<button type="button" class="pk-cell pk-day${on ? " on" : ""}${isToday ? " today" : ""}" data-act="pk-day" data-day="${D.key(d)}"
+          aria-pressed="${on}" aria-label="${esc(d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }) + (isToday ? ", today" : ""))}"><span>${n}</span></button>`);
+      }
+      return `<div class="pk v g16">
+        <div class="pk-quick">${quick.map(([l, d]) => ui.btn({ label: l, kind: D.same(d, st.pick) ? "primary" : "", act: "pk-day", data: { day: D.key(d) } })).join("")}</div>
+        <div class="card pk-month">
+          <div class="pk-head"><h3>${esc(m.toLocaleDateString(undefined, { month: "long", year: "numeric" }))}</h3>
+            ${ui.btn({ kind: "icon", filled: true, icon: "chevron.left", act: "pk-step", data: { n: -1 }, aria: "Previous month" })}${ui.btn({ kind: "icon", filled: true, icon: "chevron.right", act: "pk-step", data: { n: 1 }, aria: "Next month" })}</div>
+          <div class="pk-grid" role="grid">${["S", "M", "T", "W", "T", "F", "S"].map((w) => `<span class="pk-wd" aria-hidden="true">${w}</span>`).join("")}${cells.join("")}</div>
+        </div></div>`;
+    };
+    const api = sheet({ title, size: "pick", leading: { label: "Cancel" }, trailing: { label: confirm, act: "pk-go" }, body });
+    api.el._pick = { st, onPick, api };
+    return api;
+  }
+
 
   // delegated events
   document.addEventListener("click", async (e) => {
@@ -853,7 +892,7 @@ const F = (() => {
     mail: () => S.mail, devices: () => S.devices, status: () => S.status,
     cmd, savePlanner, setPref, writeSection, load, refresh, getFile, putFile, friendly,
     // ui
-    toast, sheet, alert, core, addIcons, icon, SEC_ICON, accountColor, render, refreshSheets, syncNow, syncButton, onRender, celebrate, isBig,
+    toast, sheet, pickDate, alert, core, addIcons, icon, SEC_ICON, accountColor, render, refreshSheets, syncNow, syncButton, onRender, celebrate, isBig,
     view, on, onInput, onChange, onSubmit, signOut, boot,
   };
 })();

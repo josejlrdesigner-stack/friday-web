@@ -316,11 +316,8 @@
     await F.cmd("set_franklin", { todoID: t.id, meta: fullFC(x) }, (code(x) ? `Now ${code(x)}: ` : "No priority: ") + t.title);
   }
   function forwardPicker(t, day) {
-    let val = D.key(D.add(max(D.start(day), today0()), 1));
-    const s = F.sheet({ title: "Forward to", leading: { label: "Cancel" }, trailing: { label: "Forward", act: "tk-sheet-primary" },
-      body: () => `<div class="narrow v g16"><label class="fgroup frow"><span class="lbl">Forward to</span><input id="tk-fwd-date" class="bare" type="date" value="${esc(val)}" required style="text-align:right"></label></div>` });
-    s.el.addEventListener("input", (e) => { if (e.target.id === "tk-fwd-date") val = e.target.value; });
-    s.onPrimary = async () => { if (!val) return; s.close(); await forward(t, D.parse(val), day); };
+    // same pick-a-day pop-up as the app's Forward to
+    F.pickDate({ title: "Forward to", confirm: "Forward", value: D.add(max(D.start(day), today0()), 1), onPick: (d) => forward(t, d, day) });
   }
   function statusMenu(t, day) {
     const m = t.fc;
