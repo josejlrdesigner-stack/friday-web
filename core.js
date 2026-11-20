@@ -243,8 +243,26 @@ const F = (() => {
     render();
     return c;
   }
+  /** Every id the apps' merge treats as add/delete-able (same list as Planner.itemIDs in the app). */
+  function plannerIDs(p) {
+    const s = new Set(), add = (a) => (a || []).forEach((x) => x && x.id && s.add(String(x.id).toUpperCase()));
+    ["values", "longGoals", "midGoals", "roles"].forEach((k) => add(p[k]));
+    Object.values(p.weeks || {}).forEach((w) => add(w && w.rocks));
+    Object.values(p.days || {}).forEach((d) => add(d && d.record));
+    return s;
+  }
   async function savePlanner(mutate) {
-    await writeSection("prefs", (v) => { v = v || {}; const p = JSON.parse(v.franklinPlanner || "{}"); mutate(p); v.franklinPlanner = JSON.stringify(p); return v; });
+    await writeSection("prefs", (v) => {
+      v = v || {}; const p = JSON.parse(v.franklinPlanner || "{}");
+      const before = plannerIDs(p);
+      mutate(p);
+      // what this edit removed is a real delete: record it so the apps' union merge keeps it gone (sync fix 11-19)
+      const now = plannerIDs(p);
+      const tomb = new Set([...(p.deleted || []).map((x) => String(x).toUpperCase()), ...[...before].filter((i) => !now.has(i))]);
+      now.forEach((i) => tomb.delete(i));
+      if (tomb.size) p.deleted = [...tomb].sort().slice(-400); else delete p.deleted;
+      v.franklinPlanner = JSON.stringify(p); return v;
+    });
     render();
   }
   async function setPref(key, value) {
