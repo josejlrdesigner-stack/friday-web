@@ -127,7 +127,7 @@
       prompt: "During which 2-hour window of the day is your brain sharpest, and when does your energy hit a wall?",
       why: "Your sharpest window becomes a protected Quadrant II deep-work block for your A1. Your slump is where the low-stakes C tasks go.",
       chips: ["Early Morning (6 AM – 9 AM)", "Mid-Morning (9 AM – 12 PM)", "Afternoon (1 PM – 4 PM)", "Late Evening (8 PM – 11 PM)"],
-      placeholder: "e.g. sharpest 9 to 11, I crash around 3" },
+      placeholder: "When do you hit a wall? e.g. I crash around 3" },
     { id: 5, title: "The neglect detector",
       prompt: "What is one personal habit that always gets cut first when life gets crazy, even though cutting it makes everything harder?",
       why: "That's your keystone self-renewal habit, sharpening the saw. It becomes a weekly Big Rock for your Self-Renewal role, so it's protected instead of cut.",
@@ -373,7 +373,7 @@
   // ================================================================ shared pieces
   /** DiagnosticChip: 52pt row, square / checked square, neutral (never a color for "selected"). */
   const chip = (title, on, act, d = {}) => `<button type="button" class="dchip press${on ? " on" : ""}" data-act="${act}" ${Object.entries(d).map(([k, v]) => `data-${k}="${esc(v)}"`).join(" ")} aria-pressed="${on}">
-      <span class="dchip-ic">${icon(on ? "checkmark.square.fill" : "square")}</span><span class="dchip-t">${esc(title)}</span></button>`;
+      <span class="dchip-ic"><span class="check${on ? " on" : ""}" aria-hidden="true"><i></i></span></span><span class="dchip-t">${esc(title)}</span></button>`;
   const block = (title, inner, cls = "") => `<section class="card org-block ${cls}">${ui.label2(title)}${inner}</section>`;
   const toggle = (text, on, act, d = {}) => `<label class="org-toggle"><span class="grow">${esc(text)}</span><span class="switch"><input type="checkbox" role="switch" ${on ? "checked" : ""} data-change="${act}" ${Object.entries(d).map(([k, v]) => `data-${k}="${esc(v)}"`).join(" ")}></span></label>`;
   const summaryRow = (ic, title, detail) => `<div class="org-srow">${icon(ic, 'class="org-sic"')}<div class="v g2 grow"><span class="t15 w6 ink">${esc(title)}</span>${detail ? `<span class="t13 muted">${esc(detail)}</span>` : ""}</div></div>`;
@@ -430,7 +430,7 @@
     const open = !!W.why[q.id];
     return `<div class="v g16">
       <h3 class="t20 w6 ink">${esc(q.prompt)}</h3>
-      <div class="v g8"><p class="t13 w6 muted">Tap any that fit</p>${q.chips.map((c) => chip(c, a.chips.has(c), "setup-chip", { c })).join("")}</div>
+      <div class="v g8"><p class="t13 w6 muted">${q.id === 4 ? "Tap your sharpest window" : "Tap any that fit"}</p>${q.chips.map((c) => chip(c, a.chips.has(c), "setup-chip", { c })).join("")}</div>
       <div class="v g8"><label class="t13 w6 muted" for="setup-text-${q.id}">Or say it in your own words</label>
         <textarea id="setup-text-${q.id}" class="input org-ta" rows="2" data-grow="5" data-input="setup-text" data-q="${q.id}" placeholder="${esc(q.placeholder)}">${esc(a.text)}</textarea></div>
       <div class="org-dg${open ? " open" : ""}"><button type="button" class="org-dg-h" id="setup-why-${q.id}" data-act="setup-why" data-q="${q.id}" aria-expanded="${open}"><span class="t15 w5 ink">Why this question?</span><span class="sp"></span>${icon("chevron.right", 'class="org-dg-chev"')}</button>
@@ -441,7 +441,7 @@
   function setupFooter() {
     const s = W.step;
     return `<div class="h g8 setfoot">${s > 1 ? ui.btn({ label: "Back", icon: "chevron.left", act: "setup-back" }) : ""}<span class="sp"></span>
-      ${s <= 6 ? `${answered() ? "" : ui.btn({ label: "Skip", act: "setup-next" })}${ui.btn({ label: s === 6 ? "See my planner" : "Next", kind: "primary", act: "setup-next", disabled: !answered() })}`
+      ${s <= 6 ? `${answered() ? ui.btn({ label: s === 6 ? "See my planner" : "Next", kind: "primary", act: "setup-next" }) : ui.btn({ label: s === 6 ? "Skip to my planner" : "Skip", act: "setup-next" })}`
                : `<button type="button" class="btn primary" data-act="setup-build" ${W.busy ? "disabled" : ""}>${W.busy ? ui.spinner() : ""}Build my planner</button>`}</div>`;
   }
   const drawFoot = () => { const f = W?.api.el.querySelector(".sheetfoot"); if (f) f.innerHTML = W.finished != null ? finishFooter() : setupFooter(); };
@@ -747,10 +747,11 @@
     const k = form.dataset.kind, id = form.querySelector("input").id;
     H.drafts[id] = "";
     form.querySelector("input").value = ""; form.querySelector("button").disabled = true;
-    if (k === "value") await save((p) => p.values.push({ id: F.uuid(), title: t, detail: "" }));
+    // never the same value or role twice (UAT D38, same rule as the app)
+    if (k === "value") await save((p) => { if (!p.values.some((v) => (v.title || "").toLowerCase() === t.toLowerCase())) p.values.push({ id: F.uuid(), title: t, detail: "" }); });
     if (k === "goal") await save((p) => p.longGoals.push({ id: F.uuid(), title: t, target: "", done: false }));
     if (k === "mile") await save((p) => p.midGoals.push({ id: F.uuid(), title: t, target: "", done: false }));
-    if (k === "role") await save((p) => p.roles.push({ id: F.uuid(), name: t }));
+    if (k === "role") await save((p) => { if (!p.roles.some((r) => (r.name || "").toLowerCase() === t.toLowerCase())) p.roles.push({ id: F.uuid(), name: t }); });
     if (k === "rock") await save((p) => updWeek(p, new Date(), (w) => w.rocks.push({ id: F.uuid(), roleID: form.dataset.role, title: t, done: false, scheduled: false })));
     hDraw();
     H?.api.el.querySelector("#" + CSS.escape(id))?.focus();
@@ -947,7 +948,7 @@
   F.onChange("org-rule", (el) => F.setPref(el.dataset.k, el.checked ? "1" : "0"));
 
   // ---------- Energy & Calendar Defense
-  const BUF = [[60, "10% · 1 hour"], [90, "15% · 90 min"], [120, "20% · 2 hours"]];
+  const BUF = [[60, "1 hour"], [90, "90 min"], [120, "2 hours"]];   // same short labels as the app (UAT D39)
   function energyLoad() {
     const pr = profile();
     const any = ["focus", "buffer", "batch0", "slump"].some(hasBlock);
@@ -965,7 +966,7 @@
         "Your sharpest window. It becomes a protected deep-work block for your A1 and Big Rocks, and Friday suggests it first when you plan your day.")
       + section("Energy slump", `<label class="org-prow"><span class="grow t15">Slump starts</span><input id="org-slump" class="org-time" type="time" value="${hm(E.slump)}" data-change="org-e-time" data-k="slump"></label>`,
         "When your energy hits a wall. Good for C tasks: quick, low-stakes things.")
-      + section("Crisis buffer", ui.seg("org-e-buf", BUF.map((b) => b[1]), sel), "Franklin keeps 15 to 20 percent of the day open, so a surprise doesn't push your A's.")
+      + section("Crisis buffer", ui.seg("org-e-buf", BUF.map((b) => b[1]), sel), "Open time kept free each day: 1 hour is about 10% of a workday, 90 min about 15%, 2 hours about 20%. Franklin keeps 15 to 20 percent open, so a surprise doesn't push your A's.")
       + section("Batch & triage", toggle("Twice a day (11:30 and 4:30)", E.batchTwice, "org-e-flag", { k: "batchTwice" }) + (traps.length ? warnLine(`Your traps: ${traps.join(", ")}`) : ""),
         "Answer messages and requests in set blocks instead of all day. That keeps Quadrant III small.")
       + section("On my calendar, every weekday", toggle("Deep-work block", E.focusOn, "org-e-flag", { k: "focusOn" }) + toggle("Crisis buffer", E.bufferOn, "org-e-flag", { k: "bufferOn" })

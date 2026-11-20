@@ -143,3 +143,6 @@ hr.org-div { border: 0; border-top: 1px solid var(--hair); margin: 4px 0; width:
 .org-goal-meta .org-menu { position: relative; display: inline-flex; }
 .org-goal-meta .org-menu .tag { min-height: 44px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: var(--r-control); font-size: 13px; font-weight: 600; }
 .org-goal-meta .org-when { width: 140px; flex: none; min-height: 44px; border-radius: var(--r-control); }
+
+/* the one round check (green when on), same as every to-do; not a square (UAT D30) */
+.dchip-ic .check { width: 28px; height: 28px; pointer-events: none; }
