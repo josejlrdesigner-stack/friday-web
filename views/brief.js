@@ -79,9 +79,22 @@
   }
 
   // ------------------------------------------------------------ First thing (today's A1)
+  // after today is closed out: plan tomorrow, or revisit it when it's already planned (Jose 11-19; GuideViews afterClose)
+  function afterClose(now) {
+    const p = F.planner() || {}, t = D.add(D.start(now), 1), k = D.key(t);
+    return p.days?.[k]?.planned
+      ? { title: "Tomorrow is planned", detail: "Today is closed out. Take one more look at tomorrow's A's before you rest.", button: "Revisit tomorrow's plan", go: "day", day: k }
+      : { title: "Plan tomorrow", detail: "Today is closed out. Take 10 minutes: list tomorrow, mark A, B or C, and pick your A1.", button: "Plan tomorrow", go: "day", day: k };
+  }
+  const todayClosed = (now) => !!(F.planner() || {}).days?.[D.key(now)]?.closed;
   function firstThing() {
+    if (!K().remindersAccess()) return `<section class="card p16 v g8 first sec-brief">${ui.cardHead("brief", "First thing")}${K().accessOffRow("Reminders")}</section>`;
+    if (todayClosed(new Date())) {
+      const a = afterClose(new Date());
+      return `<section class="card p16 v g12 first sec-brief">${ui.cardHead("brief", a.title)}<p class="t-secondary">${esc(a.detail)}</p>
+        ${ui.actbar([ui.btn({ label: a.button, icon: "arrow.right", kind: "small", cls: "tinted", act: "brief-go", data: { go: "day", day: a.day } })])}</section>`;
+    }
     const head = ui.cardHead("brief", "First thing");
-    if (!K().remindersAccess()) return `<section class="card p16 v g8 first sec-brief">${head}${K().accessOffRow("Reminders")}</section>`;
     const t = F.ritualKit?.a1();
     if (!t) {
       return `<section class="card p16 v g12 first sec-brief">${head}<div class="h g12"><span class="a1tile empty" aria-hidden="true">A1</span>
@@ -154,6 +167,7 @@
     const rocks = week.rocks || [];
     if (!rocks.some((r) => !r.done) && (weekday === 1 || weekday === 2 || !rocks.length))
       return { title: "Plan your week", detail: "About 20 minutes: pick one or two Big Rocks for each role and block time for them first.", button: "Plan my week", go: "week" };
+    if (today.closed) return afterClose(now);
     if (hour >= 17 && !today.closed)
       return { title: "Close out your day", detail: "Two minutes: mark each task done, forward, in progress, delegated or deleted, so tomorrow starts clean.", button: "Close out", go: "closeout" };
     if (!today.planned && hour < 17)
@@ -185,7 +199,7 @@
       ${ui.cardHead("friday", "Your next step")}
       <div class="v g4"><h2 class="t-card-title">${esc(s.title)}</h2>
       <p class="t-secondary">${esc(s.detail)}</p></div>
-      ${ui.actbar([ui.btn({ label: "Organizer", icon: "target", act: "brief-organizer" }), ui.btn({ label: s.button, icon: "arrow.right", kind: "primary", act: "brief-go", data: { go: s.go } })])}
+      ${ui.actbar([ui.btn({ label: "Organizer", icon: "target", act: "brief-organizer" }), ui.btn({ label: s.button, icon: "arrow.right", kind: "primary", act: "brief-go", data: s.day ? { go: s.go, day: s.day } : { go: s.go } })])}
     </section>`;
   }
 
@@ -465,9 +479,9 @@
   F.on("brief-settings", () => { if (F.openSettings) F.openSettings(); });
   F.on("brief-setup", (el) => F.openSetup?.(el.dataset.mode));
   F.on("brief-go", (el) => {
-    const go = el.dataset.go, today = F.D.key(new Date());
+    const go = el.dataset.go, today = F.D.key(new Date()), day = el.dataset.day || today;
     if (go === "closeout") return F.openCloseOut?.(today);
-    F.openTasks?.(go === "week" ? "week" : "day", today);
+    F.openTasks?.(go === "week" ? "week" : "day", day);
   });
   F.on("brief-organizer", () => F.openOrganizer?.());
   F.on("brief-tasks", () => { location.hash = "tasks"; });
