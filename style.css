@@ -272,7 +272,7 @@ button.plain { appearance: none; background: none; border: 0; padding: 0; margin
 /* Segmented: soft pill track, the selected segment a white pill */
 .seg { display: flex; gap: 4px; padding: 4px; background: var(--soft); border-radius: var(--r-control); min-width: 0; }
 .seg.fit { display: inline-flex; }
-.seg button { flex: 1; appearance: none; border: 0; background: none; min-height: 36px; border-radius: var(--r-inner); cursor: pointer;
+.seg button { flex: 1; appearance: none; border: 0; background: none; min-height: 44px;   /* 44 px tap target (UAT W22) */ border-radius: var(--r-inner); cursor: pointer;
   font-size: 15px; font-weight: 600; color: var(--ink2); white-space: nowrap; padding: 0 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 439px) { .seg button { font-size: 14px; padding: 0 2px; letter-spacing: -.2px; } }
 @media (max-width: 359px) { .seg button { font-size: 13px; padding: 0 4px; } }
@@ -410,7 +410,7 @@ textarea.input { resize: vertical; min-height: 88px; line-height: 1.4; }
 
 /* Split view helpers (Mail's list | message): each column scrolls on its own, the scrollbar never shifts content (LY-5) */
 .split { display: grid; grid-template-columns: minmax(0, 1fr); height: 100%; min-height: 0; }
-@media (min-width: 900px) { .split { grid-template-columns: clamp(320px, 38%, 440px) minmax(0, 1fr); } }
+@media (min-width: 900px) { .split { grid-template-columns: clamp(400px, 46%, 500px) minmax(0, 1fr); } }   /* wider list so sender names fit at 1024–1280 (UAT W21) */
 .split-col { min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
 .split-col + .split-col { border-left: 1px solid var(--line); }
 
