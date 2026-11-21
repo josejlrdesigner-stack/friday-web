@@ -492,7 +492,7 @@ const F = (() => {
       const f = typeof foot === "function" ? foot() : foot;
       const keepToast = d.querySelector("#toast"), keepAsk = d.querySelector(".leave-scrim");   // a redraw must not wipe the toast (its Undo) or an open question
       d.innerHTML = `<div class="sheetbar"><div class="sb-l">${l ? ui.btn({ label: l.label, act: l.act || "sheet-close", data: l.data }) : ""}</div>
-          <h2 class="title">${esc(t)}</h2><div class="sb-r">${r ? ui.btn({ label: r.label, labelHTML: r.busy ? ui.spinner() : null, kind: "primary", act: r.act, data: r.data, disabled: r.disabled || r.busy }) : ""}</div></div>
+          <h2 class="title">${esc(t)}</h2><div class="sb-r">${r ? ui.btn({ label: r.label, labelHTML: r.busy ? ui.spinner() : null, kind: r.kind || "primary", act: r.act, data: r.data, disabled: r.disabled || r.busy }) : ""}</div></div>
         <div class="sheetbody">${typeof body === "function" ? body() : body}</div>${f ? `<div class="sheetfoot">${f}</div>` : ""}`;
       if (keepToast) d.appendChild(keepToast);
       if (keepAsk) d.appendChild(keepAsk);

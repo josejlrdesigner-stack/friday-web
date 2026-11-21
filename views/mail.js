@@ -28,6 +28,16 @@
     "flag.slash": '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/><path d="M3 3l18 18"/>',
     minus: '<path d="M5 12h14"/>',
     keyboard: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h1M9.5 9.5h1M13 9.5h1M16.5 9.5h1M6 12.5h1M9.5 12.5h1M13 12.5h1M16.5 12.5h1M8 15.5h8"/>',
+    "envelope.fill": '<rect x="2.5" y="5" width="19" height="14" rx="2" fill="currentColor" stroke="none"/><path d="M3.5 6.5l8.5 6 8.5-6" style="stroke:var(--action)"/>',
+    "person.crop.circle.badge.xmark": '<circle cx="10.5" cy="12" r="8.5"/><circle cx="10.5" cy="10" r="3"/><path d="M5 18a6.5 6.5 0 0 1 9-1.5"/><path d="M17 15l4 4M21 15l-4 4"/>',
+    "person.crop.circle.badge.checkmark": '<circle cx="10.5" cy="12" r="8.5"/><circle cx="10.5" cy="10" r="3"/><path d="M5 18a6.5 6.5 0 0 1 9-1.5"/><path d="M16 17.2l1.8 1.8 3.4-3.6"/>',
+    globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z"/>',
+    "text.magnifyingglass": '<path d="M3 6h12M3 10.5h7M3 15h5"/><circle cx="15.5" cy="14.5" r="4"/><path d="M18.5 17.5l3 3"/>',
+    "person.text.rectangle": '<rect x="2.5" y="4.5" width="19" height="15" rx="2"/><circle cx="8" cy="10.5" r="2.2"/><path d="M4.8 16.5a3.4 3.4 0 0 1 6.4 0M13.5 9.5h5M13.5 13h5"/>',
+    "minus.circle.fill": '<circle cx="12" cy="12" r="9.5" fill="currentColor" stroke="none"/><path d="M7.5 12h9" stroke="#fff" stroke-width="2.2"/>',
+    "plus.circle.fill": '<circle cx="12" cy="12" r="9.5" fill="currentColor" stroke="none"/><path d="M12 7.5v9M7.5 12h9" stroke="#fff" stroke-width="2.2"/>',
+    "largecircle.fill.circle": '<circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/>',
+    "doc.on.doc": '<rect x="8" y="7" width="12" height="14" rx="1.5"/><path d="M5 17V4.5A1.5 1.5 0 0 1 6.5 3H15"/>',
   });
   const MAC = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
 
@@ -78,10 +88,178 @@
     if (dirty && !F.DEMO) lsSet("echo", echo);
     return Object.values(echo).filter((c) => !failed[c.id]).map((c) => ({ ...c, applied: applied.has(c.id) })).sort((a, b) => (a.at || 0) - (b.at || 0));
   }
-  const ORDER = ["inbox", "sent", "drafts", "archive", "all", "flagged", "junk", "trash"];
-  const order = (r) => { const i = ORDER.indexOf(r || ""); return i < 0 ? 99 : i; };
   const roleIcon = (r) => ({ sent: "paperplane", trash: "trash", archive: "archivebox", all: "archivebox", junk: "xmark.bin", drafts: "doc.text", flagged: "flag", inbox: "tray" })[r] || "folder";
   const wide = () => innerWidth >= 900;      // the list | message split (style.css .split) starts at 900px
+
+  // ------------------------------------------------------------ folders (IMAPFolder in IMAP.swift)
+  /** IMAP folder names are "modified UTF-7" (RFC 3501): "&-" is "&", "&AOk-" is "é". */
+  function decodeUTF7(s) {
+    s = String(s ?? "");
+    if (!s.includes("&")) return s;
+    return s.replace(/&([^-]*)-/g, (all, chunk) => {
+      if (!chunk) return "&";
+      try {
+        let b = chunk.replace(/,/g, "/"); while (b.length % 4) b += "=";
+        const bin = atob(b); if (bin.length % 2) return all;
+        let out = ""; for (let i = 0; i < bin.length; i += 2) out += String.fromCharCode((bin.charCodeAt(i) << 8) | bin.charCodeAt(i + 1));
+        return out;
+      } catch { return all; }
+    });
+  }
+  /** The reverse, for a folder he names ("Boys & Girls" → "Boys &- Girls"). */
+  function encodeUTF7(s) {
+    let out = "", run = [];
+    const flush = () => {
+      if (!run.length) return;
+      let bin = ""; for (const u of run) bin += String.fromCharCode(u >> 8, u & 255);
+      out += "&" + btoa(bin).replace(/=+$/, "").replace(/\//g, ",") + "-"; run = [];
+    };
+    for (let i = 0; i < s.length; i++) { const u = s.charCodeAt(i); if (u >= 0x20 && u <= 0x7e) { flush(); out += u === 0x26 ? "&-" : s[i]; } else run.push(u); }
+    flush();
+    return out;
+  }
+  /** IMAPFolder.role's name guess. */
+  function guessRole(n) {
+    if (n.endsWith("sent") || n.endsWith("sent messages") || n.endsWith("sent items")) return "sent";
+    if (n.endsWith("trash") || n.endsWith("deleted messages") || n.endsWith("deleted items")) return "trash";
+    if (n.endsWith("archive")) return "archive";
+    if (n.endsWith("junk") || n.endsWith("spam")) return "junk";
+    if (n.endsWith("drafts")) return "drafts";
+    return null;
+  }
+  /** One folder from the snapshot ({name, role, delimiter?, noselect?}) as IMAPFolder sees it:
+   *  path drops the leading "INBOX" + delimiter (Bluehost keeps every folder under "INBOX."), names decoded,
+   *  and a role guessed from the name counts only for a TOP-LEVEL folder ("Clients › Archive" is his own folder). */
+  function makeFolder(raw, delimGuess = "/") {
+    const name = String(raw.name || ""), delimiter = String(raw.delimiter || ""), d = delimiter || delimGuess || "/";
+    let parts;
+    if (name.toUpperCase() === "INBOX") parts = ["Inbox"];
+    else {
+      parts = name.split(d);
+      if (parts.length > 1 && parts[0].toUpperCase() === "INBOX") parts.shift();
+      parts = parts.map(decodeUTF7);
+    }
+    const n = name.toLowerCase(), sent = raw.role || "";
+    let role = null;
+    if (n === "inbox") role = "inbox";
+    // the snapshot's role wins, except an older app's name guess on a nested folder ("INBOX.Clients.Archive" was "archive");
+    // Gmail's "[Gmail]/Trash" is nested too but its role comes from the server's attribute, so it stays
+    else if (sent && (parts.length === 1 || name.startsWith("[") || guessRole(n) !== sent)) role = sent;
+    else if (!sent && parts.length === 1) role = guessRole(n);
+    return { name, delimiter, role, path: parts, displayName: parts[parts.length - 1] || name, breadcrumb: parts.join(" › "),
+      selectable: !raw.noselect, pending: !!raw.pending };
+  }
+  /** An account's folders; an older snapshot without delimiters: "INBOX.x" names mean ".". */
+  function makeFolders(list) {
+    const guess = list.some((f) => f.delimiter) ? "/" : list.some((f) => /^INBOX\./i.test(f.name || "")) ? "." : "/";
+    return list.map((f) => makeFolder(f, guess));
+  }
+  /** MailboxTree.title: the special mailboxes by their usual names, everything else by its own (decoded) name. */
+  const folderTitleOf = (f) => ({ inbox: "Inbox", all: "All Mail", archive: "Archive", sent: "Sent", junk: "Junk", trash: "Trash", drafts: "Drafts", flagged: "Starred" })[f.role]
+    || (f.name.toUpperCase() === "INBOX" ? "Inbox" : f.displayName);
+  /** How a folder's server name reads to him: "Follow Up", not "INBOX.Follow Up". */
+  function folderLabel(X, aid, name) {
+    if (!name || String(name).toUpperCase() === "INBOX") return "Inbox";
+    const f = X?.folders[aid]?.find((x) => x.name === name) || Object.values(X?.folders || {}).flat().find((x) => x.name === name);
+    return f ? folderTitleOf(f) : makeFolder({ name }, /^INBOX\./i.test(name) ? "." : "/").displayName;
+  }
+  const SPECIAL = ["inbox", "archive", "all", "flagged", "drafts", "sent", "junk", "trash"];
+  /** Special mailboxes on top (Inbox, Archive, Sent, Junk, Trash...) — one of each, the account's real one. */
+  function specialBoxes(fl) {
+    const out = [fl.find((f) => f.name.toUpperCase() === "INBOX") || makeFolder({ name: "INBOX", role: "inbox" })];
+    for (const r of SPECIAL.slice(1)) { const f = fl.find((x) => x.role === r && x.selectable); if (f && !out.some((o) => o.name === f.name)) out.push(f); }
+    return out;
+  }
+  /** The folder's place in the tree (Gmail's "[Gmail]" holder is skipped: its mailboxes are special). */
+  const treePath = (f) => (f.path[0] === "[Gmail]" || f.path[0] === "[Google Mail]" ? f.path.slice(1) : f.path);
+  /** Everything else as a tree, sorted by name. A node with no folder is a parent the server only lists as a path. */
+  function folderTree(fl) {
+    const specials = new Set(specialBoxes(fl).map((f) => f.name));
+    const root = { children: [] };
+    for (const f of fl) {
+      if (specials.has(f.name) || f.name.toUpperCase() === "INBOX") continue;
+      const p = treePath(f);
+      if (!p.length) continue;
+      let n = root;
+      p.forEach((key, i) => {
+        let c = n.children.find((x) => x.name === key);
+        if (!c) { c = { id: p.slice(0, i + 1).join("/"), name: key, path: p.slice(0, i + 1), folder: null, children: [] }; n.children.push(c); }
+        if (i === p.length - 1) c.folder = f;
+        n = c;
+      });
+    }
+    const sort = (n) => { n.children.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })); n.children.forEach(sort); };
+    sort(root);
+    return root.children;
+  }
+  const allNodes = (ns) => ns.flatMap((n) => [n, ...allNodes(n.children)]);
+  /** MailStore.newFolderName: the full server name for a new folder. Top level on an account whose folders all live
+   *  under "INBOX" + delimiter (Bluehost) goes there too. */
+  function newFolderName(fl, parent, name) {
+    const delim = parent?.delimiter || fl.find((f) => f.delimiter)?.delimiter || (fl.some((f) => /^INBOX\./i.test(f.name)) ? "." : "/");
+    const n = encodeUTF7(name.split(delim).join(" "));
+    if (parent) return parent.name + delim + n;
+    const D2 = delim.toUpperCase();
+    const underInbox = fl.some((f) => f.name.toUpperCase().startsWith("INBOX" + D2)) &&
+      !fl.some((f) => !f.role && !f.name.toUpperCase().startsWith("INBOX") && f.name.toUpperCase() !== "INBOX" && !f.name.startsWith("["));
+    return underInbox ? "INBOX" + delim + n : n;
+  }
+
+  // ------------------------------------------------------------ block rules (JunkRules.swift): "kind|junk|value" / "kind|trash|value"
+  const RULE_KINDS = {
+    sender: { label: "This sender", hint: "name@example.com", icon: "person.crop.circle.badge.xmark" },
+    domain: { label: "Everyone from a domain", hint: "example.com", icon: "globe" },
+    subject: { label: "Subject contains", hint: "Words in the subject", icon: "text.magnifyingglass" },
+    name: { label: "Sender name contains", hint: "Words in the sender's name", icon: "person.text.rectangle" },
+  };
+  function cleanRule(v, k) {
+    let t = String(v ?? "").trim();
+    if (k === "sender") t = t.toLowerCase();
+    if (k === "domain") { t = t.toLowerCase(); const at = t.lastIndexOf("@"); if (at >= 0) t = t.slice(at + 1); t = t.replace(/^\.+/, ""); }
+    return t;
+  }
+  const makeRule = (kind, value, trash) => ({ kind, value: cleanRule(value, kind), trash: !!trash });
+  const ruleCode = (r) => `${r.kind}|${r.trash ? "trash" : "junk"}|${r.value}`;
+  function parseRule(s) {
+    const str = String(s ?? ""), i = str.indexOf("|"), j = i < 0 ? -1 : str.indexOf("|", i + 1);
+    if (j < 0) return null;
+    const k = str.slice(0, i), v = str.slice(j + 1);
+    if (!Object.hasOwn(RULE_KINDS, k) || !v) return null;
+    return makeRule(k, v, str.slice(i + 1, j) === "trash");
+  }
+  function ruleValid(r) {
+    if (r.kind === "sender") return r.value.includes("@") && r.value.includes(".");
+    if (r.kind === "domain") return r.value.includes(".") && !/\s/.test(r.value);
+    return [...r.value].length >= 2;
+  }
+  /** "deals@shop.com" · "Anyone at shop.com" · "Subject contains “you won”". */
+  const ruleTitle = (r) => (r.kind === "sender" ? r.value : r.kind === "domain" ? `Anyone at ${r.value}` : r.kind === "subject" ? `Subject contains “${r.value}”` : `Name contains “${r.value}”`);
+  const fold = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  function ruleMatches(r, m) {
+    const from = String(m.from?.email || "").toLowerCase();
+    if (r.kind === "sender") return from === r.value;
+    if (r.kind === "domain") { const at = from.lastIndexOf("@"); if (at < 0) return false; const d = from.slice(at + 1); return d === r.value || d.endsWith("." + r.value); }
+    if (r.kind === "subject") return fold(m.subject).includes(fold(r.value));
+    return fold(m.from?.name).includes(fold(r.value));
+  }
+  /** Every rule he made: domain / subject / name rules and trash senders (mailJunkRules), plus the single-sender blocks (mailBlocked). */
+  function junkRules(X) {
+    const seen = new Set();
+    return [...X.lists.rules, ...X.lists.blocked.map((e) => makeRule("sender", e, false))].filter((r) => { const k = ruleCode(r); if (seen.has(k)) return false; seen.add(k); return true; });
+  }
+  /** MailStore.ruleProblem: why a rule can't be saved, in words (null = fine). He can never block himself. */
+  function ruleProblem(X, r) {
+    if (!ruleValid(r)) return r.kind === "sender" ? "Enter a full email address." : r.kind === "domain" ? "Enter a domain, like example.com." : "Enter at least two letters.";
+    const mine = X.accounts.map((a) => String(a.email || "").toLowerCase());
+    if (r.kind === "sender" && mine.includes(r.value)) return "That's your own address.";
+    if (r.kind === "domain" && mine.some((e) => e.endsWith("@" + r.value)) && !r.value.startsWith("gmail.") && !r.value.startsWith("icloud."))
+      return "That's your own domain, so your own mail would be caught.";
+    if (r.kind === "domain" && ["gmail.com", "icloud.com", "yahoo.com", "outlook.com", "hotmail.com", "me.com", "aol.com"].includes(r.value))
+      return `Everyone with a ${r.value} address would be caught. Block the sender instead.`;
+    return null;
+  }
+  /** Inbox emails a rule would catch right now (the count shown while he builds it). Never-junk senders are never caught. */
+  const ruleMatching = (X, r) => X.messages.filter((m) => m.folder === "INBOX" && ruleMatches(r, m) && !X.lists.allowed.includes(String(m.from.email || "").toLowerCase()));
 
   // ------------------------------------------------------------ the data, with pending commands laid over it
   function model() {
@@ -89,12 +267,12 @@
     if (!md) return null;
     const accounts = (md.accounts || []).map((a) => ({ ...a, color: F.accountColor(a.colorIndex) }));
     const folders = {};
-    for (const a of accounts) folders[a.id] = (md.folders?.[a.id] || []).map((f) => ({ name: f.name, role: f.role || null }));
+    for (const a of accounts) folders[a.id] = makeFolders(md.folders?.[a.id] || []);
     const byId = new Map();
     for (const m of md.messages || []) byId.set(m.id, { ...m, subject: m.subject ?? "", date: D.fromEpoch(m.date), from: m.from || { name: "", email: "(unknown)" }, to: m.to || [], cc: m.cc || [], pending: false });
     const raw = new Map([...byId].map(([k, v]) => [k, { ...v }]));      // as the iPhone sent it: whose email a command was about
     const byMid = new Map(); for (const m of raw.values()) if (m.messageID && !byMid.has(m.messageID)) byMid.set(m.messageID, m.id);
-    const roleName = (aid, role) => folders[aid]?.find((f) => f.role === role)?.name || null;
+    const roleName = (aid, role) => (folders[aid]?.find((f) => f.role === role && f.selectable) || folders[aid]?.find((f) => f.role === role))?.name || null;
     const s = F.snap(), failed = s?.failed || {};
     const sending = [], askedFolder = new Set(), askedBody = new Map(), goneDrafts = new Set();
     const junkName = (aid) => roleName(aid, "junk") || "Junk";
@@ -105,7 +283,7 @@
     // the junk lists (prefs, written by the iPhone), with his pending changes laid over them
     const p = F.prefs();
     const lists = { blocked: listOf(p.mailBlocked), allowed: listOf(p.mailAllowed), unsub: mapOf(p.mailUnsubscribed),
-      tally: mapOf(p.mailJunkTally), filter: mapOf(p.mailJunkFilter) };
+      tally: mapOf(p.mailJunkTally), filter: mapOf(p.mailJunkFilter), rules: rawList(p.mailJunkRules).map(parseRule).filter(Boolean) };
     const own = new Set(accounts.map((a) => a.email.toLowerCase()));
     const lc = (e) => String(e || "").toLowerCase();
     const blockE = (e) => { e = lc(e); if (!e.includes("@") || own.has(e)) return; lists.allowed = lists.allowed.filter((x) => x !== e); if (!lists.blocked.includes(e)) lists.blocked.push(e); };
@@ -141,11 +319,31 @@
           break;
         case "mail_block": blockE(c.email); break;
         case "mail_unblock": unblockE(c.email); break;
+        // MailStore.addRule: single senders that go to Junk use the blocked list; "now" = what it catches moves at once
+        case "mail_rule_add": { const r = parseRule(c.rule); if (!r) break;
+          const same = (x) => x.kind === r.kind && x.value.toLowerCase() === r.value.toLowerCase();
+          if (r.kind === "sender") lists.allowed = lists.allowed.filter((x) => x !== r.value);
+          if (r.kind === "sender" && !r.trash) blockE(r.value);
+          else { if (r.kind === "sender") unblockE(r.value); lists.rules = [r, ...lists.rules.filter((x) => !same(x))]; }
+          if (c.now !== false) for (const x of [...byId.values()]) {
+            if (x.folder !== "INBOX" || !ruleMatches(r, x) || lists.allowed.includes(lc(x.from.email))) continue;
+            if (!r.trash) toJunk(x);
+            else { const t = roleName(x.accountID, "trash"); if (t) { x.folder = t; x.junk = false; x.pending = pend; } else byId.delete(x.id); }
+          }
+        } break;
+        case "mail_rule_remove": { const r = parseRule(c.rule); if (!r) break;
+          if (r.kind === "sender" && !r.trash) unblockE(r.value);
+          lists.rules = lists.rules.filter((x) => ruleCode(x) !== ruleCode(r)); } break;
+        case "mail_allow": { const e = lc(c.email); if (!e) break;
+          lists.rules = lists.rules.filter((x) => !(x.kind === "sender" && x.value === e)); unblockE(e);
+          if (!lists.allowed.includes(e)) lists.allowed.push(e); } break;
         case "mail_allow_remove": lists.allowed = lists.allowed.filter((x) => x !== lc(c.email)); break;
         case "mail_unsub_confirm": lists.unsub[lc(c.email)] = c.at || F.nowSec(); break;
         case "mail_body": { const id = ms[0]?.id || c.mailID; askedBody.set(id, Math.max(askedBody.get(id) || 0, c.at || 0)); } break;
         case "mail_folder": if (pend) askedFolder.add(c.accountID + "|" + c.folder); break;
-        case "mail_create_folder": if (folders[c.accountID] && !folders[c.accountID].some((f) => f.name === c.name)) folders[c.accountID].push({ name: c.name, role: null, pending: true }); break;
+        case "mail_create_folder": { const fl = folders[c.accountID], full = c.full || c.name; if (!fl || !full || fl.some((f) => f.name === full)) break;
+          const d = fl.find((f) => f.delimiter)?.delimiter || "";
+          fl.push(makeFolder({ name: full, delimiter: d, pending: true }, d || (fl.some((f) => /^INBOX\./i.test(f.name)) ? "." : "/"))); } break;
         case "mail_draft_delete": goneDrafts.add(c.draftID); break;
         case "mail_send": if (pend) sending.push(c); if (c.draftID) goneDrafts.add(c.draftID); if (c.replyingTo && byId.get(c.replyingTo)) byId.get(c.replyingTo).seen = true; break;
       }
@@ -164,6 +362,8 @@
   // Lists live in prefs (written by the iPhone): mailBlocked / mailAllowed ("\n"-joined lowercase emails),
   // mailUnsubscribed (JSON {email: epochSeconds}; negative = their unsubscribe page was opened, not confirmed yet).
   // The website changes them only with commands (mail_block, mail_unblock, mail_allow_remove, mail_unsub_confirm).
+  /** Rules keep their case ("Subject contains “You Won”"), so they aren't lowercased like the email lists. */
+  const rawList = (s) => (Array.isArray(s) ? s : String(s || "").split("\n")).map((x) => String(x).trim()).filter(Boolean);
   const listOf = (s) => (Array.isArray(s) ? s : String(s || "").split("\n")).map((x) => String(x).trim().toLowerCase()).filter(Boolean);
   const mapOf = (s) => { try { const o = typeof s === "object" && s ? s : JSON.parse(s || "{}"); return o && typeof o === "object" && !Array.isArray(o) ? { ...o } : {}; } catch { return {}; } };
   const blockedSenders = (X) => X.lists.blocked;
@@ -228,7 +428,6 @@
   const formatAddress = (a) => (!a.name ? a.email : `${a.name.includes(",") ? `"${a.name}"` : a.name} <${a.email}>`);
   const inboxOf = (X) => X.messages.filter((m) => m.folder === "INBOX");
   const isInTrash = (X, m) => { const t = X.roleName(m.accountID, "trash"); return !!t && m.folder === t; };
-  const displayName = (name) => { const last = name.split("/").pop() || name; return last.toUpperCase() === "INBOX" ? "Inbox" : last; };
 
   /** MailStore.threadKey / threads / thread(of:) — exactly the app's rule:
    *  the first <…> in References (the conversation's root); else a Re:/Fw:/Fwd:/Aw: subject (optionally [n]) without the prefixes,
@@ -283,8 +482,7 @@
   function folderTitle(X) {
     if (M.folder === "INBOX") return "Mail";
     if (boxRole()) return BOX[boxRole()] || boxRole();
-    for (const a of X.accounts) { const f = X.folders[a.id]?.find((x) => x.name === M.folder); if (f) return displayName(f.name); }
-    return M.folder;
+    return folderLabel(X, M.acct, M.folder);
   }
   function knownAddresses(X) {
     const mine = new Set(X.accounts.map((a) => a.email.toLowerCase())), count = new Map();
@@ -304,7 +502,7 @@
     for (const c of cs) {
       if (!c.kind.startsWith("mail_") || c.kind === "mail_refresh") continue;
       const idl = [...(c.mailIDs || []), ...(c.mailID ? [c.mailID] : [])], first = X?.byId.get(idl[0]);
-      sentMeta[c.id] = { kind: c.kind, at: c.at, n: idl.length, mailID: idl[0] || null, on: c.on, folder: c.folder || null, email: c.email || null, role: c.role || null, name: c.name || null,
+      sentMeta[c.id] = { kind: c.kind, at: c.at, n: idl.length, mailID: idl[0] || null, on: c.on, folder: c.folder || null, folderLabel: c.folder ? folderLabel(X, c.accountID, c.folder) : null, rule: c.rule || null, email: c.email || null, role: c.role || null, name: c.name || null,
         subject: c.kind === "mail_send" ? c.subject || "" : first?.subject || "", to: c.kind === "mail_send" ? c.to || "" : first ? senderName(first) : "",
         ...(c.kind === "mail_send" ? { send: { accountID: c.accountID, to: c.to, cc: c.cc, subject: c.subject, body: c.body, inReplyTo: c.inReplyTo, references: c.references, replyingTo: c.replyingTo, byFriday: c.byFriday, draftID: c.draftID || null } } : {}) };
     }
@@ -375,9 +573,12 @@
     const VERB = { mail_archive: "archive", mail_trash: "delete", mail_delete: "delete forever", mail_move: "move", mail_junk: "move to Junk", mail_notjunk: "move back to your inbox",
       mail_flag: f.on === false ? "unflag" : "flag", mail_seen: f.on === false ? "mark as unread" : "mark as read", mail_unsubscribe: "unsubscribe from", mail_empty: "empty",
       mail_create_folder: "create the folder", mail_folder: "open", mail_mark_all_read: "mark all as read", mail_block: "block", mail_unblock: "unblock",
-      mail_allow_remove: "take off the never-junk list:", mail_unsub_confirm: "record that you unsubscribed from", mail_draft_delete: "discard the draft" };
-    const obj = f.kind === "mail_unsubscribe" ? f.to : ["mail_block", "mail_unblock", "mail_allow_remove", "mail_unsub_confirm"].includes(f.kind) ? f.email
-      : f.kind === "mail_empty" ? (f.role === "junk" ? "Junk" : "Trash") : f.kind === "mail_create_folder" ? f.name : f.kind === "mail_folder" ? f.folder
+      mail_allow_remove: "take off the never-junk list:", mail_unsub_confirm: "record that you unsubscribed from", mail_draft_delete: "discard the draft",
+      mail_rule_add: "add the block rule", mail_rule_remove: "remove the block rule", mail_allow: "mark as never junk:" };
+    const rule = f.rule ? parseRule(f.rule) : null;
+    const obj = f.kind === "mail_unsubscribe" ? f.to : ["mail_block", "mail_unblock", "mail_allow_remove", "mail_unsub_confirm", "mail_allow"].includes(f.kind) ? f.email
+      : rule ? ruleTitle(rule)
+      : f.kind === "mail_empty" ? (f.role === "junk" ? "Junk" : "Trash") : f.kind === "mail_create_folder" ? f.name : f.kind === "mail_folder" ? f.folderLabel || f.folder
       : f.n > 1 ? `${f.n} emails` : f.subject ? `“${f.subject}”` : "";
     return `Your iPhone couldn't ${VERB[f.kind] || "do that"}${obj ? " " + obj : ""}: ${f.msg}`;
   }
@@ -460,16 +661,11 @@
         ...[["INBOX", "Inbox", "tray"], ["@sent", "Sent", "paperplane"], ["@junk", "Junk", "xmark.bin"], ["@trash", "Trash", "trash"]]
           .map(([b, t, ic]) => mi(t, "mail-box", { icon: M.folder === b ? "checkmark" : ic, data: { box: b } })),
         { divider: true }];
+      // every other mailbox (his folders as a tree, with search) lives in the mailbox picker, like Apple Mail's sidebar
+      const here = !boxRole() && M.folder !== "INBOX";
+      out.push(mi("All Mailboxes…", "mail-all-boxes", { icon: here ? "checkmark" : "folder" }));
       if (one) out.push(mi("New folder…", "mail-new-folder", { icon: "folder.badge.plus", data: { acct: one.id } }));
-      out.push(mi("Unsubscribe & block", "mail-subs", { icon: "envelope.badge.shield.half.filled" }), { divider: true });
-      for (const a of X.accounts) {
-        if (one && a.id !== one.id) continue;
-        const fl = X.folders[a.id] || [];
-        out.push({ header: a.label, dot: a.color });
-        out.push(mi("Inbox", "mail-folder", { icon: "tray", data: { acct: a.id, folder: "INBOX" } }));
-        for (const f of fl.filter((f) => f.role && f.role !== "inbox").sort((x, y) => order(x.role) - order(y.role))) out.push(mi(displayName(f.name), "mail-folder", { icon: roleIcon(f.role), data: { acct: a.id, folder: f.name } }));
-        for (const f of fl.filter((f) => !f.role && f.name.toUpperCase() !== "INBOX").sort((x, y) => x.name.localeCompare(y.name))) out.push(mi(f.name, "mail-folder", { icon: "folder", data: { acct: a.id, folder: f.name } }));
-      }
+      out.push({ divider: true }, mi("Junk & Blocking", "mail-subs", { icon: "hand.raised" }));
       return out;
     }
     if (key === "more") {
@@ -477,7 +673,7 @@
       const b = X.bodies[m.id];
       const e = m.from.email.toLowerCase();
       const junk = [...(isInJunk(m) ? [mi("Not Junk", "mail-notjunk", { icon: "tray.and.arrow.up", data: { id: m.id } })]
-          : [mi("Mark as Junk", "mail-junk", { icon: "xmark.bin", data: { id: m.id } }), mi("Junk and block sender", "mail-junk", { icon: "hand.raised", data: { id: m.id, block: 1 } })]),
+          : [mi("Mark as Junk", "mail-junk", { icon: "xmark.bin", data: { id: m.id } }), mi("Block…", "mail-block", { icon: "hand.raised", data: { id: m.id } })]),
         ...(blockedSenders(X).includes(e) ? [mi(`Unblock ${m.from.email}`, "mail-unblock", { icon: "hand.raised.slash", data: { email: e } })] : []),
         ...((m.unsubscribe || "").trim() ? [mi("Unsubscribe", "mail-unsub", { icon: "envelope.badge.shield.half.filled", data: { id: m.id } })] : [])];
       return [...(innerWidth / F.zoomScale() < 380 ? [mi("Reply all", "mail-reply", { icon: "arrowshape.turn.up.left.2", data: { all: 1 } })] : []),
@@ -487,6 +683,14 @@
         mi("Move to…", "mail-move", { icon: "folder", data: { id: m.id } }),
         mi("Make a task", "mail-task", { icon: "checklist", data: { id: m.id } }),
         ...(b?.html ? [mi(M.asText.has(m.id) ? "Show formatted" : "Show plain text", "mail-astext", { icon: "doc.plaintext" })] : [])];
+    }
+    if (key === "sender") {      // the From name in an open email: New Email, Copy Address, Block…, Never Junk
+      const m = X.byId.get(selectedId()); if (!m) return [];
+      const e = m.from.email.toLowerCase(), own = X.accounts.some((a) => a.email.toLowerCase() === e), allowed = allowedSenders(X).includes(e);
+      return [{ header: m.from.email }, mi("New Email", "mail-sender-new", { icon: "square.and.pencil", data: { id: m.id } }),
+        mi("Copy Address", "mail-sender-copy", { icon: "doc.on.doc", data: { email: m.from.email } }),
+        ...(own ? [] : [{ divider: true }, mi("Block…", "mail-block", { icon: "hand.raised", data: { id: m.id } }),
+          allowed ? mi("Never Junk", "mail-allow", { icon: "checkmark", disabled: true }) : mi("Never Junk", "mail-allow", { icon: "person.crop.circle.badge.checkmark", data: { email: e } })])];
     }
     if (key === "filter") {      // CommsView.moreMenu: Apple Mail's filter button + mailbox actions
       const showIcon = (o) => (M.show === o ? "checkmark" : o === "Unread only" ? "envelope.badge" : o === "Flagged only" ? "flag" : "tray.full");
@@ -514,7 +718,7 @@
         mi(th.some((x) => x.flagged) ? "Unflag" : "Flag", "mail-row-flag", { data: { id: m.id } }), mi("Move…", "mail-move", { data: { id: m.id, thread: 1 } }),
         mi("Archive", "mail-row-archive", { data: { id: m.id } }), mi("Make a task", "mail-task", { icon: "checklist", data: { id: m.id, row: 1 } }), { divider: true },
         ...(isInJunk(m) ? [mi("Not Junk", "mail-row-notjunk", { icon: "tray.and.arrow.up", data: { id: m.id } })]
-          : [mi("Mark as Junk", "mail-row-junk", { icon: "xmark.bin", data: { id: m.id } }), mi("Junk and block sender", "mail-row-junk", { icon: "hand.raised", data: { id: m.id, block: 1 } })]),
+          : [mi("Mark as Junk", "mail-row-junk", { icon: "xmark.bin", data: { id: m.id } }), mi("Block…", "mail-block", { icon: "hand.raised", data: { id: m.id } })]),
         ...((m.unsubscribe || "").trim() ? [mi("Unsubscribe", "mail-unsub", { icon: "envelope.badge.shield.half.filled", data: { id: m.id } })] : []),
         mi("Delete", "mail-row-delete", { destructive: true, data: { id: m.id } })];
     }
@@ -627,7 +831,7 @@
       <p class="flow g12 t13 ink2"><span class="h g4"><i class="dot d8" style="background:var(--sec)"></i><b class="ink tnum">${as}</b> by your mail services</span>
         <span class="h g4"><i class="dot d8" style="background:var(--action)"></i><b class="ink tnum">${af}</b> by Friday</span></p>
       <p class="t13 muted">${esc(learn)}</p>
-      ${ui.actbar([ui.btn({ label: "Blocked senders", act: "mail-subs" }), empty])}</div>`;
+      ${ui.actbar([ui.btn({ label: "Block rules", act: "mail-subs" }), empty])}</div>`;
   }
 
   /** Top of Updates / All / Junk: the mailing lists he never opens (a suggestion, nothing pre-picked), and the way in to manage them. */
@@ -639,7 +843,7 @@
         <p class="t13 muted mclamp2">${esc(sugg.slice(0, 3).map((s) => s.name).join(", ") + (sugg.length > 3 ? " and more" : ""))}</p>
         ${ui.actbar([ui.btn({ label: "Review and unsubscribe", kind: "small", cls: "tinted", act: "mail-subs" })])}</div>`;
     }
-    if (M.lane !== "All") return `<div class="mjlink">${ui.btn({ label: "Unsubscribe & block", icon: "envelope.badge.shield.half.filled", kind: "link", act: "mail-subs" })}</div>`;
+    if (M.lane !== "All") return `<div class="mjlink">${ui.btn({ label: "Junk & Blocking", icon: "hand.raised", kind: "link", act: "mail-subs" })}</div>`;
     return "";
   }
 
@@ -777,7 +981,7 @@
       <div class="mact">${actions}</div>
       <div class="mhdr v g8">
         <h2 class="t20 w6 ink wrap msubj">${esc(m.subject)}</h2>
-        ${meta("From", formatAddress(m.from))}${meta("To", m.to.map(display).join(", "))}${m.cc.length ? meta("Cc", m.cc.map(display).join(", ")) : ""}
+        <div class="meta mfromrow"><span class="k">From</span>${trigger("sender", `<span class="v2">${esc(formatAddress(m.from))}</span>`, "msender", `From ${formatAddress(m.from)}. Sender actions`)}</div>${meta("To", m.to.map(display).join(", "))}${m.cc.length ? meta("Cc", m.cc.map(display).join(", ")) : ""}
         ${meta("Date", `${m.date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })} at ${D.time(m.date)}`)}
         ${unsubscribeBanner(X, m)}
         ${b?.attachments?.length ? `<div class="atts" title="Attachments stay on your iPhone">${b.attachments.map((n) => `<span class="att">${icon("paperclip")}<span class="ell">${esc(n)}</span></span>`).join("")}</div>` : ""}
@@ -990,12 +1194,16 @@
     const ask = X.accounts.map((a) => [a.id, X.roleName(a.id, r)]).filter(([id, f]) => f && !X.askedFolder.has(id + "|" + f));
     if (ask.length) quietly(send(ask.map(([accountID, folder]) => ["mail_folder", { accountID, folder }])));
   });
-  F.on("mail-folder", (el) => { const X = X0(); M.menu = null; if (el.dataset.folder === "INBOX") { M.acct = el.dataset.acct; M.folder = "INBOX"; F.render(); } else openFolder(X, el.dataset.acct, el.dataset.folder); });
-  F.on("mail-new-folder", async (el) => {
+  /** Opening a mailbox (browse mode): Inbox of that account, or that folder. */
+  const openBox = (aid, name) => { M.menu = null; if (name.toUpperCase() === "INBOX") { M.acct = aid; M.folder = "INBOX"; M.picked.clear(); F.render(); } else openFolder(X0(), aid, name); };
+  F.on("mail-all-boxes", () => {
+    M.menu = null; F.render();
+    openPicker({ title: "Mailboxes", current: M.acct && !boxRole() ? [M.acct, M.folder] : null, startAccount: M.acct,
+      pick: (a, name, sh) => { sh.close(); openBox(a.id, name); } });
+  });
+  F.on("mail-new-folder", (el) => {
     const X = X0(), a = account(X, el.dataset.acct); M.menu = null; F.render();
-    const r = await F.alert({ title: "New folder", message: `In ${a?.label || ""}`, input: { placeholder: "Folder name" }, buttons: [{ label: "Create", value: true }, { label: "Cancel", kind: "cancel" }] });
-    const n = r?.text?.trim(); if (!n) return;
-    await send([["mail_create_folder", { accountID: a.id, name: n }]], `Your iPhone will create the folder ${n}`);
+    if (a) openNewFolder(a, false, (full) => openBox(a.id, full));
   });
   // ------------------------------------------------------------ picking emails like a desktop mail client
   /** Ranges start here; base = what was already picked, kept when the range grows or shrinks. */
@@ -1322,47 +1530,284 @@
     openTaskSheet(rows);
   });
 
-  // ------------------------------------------------------------ MoveSheet
+  // ------------------------------------------------------------ MailboxPicker (MailboxViews.swift): moving mail, and opening a mailbox
+  /** Recently used Move destinations, per account (newest first), like the Mac's Move-to suggestions. This browser only. */
+  const recentMoves = (aid) => { const l = lsGet("recentMoves", []); return (Array.isArray(l) ? l : []).filter((s) => typeof s === "string" && s.startsWith(aid + "|")).map((s) => s.slice(aid.length + 1)); };
+  const noteRecent = (aid, name) => { const e = aid + "|" + name, l = lsGet("recentMoves", []); lsSet("recentMoves", [e, ...(Array.isArray(l) ? l : []).filter((x) => x !== e)].slice(0, 12)); };
+  /** Which folders he opened in the tree (account id | node path), remembered in this browser. */
+  const treeOpen = new Set((() => { const l = lsGet("treeOpen", []); return Array.isArray(l) ? l.filter((x) => typeof x === "string") : []; })());
+
+  /** Apple Mail's mailbox list: one account at a time with "Accounts" to switch, the special mailboxes on top, then his
+   *  folders as a tree that opens and closes (it remembers what he opened), Recent, and a search box that finds any
+   *  folder by name and shows where it lives.
+   *  o = {title, moving?: [messages] (shown on top; their mailbox marked Current), current?: [accountID, folder] (browse: a check),
+   *       startAccount?, pick(account, folderName, sheet)} */
+  function openPicker(o) {
+    const X = X0(); if (!X || !X.accounts.length) return;
+    const st = { acct: o.startAccount || o.moving?.[0]?.accountID || o.current?.[0] || X.accounts[0].id, query: "", working: false };
+    if (!account(X, st.acct)) st.acct = X.accounts[0].id;
+    const many = () => X0().accounts.length > 1;
+    const moving = o.moving || null;
+    const isCurrent = (a, name) => (moving ? moving.length > 0 && moving.every((m) => m.accountID === a.id && m.folder === name) : !!o.current && o.current[0] === a.id && o.current[1] === name);
+    const parentPath = (f) => { const p = treePath(f).slice(0, -1); return p.length ? p.join(" › ") : null; };
+    const key = (a, n) => a.id + "|" + n.id;
+    // the mailbox he's in (or moving from) always shows: its parents start open
+    const currentInside = (a, n, fl) => {
+      const name = moving?.[0]?.folder ?? o.current?.[1], aid = moving?.[0]?.accountID ?? o.current?.[0];
+      if (!name || aid !== a.id) return false;
+      const f = fl.find((x) => x.name === name); if (!f) return false;
+      const p = treePath(f);
+      return p.length > n.path.length && n.path.every((x, i) => p[i] === x);
+    };
+    const closed = new Set();     // parents of the current mailbox start open; one he closes stays closed while the picker is up
+    const isOpen = (a, n, fl) => !closed.has(key(a, n)) && (treeOpen.has(key(a, n)) || currentInside(a, n, fl));
+    const visible = (ns, a, fl, depth = 0) => ns.flatMap((n) => [[n, depth], ...(isOpen(a, n, fl) ? visible(n.children, a, fl, depth + 1) : [])]);
+
+    const disclosure = (a, n, fl) => !n ? "" : n.children.length
+      ? `<button type="button" class="mbx-disc ${isOpen(a, n, fl) ? "open" : ""}" data-act="mbx-toggle" data-node="${esc(n.id)}" aria-expanded="${isOpen(a, n, fl)}" aria-label="${esc((isOpen(a, n, fl) ? "Close " : "Open ") + n.name)}">${icon("chevron.right")}</button>`
+      : '<span class="mbx-disc" aria-hidden="true"></span>';
+    const indent = (depth) => (depth > 0 ? `<span class="mbx-ind" style="width:${depth * 18}px" aria-hidden="true"></span>` : "");
+    const row = (a, f, label, sub, depth, node, fl) => {
+      const here = isCurrent(a, f.name);
+      return `<div class="mbx-row">${indent(depth)}${disclosure(a, node, fl)}
+        <button type="button" class="mbx-pick" data-act="mbx-pick" data-name="${esc(f.name)}" ${(here && moving) || st.working ? "disabled" : ""}
+          aria-label="${esc(label + (sub ? `, in ${sub}` : "") + (here ? ", current" : ""))}">
+          <span class="mvic ${here ? "faint" : "c-action"}">${icon(roleIcon(f.role || (f.name.toUpperCase() === "INBOX" ? "inbox" : null)))}</span>
+          <span class="v g2 grow mbx-txt"><span class="t16 ${here ? "muted" : "ink"}">${esc(label)}</span>${sub ? `<span class="t12 muted ell">${esc(sub)}</span>` : ""}</span>
+          ${f.pending ? ui.tag("Waiting for iPhone") : ""}
+          ${here ? (moving ? '<span class="t13 muted nowrap">Current</span>' : `<span class="mbx-check c-action">${icon("checkmark")}</span>`) : ""}</button></div>`;
+    };
+    // a parent the server lists only as a path, or one that can't hold mail (\Noselect): it just opens and closes
+    const holderRow = (a, n, depth, fl) => `<div class="mbx-row">${indent(depth)}${disclosure(a, n, fl)}
+      <button type="button" class="mbx-pick holder" data-act="mbx-toggle" data-node="${esc(n.id)}" aria-expanded="${isOpen(a, n, fl)}">
+        <span class="mvic muted">${icon("folder")}</span><span class="t16 ink2 grow mbx-txt">${esc(n.name)}</span></button></div>`;
+    const sec = (head, rows, cls = "") => `<div class="fsec ${cls}">${head ? `<div class="fhead h g8">${head}</div>` : ""}<div class="fgroup">${rows}</div></div>`;
+
+    const movingCard = () => {
+      const m = moving?.[0]; if (!m) return "";
+      const n = moving.length;
+      return `<div class="fgroup"><div class="frow mbx-card" aria-label="${esc(n === 1 ? `Moving: ${m.subject}` : `Moving ${n} emails`)}">
+        <span class="mbx-env" aria-hidden="true">${icon("envelope.fill")}</span>
+        <span class="v g2 grow"><span class="t15 w6 ink ell">${esc(m.from.name || m.from.email)}</span><span class="t13 muted mclamp2">${esc(n === 1 ? m.subject : `${m.subject} and ${n - 1} more`)}</span></span></div></div>`;
+    };
+    const listHTML = () => {
+      const X = X0(), a = account(X, st.acct); if (!a) return "";
+      const fl = X.folders[a.id] || [];
+      const special = specialBoxes(fl), tree = folderTree(fl);
+      const q = st.query.trim();
+      if (q) {
+        const ql = fold(q);
+        const hits = [...special.map((f) => [f, folderTitleOf(f)]), ...allNodes(tree).filter((n) => n.folder).map((n) => [n.folder, n.name])]
+          .filter(([f, label]) => f.selectable && fold(label).includes(ql));
+        return sec(esc(hits.length ? `${hits.length} found` : `No folder named “${q}”`),
+          hits.length ? hits.map(([f, label]) => row(a, f, label, parentPath(f), 0, null, fl)).join("") : `<div class="frow"><span class="t15 muted">Try another name.</span></div>`);
+      }
+      let h = movingCard();
+      const sp = new Set(special.map((f) => f.name));
+      const recent = recentMoves(a.id).map((n) => fl.find((f) => f.name === n && f.selectable)).filter((f) => f && !isCurrent(a, f.name) && !sp.has(f.name)).slice(0, 3);
+      if (recent.length) h += sec("Recent", recent.map((f) => row(a, f, f.displayName, parentPath(f), 0, null, fl)).join(""));
+      h += sec(`<i class="dot d8" style="background:${a.color}"></i>${esc(a.label)}`, special.map((f) => row(a, f, folderTitleOf(f), null, 0, null, fl)).join(""));
+      const rows = visible(tree, a, fl).map(([n, depth]) => (n.folder && n.folder.selectable ? row(a, n.folder, n.name, null, depth, n, fl) : holderRow(a, n, depth, fl))).join("");
+      h += sec(tree.length ? "Folders" : "", rows + `<div class="mbx-row"><button type="button" class="mbx-pick" data-act="mbx-new" ${st.working ? "disabled" : ""}>
+        <span class="mvic c-action">${icon("folder.badge.plus")}</span><span class="t16 c-action grow">${moving ? "New Folder and Move…" : "New Folder…"}</span></button></div>`);
+      if (!fl.length) h += `<p class="t13 muted h g8 px16">${ui.spinner()}<span>Loading folders… They appear once your iPhone sends them.</span></p>`;
+      return h;
+    };
+    const accountsHTML = () => {
+      const X = X0();
+      return `<div class="narrow form">${sec(moving ? "Move to an account" : "Open a mailbox in", X.accounts.map((a) => `<div class="mbx-row"><button type="button" class="mbx-pick" data-act="mbx-acct" data-id="${esc(a.id)}">
+        <i class="dot d12" style="background:${a.color}"></i><span class="v g2 grow mbx-txt"><span class="t16 w6 ink">${esc(a.label)}</span><span class="t13 muted ell">${esc(a.email)}</span></span>
+        <span class="mbx-chev faint">${icon("chevron.right")}</span></button></div>`).join(""))}</div>`;
+    };
+    const body = () => (!account(X0(), st.acct) ? accountsHTML()
+      : `<div class="narrow v g16 mbx">${ui.search("mbx-q", "Search mailboxes", st.query, "mbx-q")}<div class="form" id="mbx-list">${listHTML()}</div></div>`);
+    const sh = F.sheet({
+      title: () => (st.acct ? o.title : "Accounts"),
+      leading: () => (st.acct && many() ? { label: "Accounts", act: "mbx-accounts" } : { label: "Cancel" }),
+      trailing: () => (st.acct && many() ? { label: "Cancel", act: "sheet-close", kind: "secondary" } : null),
+      body, id: "mail-mailboxes" });
+    const redrawList = () => { const l = sh.el.querySelector("#mbx-list"); if (l) l.innerHTML = listHTML(); };
+    sh.el._mbx = {
+      accounts() { st.acct = null; st.query = ""; sh.update(); },
+      acct(el) { st.acct = el.dataset.id; sh.update(); sh.el.querySelector("#mbx-q")?.focus(); },
+      query(el) { st.query = el.value; redrawList(); },
+      toggle(el) {
+        const X = X0(), a = account(X, st.acct); if (!a) return;
+        const fl = X.folders[a.id] || [], n = allNodes(folderTree(fl)).find((x) => x.id === el.dataset.node); if (!n) return;
+        const k = key(a, n);
+        if (isOpen(a, n, fl)) { treeOpen.delete(k); closed.add(k); } else { treeOpen.add(k); closed.delete(k); }
+        lsSet("treeOpen", [...treeOpen]);
+        redrawList();
+        sh.el.querySelector(`[data-act="mbx-toggle"][data-node="${CSS.escape(el.dataset.node)}"]`)?.focus();
+      },
+      pick(el) {
+        if (st.working) return;
+        const a = account(X0(), st.acct); if (!a) return;
+        const name = el.dataset.name;
+        if (name.toUpperCase() !== "INBOX") noteRecent(a.id, name);
+        o.pick(a, name, sh, st);
+      },
+      newFolder() {
+        const a = account(X0(), st.acct); if (!a) return;
+        openNewFolder(a, !!moving, (full) => { noteRecent(a.id, full); o.pick(a, full, sh, st); });
+      },
+    };
+    return sh;
+  }
+  const MB = (el) => el.closest("dialog")?._mbx;
+  F.on("mbx-accounts", (el) => MB(el)?.accounts());
+  F.on("mbx-acct", (el) => MB(el)?.acct(el));
+  F.onInput("mbx-q", (el) => MB(el)?.query(el));
+  F.on("mbx-toggle", (el) => MB(el)?.toggle(el));
+  F.on("mbx-pick", (el) => MB(el)?.pick(el));
+  F.on("mbx-new", (el) => MB(el)?.newFolder());
+
+  /** Move: the picker in moving mode. The toast names the folder the way he sees it ("Moved … to Follow Up"). */
   function openMove(messages, done) {
     if (!messages.length) return;
-    let working = false;
-    const X = X0();
-    const folders = (aid) => {
-      const fl = X.folders[aid] || [];
-      return [{ name: "INBOX", role: "inbox" }, ...fl.filter((f) => f.name.toUpperCase() !== "INBOX").sort((a, b) => ((a.role || "~") + a.name < (b.role || "~") + b.name ? -1 : 1))];
-    };
-    const body = () => `<div class="narrow form">${X.accounts.map((a) => `<div class="fsec"><div class="fhead h g8"><i class="dot d8" style="background:${a.color}"></i>${esc(a.label)}</div><div class="fgroup">
-      ${folders(a.id).map((f) => `<button type="button" class="frow mvrow" data-act="mail-move-to" data-acct="${esc(a.id)}" data-folder="${esc(f.name)}" ${working ? "disabled" : ""}>
-        <span class="mvic">${icon(roleIcon(f.role))}</span><span class="lbl ell">${esc(f.name === "INBOX" ? "Inbox" : displayName(f.name))}</span>
-        ${messages.every((m) => m.accountID === a.id && m.folder === f.name) ? '<span class="t13 muted">Current</span>' : ""}</button>`).join("")}
-      <button type="button" class="frow mvrow c-action" data-act="mail-move-new" data-acct="${esc(a.id)}" ${working ? "disabled" : ""}><span class="mvic c-action">${icon("folder.badge.plus")}</span><span class="lbl">New folder…</span></button></div></div>`).join("")}</div>`;
-    const sh = F.sheet({ title: messages.length === 1 ? "Move email" : `Move ${messages.length} emails`, leading: { label: "Cancel" }, body, id: "mail-move" });
-    const go = async (aid, folder) => {
-      working = true; sh.update();
-      const dest = account(X, aid), same = messages.every((m) => m.accountID === aid);
-      try {
-        await send([["mail_move", { ...ids(messages), folder, accountID: aid }]],
-          `Moved ${what(messages)} to ${folder === "INBOX" ? "Inbox" : folder}` + (same ? "" : ` in ${dest?.label || ""}`));
-        sh.close(); done?.();
-        F.render();
-      } catch { working = false; sh.update(); }
-    };
-    sh.el._mailGo = go;
-    sh.el._mailX = X;
+    openPicker({ title: messages.length === 1 ? "Move email" : `Move ${messages.length} emails`, moving: messages,
+      pick: async (a, folder, sh, st) => {
+        st.working = true; sh.update();
+        const same = messages.every((m) => m.accountID === a.id);
+        try {
+          await send([["mail_move", { ...ids(messages), folder, accountID: a.id }]],
+            `Moved ${what(messages)} to ${folderLabel(X0(), a.id, folder)}` + (same ? "" : ` in ${a.label}`));
+          sh.close(); done?.();
+          F.render();
+        } catch { st.working = false; sh.update(); }
+      } });
   }
-  F.on("mail-move-to", (el) => el.closest("dialog")?._mailGo?.(el.dataset.acct, el.dataset.folder));
-  F.on("mail-move-new", async (el) => {
-    const d = el.closest("dialog");
-    const r = await F.alert({ title: "New folder", input: { placeholder: "Folder name" }, buttons: [{ label: "Create and move", value: true }, { label: "Cancel", kind: "cancel" }] });
-    const n = r?.text?.trim(); if (!n) return;
-    await send([["mail_create_folder", { accountID: el.dataset.acct, name: n }]]);
-    d?._mailGo?.(el.dataset.acct, n);
+
+  /** NewMailboxSheet: a name and where it goes (top level or inside any folder), like Apple Mail's New Mailbox.
+   *  made(fullServerName) runs once the create command is queued. */
+  function openNewFolder(a, moving, made) {
+    const st = { name: "", parent: "", working: false, error: null };
+    const folders = () => (X0()?.folders[a.id] || []);
+    const parents = () => folders().filter((f) => !f.role && f.name.toUpperCase() !== "INBOX" && !f.name.startsWith("[Gmail]"))
+      .sort((x, y) => x.breadcrumb.localeCompare(y.breadcrumb, undefined, { numeric: true, sensitivity: "base" }));
+    const ok = () => !!st.name.trim() && !st.working;
+    const body = () => `<div class="narrow form">
+      ${st.error ? `<div class="fsec" id="nf-err">${ui.errorText(st.error)}</div>` : ""}
+      <div class="fsec"><div class="fhead">Name</div><div class="fgroup"><div class="frow"><input id="nf-name" class="bare" placeholder="Folder name" value="${esc(st.name)}" data-input="nf-name" aria-label="Folder name" autocomplete="off" enterkeyhint="done"></div></div></div>
+      <div class="fsec"><div class="fhead">Location</div><div class="fgroup"><div class="frow"><label class="lbl" for="nf-parent">Inside</label>
+        <select id="nf-parent" class="bare nf-parent" data-change="nf-parent"><option value="">${esc(a.label)} (top level)</option>
+        ${parents().map((f) => `<option value="${esc(f.name)}" ${f.name === st.parent ? "selected" : ""}>${esc(f.breadcrumb)}</option>`).join("")}</select></div></div></div></div>`;
+    const sh = F.sheet({ title: "New Folder", leading: { label: "Cancel" },
+      trailing: () => ({ label: moving ? "Create & Move" : "Create", act: "nf-create", disabled: !ok(), busy: st.working }), body, id: "mail-new-folder" });
+    sh.el.querySelector("#nf-name")?.focus();
+    sh.el._nf = {
+      name(el) { st.name = el.value; st.error = null; sh.el.querySelector("#nf-err")?.remove(); const b = sh.el.querySelector('[data-act="nf-create"]'); if (b) b.disabled = !ok(); },
+      parent(el) { st.parent = el.value; },
+      async create() {
+        if (!ok()) return;
+        const n = st.name.trim(), fl = folders(), parent = fl.find((f) => f.name === st.parent) || null;
+        const full = newFolderName(fl, parent, n);
+        if (fl.some((f) => f.name.toLowerCase() === full.toLowerCase())) { st.error = `There's already a folder named ${n} there.`; sh.update(); return; }
+        st.working = true; sh.update();
+        try {
+          await send([["mail_create_folder", { accountID: a.id, name: n, full, ...(parent ? { parent: parent.name } : {}) }]], moving ? null : `Your iPhone will create the folder ${n}`);
+          sh.close();
+          made?.(full);
+        } catch { st.working = false; st.error = `Couldn't create ${n}. Try again.`; sh.update(); }
+      },
+    };
+    sh.el.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.id === "nf-name" && !e.isComposing) { e.preventDefault(); sh.el._nf.create(); } });
+    return sh;
+  }
+  const NF = (el) => el.closest("dialog")?._nf;
+  F.onInput("nf-name", (el) => NF(el)?.name(el));
+  F.onChange("nf-parent", (el) => NF(el)?.parent(el));
+  F.on("nf-create", (el) => NF(el)?.create());
+
+  // ------------------------------------------------------------ BlockRuleSheet (JunkViews.swift)
+  /** "Block…" on an email (or Add a block rule): pick what to catch — this sender, everyone at their domain, words in the
+   *  subject, words in the sender's name — and where it goes (Junk or Trash). Shows how many inbox emails match now;
+   *  the iPhone moves those too as soon as he taps Block. */
+  function openBlock(m) {
+    if (!X0()) return;
+    const st = { kind: "sender", values: {}, trash: false, error: null };
+    if (m) {
+      const e = m.from.email.toLowerCase(), at = e.lastIndexOf("@");
+      st.values = { sender: e, domain: at >= 0 ? e.slice(at + 1) : "", subject: m.subject || "", name: m.from.name || "" };
+    }
+    const cur = () => makeRule(st.kind, st.values[st.kind] || "", st.trash);
+    const countText = () => {
+      const r = cur(), X = X0(), n = X && ruleValid(r) ? ruleMatching(X, r).length : 0;
+      return n === 0 ? "Nothing in your inbox matches right now. Every new email that does is caught as it arrives."
+        : (n === 1 ? "1 email in your inbox matches now. It moves" : `${n} emails in your inbox match now. They move`) + " as soon as you tap Block, and every new one is caught as it arrives.";
+    };
+    const radio = (on) => `<span class="mbl-radio ${on ? "on" : ""}" aria-hidden="true">${icon(on ? "largecircle.fill.circle" : "circle")}</span>`;
+    const kindRow = (k) => {
+      const on = st.kind === k, v = st.values[k], K = RULE_KINDS[k];
+      const type = k === "sender" ? 'type="email" inputmode="email" autocapitalize="none"' : k === "domain" ? 'type="text" inputmode="url" autocapitalize="none"' : 'type="text" autocapitalize="sentences"';
+      return `<button type="button" class="frow mvrow mbl-kind" data-act="mbl-kind" data-kind="${k}" role="radio" aria-checked="${on}">${radio(on)}
+          <span class="v g2 grow"><span class="t16 ink">${esc(K.label)}</span>${!on && v ? `<span class="t13 muted ell">${esc(v)}</span>` : ""}</span></button>
+        ${on ? `<div class="frow mbl-field"><input id="mbl-in" class="mbl-input" ${type} autocomplete="off" spellcheck="false" placeholder="${esc(K.hint)}" value="${esc(v || "")}" data-input="mbl-val" aria-label="${esc(K.label)}"></div>` : ""}`;
+    };
+    const choice = (trash, t, ic, sub) => `<button type="button" class="frow mvrow mbl-kind" data-act="mbl-dest" data-trash="${trash ? 1 : 0}" role="radio" aria-checked="${st.trash === trash}">${radio(st.trash === trash)}
+        <span class="mvic">${icon(ic)}</span><span class="v g2 grow"><span class="t16 ink">${esc(t)}</span><span class="t13 muted">${esc(sub)}</span></span></button>`;
+    const body = () => `<div class="narrow form mblock">
+      ${st.error ? `<div class="fsec" id="mbl-err">${ui.errorText(st.error)}</div>` : ""}
+      <div class="fsec"><div class="fhead">What to block</div><div class="fgroup" role="radiogroup" aria-label="What to block">${Object.keys(RULE_KINDS).map(kindRow).join("")}</div></div>
+      <div class="fsec"><div class="fhead">Send it to</div><div class="fgroup" role="radiogroup" aria-label="Send it to">
+        ${choice(false, "Move to Junk", "xmark.bin", "You can still look at it there")}${choice(true, "Delete it (Trash)", "trash", "Straight to Trash, never seen")}</div>
+        <p class="ffoot" id="mbl-count" aria-live="polite">${esc(countText())}</p></div></div>`;
+    const sh = F.sheet({ title: "Block", leading: { label: "Cancel" }, trailing: () => ({ label: "Block", act: "mbl-save", disabled: !ruleValid(cur()) }), body, id: "mail-block" });
+    const focusField = () => { const i = sh.el.querySelector("#mbl-in"); if (i) { i.focus(); try { i.setSelectionRange(i.value.length, i.value.length); } catch {} } };
+    if (!m) focusField();
+    const live = () => {
+      const c = sh.el.querySelector("#mbl-count"); if (c) c.textContent = countText();
+      const b = sh.el.querySelector('[data-act="mbl-save"]'); if (b) b.disabled = !ruleValid(cur());
+    };
+    sh.el._block = {
+      kind(el) { st.kind = el.dataset.kind; st.error = null; sh.update(); if (!m || st.kind === "subject" || st.kind === "name") focusField(); },
+      dest(el) { st.trash = el.dataset.trash === "1"; sh.update(); },
+      val(el) { st.values[st.kind] = el.value; if (st.error) { st.error = null; sh.el.querySelector("#mbl-err")?.remove(); } live(); },
+      async save() {
+        const X = X0(), r = cur(); if (!X) return;
+        const p = ruleProblem(X, r);
+        if (p) { st.error = p; sh.update(); return; }
+        const hits = ruleMatching(X, r), n = hits.length;
+        sh.close();
+        if (hits.some((x) => x.id === selectedId())) closeMessage();
+        const where = r.trash ? "Trash" : "Junk";
+        await send([["mail_rule_add", { rule: ruleCode(r), now: true }]], n ? `Moved ${n === 1 ? "1 email" : `${n} emails`} to ${where}` : `Blocked: ${ruleTitle(r)}`,
+          async (cs) => {
+            // not carried out yet: take the request back (nothing moved); already done: the rule comes off (moved mail stays where it went)
+            const applied = new Set(F.snap()?.applied || []), waiting = cs.filter((c) => !applied.has(c.id)).map((c) => c.id);
+            if (waiting.length) { await F.writeSection("queue", (v) => (v || []).filter((c) => !waiting.includes(c.id))); F.render(); return; }
+            await send([["mail_rule_remove", { rule: ruleCode(r) }]], "Block rule removed");
+          }).catch(() => {});
+      },
+    };
+    sh.el.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.id === "mbl-in" && !e.isComposing) { e.preventDefault(); if (ruleValid(cur())) sh.el._block.save(); } });
+    return sh;
+  }
+  const BL = (el) => el.closest("dialog")?._block;
+  F.on("mbl-kind", (el) => BL(el)?.kind(el));
+  F.on("mbl-dest", (el) => BL(el)?.dest(el));
+  F.onInput("mbl-val", (el) => BL(el)?.val(el));
+  F.on("mbl-save", (el) => BL(el)?.save());
+  F.on("mail-block", (el) => { const X = X0(), m = X?.byId.get(el.dataset.id); closeMenus(); if (m) openBlock(m); });
+  // the sender menu (From in an open email)
+  F.on("mail-sender-new", (el) => { const X = X0(), m = X?.byId.get(el.dataset.id); M.menu = null; F.render(); if (m) openCompose({ accountID: m.accountID, to: formatAddress(m.from) + ", " }); });
+  F.on("mail-sender-copy", (el) => {
+    const e = el.dataset.email; M.menu = null; F.render();
+    const done = () => F.toast(`Copied ${e}`);
+    // older copy route for browsers (or embedded views) that refuse the Clipboard API
+    const fallback = () => {
+      const t = document.createElement("textarea"); t.value = e; t.setAttribute("readonly", ""); t.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+      document.body.appendChild(t); t.select(); let ok = false; try { ok = document.execCommand("copy"); } catch {} t.remove();
+      if (ok) done(); else F.toast(`Couldn't copy. The address is ${e}`);
+    };
+    try { navigator.clipboard.writeText(e).then(done, fallback); } catch { fallback(); }
   });
+  F.on("mail-allow", (el) => { const e = el.dataset.email; closeMenus(); if (e) return send([["mail_allow", { email: e }]], `${e} will never go to Junk`); });
 
   // ------------------------------------------------------------ SubscriptionsView (every mailing list, mass unsubscribe; blocked senders)
   function openSubscriptions() {
     if (!X0()) { F.toast("Open F.R.I.D.A.Y. on your iPhone first; it sends your email here."); return; }
-    const st = { page: "Subscriptions", query: "", picked: new Set(), alsoJunk: false, alsoBlock: false, running: false, progress: 0, total: 0, results: [] };
+    const st = { page: "Block rules", query: "", picked: new Set(), alsoJunk: false, alsoBlock: false, running: false, progress: 0, total: 0, results: [] };
     const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
     const subs = (X) => { const q = st.query.trim().toLowerCase(); return subscriptions(X).filter((s) => !q || s.name.toLowerCase().includes(q) || s.email.includes(q)); };
     const subRow = (X, s) => {
@@ -1390,19 +1835,23 @@
           : `<div class="frow"><span class="t15 muted">${esc(st.query.trim() ? `No sender matches “${st.query.trim()}”.` : "No mailing lists in your recent mail.")}</span></div>`}</div>
         <p class="ffoot">Only senders that offer an unsubscribe are listed. Nothing is picked for you; tap the ones you want gone.</p></div>`;
     };
+    /** SubscriptionsView's "Block rules" page: every rule (mailJunkRules + mailBlocked), Add a block rule, and Never junk. */
     const blockedHTML = (X) => {
-      const bl = blockedSenders(X), al = allowedSenders(X);
-      const row = (e, label, act) => `<div class="frow"><span class="lbl t15 ink ell">${esc(e)}</span>${ui.btn({ label, kind: "small", act, data: { email: e } })}</div>`;
-      return `<div class="fsec"><div class="fgroup">${bl.length ? bl.map((e) => row(e, "Unblock", "subs-unblock")).join("")
-          : `<div class="frow"><span class="t15 muted">Nobody is blocked. Use Junk and block sender on an email, or block a sender in Subscriptions.</span></div>`}</div>
-        <p class="ffoot">Mail from blocked senders goes straight to Junk on every device. "Not Junk" on any of their emails unblocks them.</p></div>
-        ${al.length ? `<div class="fsec"><div class="fhead">Never junk</div><div class="fgroup">${al.map((e) => row(e, "Remove", "subs-forget")).join("")}</div>
-          <p class="ffoot">Senders you marked Not Junk. They are never blocked.</p></div>` : ""}`;
+      const rs = junkRules(X), al = allowedSenders(X);
+      const ruleRow = (r) => `<div class="frow mrule"><span class="mvic ${r.trash ? "c-danger" : "c-action"}">${icon(RULE_KINDS[r.kind].icon)}</span>
+        <span class="v g2 grow mrule-txt"><span class="t15 w6 ink">${esc(ruleTitle(r))}</span><span class="t12 muted">${r.trash ? "Goes to Trash" : "Goes to Junk"}</span></span>
+        <button type="button" class="mrule-rm" data-act="subs-rule-rm" data-rule="${esc(ruleCode(r))}" aria-label="${esc("Remove the rule: " + ruleTitle(r))}" title="Remove">${icon("minus.circle.fill")}</button></div>`;
+      return `<div class="fsec"><div class="fhead">Your block rules</div><div class="fgroup">
+          <button type="button" class="frow mvrow c-action" data-act="subs-add-rule"><span class="mvic c-action">${icon("plus.circle.fill")}</span><span class="lbl w6">Add a block rule</span></button>
+          ${rs.length ? rs.map(ruleRow).join("") : `<div class="frow"><span class="t15 muted mrule-empty">Nothing is blocked yet. Block a sender, a whole domain, or any email whose subject or sender name has words you choose. On any email, tap ⋯ then Block.</span></div>`}</div>
+        <p class="ffoot">Your rules run on every email that arrives, on every device. Junk keeps it where you can look; Trash deletes it. "Not Junk" on an email always lets that sender through.</p></div>
+        ${al.length ? `<div class="fsec"><div class="fhead">Never junk</div><div class="fgroup">${al.map((e) => `<div class="frow"><span class="lbl t15 ink mrule-txt">${esc(e)}</span>${ui.btn({ label: "Remove", kind: "small", act: "subs-forget", data: { email: e }, aria: `Remove ${e} from Never junk` })}</div>`).join("")}</div>
+          <p class="ffoot">Senders you marked Not Junk. No rule or filter ever catches them.</p></div>` : ""}`;
     };
     const body = () => {
       const X = X0(); if (!X) return "";
       return `<div class="narrow v g16">
-        <div class="v g8">${ui.seg("subs-page", ["Subscriptions", "Blocked"], st.page)}
+        <div class="v g8">${ui.seg("subs-page", ["Block rules", "Subscriptions"], st.page)}
           ${st.page === "Subscriptions" ? ui.search("subs-q", "Search senders", st.query, "subs-q") : ""}</div>
         <div class="form" id="subs-list">${st.page === "Subscriptions" ? listHTML(X) : blockedHTML(X)}</div></div>`;
     };
@@ -1423,7 +1872,7 @@
         <label class="h g8 subtog"><span class="t15 ink grow">Send anything they mail later to Junk</span>${ui.switch("", st.alsoBlock, "subs-alsoblock")}</label>
         ${ui.btn({ label: `Unsubscribe from ${st.picked.size}`, kind: "primary", wide: true, act: "subs-run" })}</div>`;
     };
-    const sh = F.sheet({ title: "Subscriptions & junk", trailing: { label: "Done", act: "sheet-close" }, body, foot, id: "mail-subs" });
+    const sh = F.sheet({ title: "Junk & Blocking", trailing: { label: "Done", act: "sheet-close" }, body, foot, id: "mail-subs" });
     sh.refresh = () => { if (!st.running) sh.update(); };
     const redraw = () => sh.update();
 
@@ -1493,6 +1942,13 @@
   F.on("subs-block", (el) => { const X = X0(); if (X) return block(X, [el.dataset.email]); });
   F.on("subs-unblock", (el) => unblock([el.dataset.email]));
   F.on("subs-forget", (el) => forgetAllowed(el.dataset.email));
+  F.on("subs-add-rule", () => openBlock(null));
+  /** A sender that goes to Junk lives in mailBlocked (mail_unblock); every other rule in mailJunkRules (mail_rule_remove). */
+  F.on("subs-rule-rm", (el) => {
+    const r = parseRule(el.dataset.rule); if (!r) return;
+    if (r.kind === "sender" && !r.trash) return send([["mail_unblock", { email: r.value }]], `Unblocked ${r.value}`);
+    return send([["mail_rule_remove", { rule: ruleCode(r) }]], `Removed: ${ruleTitle(r)}`);
+  });
 
   // ------------------------------------------------------------ ComposeView ("Nothing is sent until you tap Send")
   function openCompose(input = {}) {
