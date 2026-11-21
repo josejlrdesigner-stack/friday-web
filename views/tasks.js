@@ -773,7 +773,14 @@
   }
   F.on("tk-week", (el) => { const d = +el.dataset.dir; T.week = d === 0 ? D.weekStart(new Date()) : D.add(T.week, 7 * d); F.render(); });
   F.on("tk-roles", () => openRolesSheet());
-  F.on("tk-rock-del", (el) => updateWeek(T.week, (w) => { w.rocks = w.rocks.filter((r) => r.id !== el.dataset.id); }));
+  // deleting the weekly self-renewal keystone marks the week like the apps do, so no app puts it back (Jose 11-20)
+  F.on("tk-rock-del", (el) => save((p) => {
+    const k = weekKey(T.week), w = normWeek(p.weeks[k]);
+    const gone = w.rocks.find((r) => r.id === el.dataset.id);
+    w.rocks = w.rocks.filter((r) => r.id !== el.dataset.id);
+    if (gone && p.profile?.keystone && gone.title === p.profile.keystone) w.keystoneDismissed = true;
+    p.weeks[k] = w;
+  }));
   F.on("tk-saw-done", (el) => updateWeek(T.week, (w) => { w.sawDone[el.dataset.dim] = !w.sawDone[el.dataset.dim]; }));
   F.onChange("tk-saw", (el) => updateWeek(T.week, (w) => { w.saw[el.dataset.dim] = el.value; }).catch((e) => F.toast(F.friendly(e.message))));
   F.onSubmit("tk-rockadd", async (f, form) => {
