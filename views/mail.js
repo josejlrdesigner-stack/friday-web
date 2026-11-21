@@ -77,7 +77,7 @@
   /** The mail commands to lay over friday-mail.json, oldest first: queued, being written, or applied but not yet in the
    *  mail file. A command withdrawn from the queue (Undo) or one the iPhone couldn't do (snapshot.failed) isn't laid over. */
   function mailCommands() {
-    const raw = F.S.payload?.queue?.value || [], mailAt = F.mail()?.at || 0, now = F.nowSec();
+    const raw = F.S.payload?.queue?.value || [], md0 = F.mail() || {}, mailAt = md0.fresh || md0.at || 0, now = F.nowSec();   // fresh = when that copy's mail was really checked (11-20)
     const s = F.snap(), applied = new Set(s?.applied || []), failed = s?.failed || {};
     const live = new Set([...raw, ...M.local].map((c) => c.id));
     let dirty = false;
