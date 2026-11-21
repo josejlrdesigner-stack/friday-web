@@ -36,12 +36,12 @@
       ${ui.label2("Your planner")}
       <p class="t15 ink2">${esc(setUp ? "Values, roles, goals and focus time live in the Organizer." : "Your planner isn't set up yet. Six quick questions, about three minutes.")}</p>
       ${ui.actbar([ui.btn({ label: setUp ? "Redo the 6 questions" : "Set up my planner", kind: "small", cls: setUp ? "" : "tinted", act: "set-setup", data: { mode: "diagnostic" } }),
-        ui.btn({ label: "Pick a starter profile", kind: "small", act: "set-setup", data: { mode: "starter" } }),
+        ui.btn({ label: "Starter profile", kind: "small", act: "set-setup", data: { mode: "starter" } }),
         ui.btn({ label: "Organizer", icon: "target", kind: "small", act: "set-organizer" })])}
       <hr class="set-div">
       <div class="h g16 set-toggle">
         <label class="v g2 grow" for="set-ritual"><span class="t15 w6 ink">Morning ritual</span>
-          <span class="t13 muted">Once a day after 4 am: your Act As line, 90-day goal, A1 and streak.</span></label>
+          <span class="t13 muted">Once a day, the first time you open F.R.I.D.A.Y. after 4 am: your Act As line, your 90-day goal, today's A1 and your planning streak.</span></label>
         ${ui.btn({ label: "Show now", kind: "small", act: "set-ritual-now" })}
         <span class="switch"><input id="set-ritual" type="checkbox" role="switch" data-change="set-ritual" ${F.prefs().ritualOff === "1" ? "" : "checked"}></span>
       </div>
@@ -69,7 +69,7 @@
     return `<div class="set-col set-grid">
       ${!s ? `<div class="card attention set-warn h top g8">${F.icon("exclamationmark.triangle.fill")}<p class="t15 ink">Your iPhone hasn't sent anything yet. Open F.R.I.D.A.Y. on your iPhone and sign in to sync.</p></div>` : ""}
       ${plannerSection()}
-      ${card({ icon: "calendar", title: "Calendar", ok: !!access.calendar, status: access.calendar ? "Connected · all your Apple calendars" : "Not connected",
+      ${card({ icon: "calendar", title: "Calendar", ok: !!access.calendar, status: access.calendar ? (!cals.length ? "Your Apple calendars" : shown === cals.length ? `All ${cals.length} calendars shown` : `${shown} of ${cals.length} calendars shown`) : "Not connected",
         content: access.calendar
           ? ui.actbar([ui.btn({ kind: "small", labelHTML: `${F.icon("calendar")}Choose calendars${shown < cals.length ? ` <span class="set-count">${shown}/${cals.length}</span>` : ""}`, act: "set-calendars", aria: `Choose calendars, ${shown} of ${cals.length} shown` })])
           : iphoneNote("Allow calendar access in F.R.I.D.A.Y. on your iPhone.") })}
@@ -83,7 +83,7 @@
       ${card({ icon: "cpu", title: "Friday: dates, signature, memory", ok: true, tag: "iPhone and iPad",
         status: "Talking with Friday is on your iPhone and iPad", content: ui.actbar([ui.btn({ label: "Friday settings", kind: "small", act: "set-friday" })]) })}
       ${card({ icon: "arrow.triangle.2.circlepath", title: "Sync: iPhone, iPad and website", ok: true,
-        status: `Signed in · ${synced ? "synced " + synced : "waiting"}${from ? " · from " + from : ""}`,
+        status: `Signed in${F.S.user ? " as " + F.S.user : ""} · ${synced ? "synced " + synced : "waiting"}`,
         content: ui.actbar([ui.btn({ label: "Sync settings", kind: "small", act: "set-sync" })]) })}
       ${updateCard()}
     </div>`;
@@ -168,7 +168,7 @@
 
   // ------------------------------------------------------------ Sync across devices (SyncSetupView, the signed-in half)
   function openSync() {
-    const s = F.sheet({ title: "Sync across devices", trailing: { label: "Done", act: "sheet-close" }, body: syncBody, id: "sync" });
+    const s = F.sheet({ title: "Sync devices", trailing: { label: "Done", act: "sheet-close" }, body: syncBody, id: "sync" });
     s.refresh = () => s.update();
   }
   function syncBody() {
@@ -178,7 +178,7 @@
     return `<div class="narrow form">
       <div class="fsec"><div class="fhead">Your iPhone, iPad and website</div>
         <div class="fgroup">
-          <div class="frow"><span class="lbl">Signed in as</span><span class="val">${F.DEMO ? "Demo" : "This browser"}</span></div>
+          <div class="frow"><span class="lbl">Signed in as</span><span class="val">${esc(F.DEMO ? "Demo" : F.S.user || "This browser")}</span></div>
           <div class="frow"><span class="lbl">Last sync</span><span class="val">${esc(last)}</span></div>
           <div class="frow"><span class="lbl">From your phone</span><span class="val">${snap ? esc(`${snap.device || "iPhone"}, ${D.ago(new Date(snap.at * 1000))}`) : "Not yet"}</span></div>
           ${F.S.error ? `<div class="frow">${ui.errorText(F.friendly(F.S.error))}</div>` : ""}

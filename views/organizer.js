@@ -344,7 +344,7 @@
     const out = [
       ["Values", pr.values.map((v) => ({ key: "v:" + v, text: v }))],
       ["Roles", pr.roles.map((r) => ({ key: "r:" + r, text: r }))],
-      ["Mission, Act As and goal", [{ key: "m", text: pr.mission, note: "Mission" }, { key: "a", text: pr.actAs, note: "Act As card" }, { key: "g", text: pr.goal, note: "Long-range goal" }]],
+      ["Mission, Compass and goal", [{ key: "m", text: pr.mission, note: "Mission" }, { key: "a", text: pr.actAs, note: "Compass" }, { key: "g", text: pr.goal, note: "Long-range goal" }]],
       ["This week's Big Rocks", Object.keys(pr.rocks).sort().map((k) => ({ key: "k:" + k, text: pr.rocks[k], note: k }))],
     ];
     if (pr.starter.length) out.push(["Tasks for today (optional)", pr.starter.slice(0, 3).map((t, i) => ({ key: "t:" + t, text: t, note: ["A1", "B1", "C1"][i] }))]);
@@ -456,7 +456,7 @@
     return `<div class="v g16">
       <div class="v g8"><h2 class="t24 w6 ink">Here's your planner</h2><p class="t15 ink2">Built from your answers. Uncheck anything that doesn't fit; change any of it later in Tasks › Organizer.</p></div>
       ${checklist("Governing values", r.values, W.keepValues, "v")}
-      ${block("Act As card", `<textarea id="setup-actas" class="org-ta actas" rows="2" data-grow="4" data-input="setup-actas" placeholder="I act as…" aria-label="Act As card">${esc(r.actAs)}</textarea>`)}
+      ${block("Compass", `<textarea id="setup-actas" class="org-ta actas" rows="2" data-grow="4" data-input="setup-actas" placeholder="I act as…" aria-label="Compass">${esc(r.actAs)}</textarea>`)}
       ${checklist("Weekly Compass roles", r.roles, W.keepRoles, "r")}
       ${block("Self-renewal keystone", !r.keystone ? '<p class="t15 muted">Nothing picked; you can add one later.</p>'
         : `<p class="t16 w6 ink">${esc(r.keystone)}</p>${toggle(`Add it as a weekly Big Rock and a repeating to-do: ${r.keystoneTask}`, W.addKeystone, "setup-flag", { k: "addKeystone" })}`)}
@@ -491,7 +491,7 @@
         + summaryRow("gearshape", "Redo these questions", "Settings › Your planner."), "g12")}
     </div>`;
   }
-  const finishFooter = () => ui.actbar([ui.btn({ label: "Look around first", act: "sheet-close" }), ui.btn({ label: "Open the Organizer", icon: "target", act: "setup-organizer" }),
+  const finishFooter = () => ui.actbar([ui.btn({ label: "Look around", act: "sheet-close" }), ui.btn({ label: "Organizer", act: "setup-organizer" }),
       ui.btn({ label: "Plan my day now", icon: "arrow.right", kind: "primary", act: "setup-planday" })], true);
 
   F.on("setup-later", () => W?.api.close());
@@ -589,7 +589,7 @@
   const BACKUP_KEY = "friday.plannerBackup";
   const readBackup = () => { try { return localStorage.getItem(BACKUP_KEY); } catch { return null; } };
   function resetButtonHTML() {
-    return `<div class="v g8">${ui.actbar([readBackup() ? ui.btn({ label: "Restore my last backup", kind: "small", act: "org-restore" }) : "", ui.btn({ label: "Start from zero", kind: "destructive", cls: "small", act: "org-reset" })])}
+    return `<div class="v g8">${ui.actbar([readBackup() ? ui.btn({ label: "Restore backup", kind: "small", act: "org-restore" }) : "", ui.btn({ label: "Start from zero", kind: "destructive", cls: "small", act: "org-reset" })])}
       <p class="t13 muted">Clears values, roles, goals, Big Rocks and setup answers, including anything a starter profile added. Your to-dos and calendar events stay. A backup is saved first.</p></div>`;
   }
   let RS = null;
@@ -628,15 +628,19 @@
   F.on("org-restore", async () => {
     const b = readBackup(); if (!b) return;
     let p; try { p = norm(JSON.parse(b)); } catch { return; }
+    const ok = await F.alert({ title: "Restore your last backup?", message: "It replaces your values, roles, goals and Big Rocks with the backup. Your planner as it is now is backed up first. To-dos and calendar events aren't touched.",
+      buttons: [{ label: "Restore backup", value: true }, { label: "Keep my planner as it is", kind: "cancel" }] });
+    if (!ok) return;
+    try { localStorage.setItem(BACKUP_KEY, JSON.stringify(data())); } catch {}   // the planner as it is now, first (PlannerReset)
     await save((x) => { for (const k of Object.keys(x)) delete x[k]; Object.assign(x, p); });
     await F.setPref("plannerSetupDone", p.values.length || p.roles.length ? "1" : "0");
-    F.toast("Your planner is back the way it was before the reset.");
+    F.toast("Restored. Your planner from just before this was backed up too.");
     H && hDraw();
   });
 
   // ================================================================ F.openOrganizer — OrganizerHubView + OrganizerModuleView
   const MODULES = [
-    { key: "values", name: "Values & Mission", icon: "heart", why: "What matters most, your mission and your Act As card. The top of the pyramid." },
+    { key: "values", name: "Values & Mission", icon: "heart", why: "What matters most, your mission and your standing Compass. The top of the pyramid." },
     { key: "goals", name: "Goals", icon: "flag", why: "Where you're headed: long-range goals (1 to 5 years) and the milestones that get you there. Tap any line to change it." },
     { key: "roles", name: "Roles & Weekly Compass", icon: "person.2", why: "The hats you wear and this week's Big Rocks for each one." },
     { key: "matrix", name: "Time Matrix", icon: "square.grid.2x2", why: "Sort work by urgent and important so Quadrant II gets your best time." },
@@ -678,7 +682,7 @@
     return `<section class="card org-block ${setUp ? "" : "edge-friday"}">
       ${ui.label2(setUp ? "Start over or add more" : "Start here", setUp ? "" : "friday")}
       <p class="t15 ink2">${setUp ? "Answer the 6 questions again, add from a ready-made profile, or start from zero." : "Set up your planner first: six quick questions, about three minutes. Or pick a ready-made profile."}</p>
-      ${ui.actbar([ui.btn({ label: "Pick a starter profile", kind: "small", act: "org-quick", data: { m: "starter" } }),
+      ${ui.actbar([ui.btn({ label: "Starter profile", kind: "small", act: "org-quick", data: { m: "starter" } }),
         ui.btn({ label: setUp ? "Redo the 6 questions" : "Start the 6 questions", kind: "small", cls: setUp ? "" : "tinted", act: "org-quick", data: { m: "diagnostic" } })])}
       ${setUp || readBackup() ? `<hr class="org-div">${resetButtonHTML()}` : ""}</section>`;
   }
@@ -695,8 +699,10 @@
   }
   function status(m, p) {
     switch (m.key) {
-      case "values": return !p.values.length ? "Not set yet · start here" : `${p.values.length} values · ${p.mission ? "mission set" : "no mission yet"} · ${p.actAs ? "Act As set" : "no Act As card"}`;
-      case "goals": return !p.longGoals.length && !p.midGoals.length ? "No goals yet · tap to add one" : `${p.longGoals.length} goals · ${p.midGoals.length} milestones`;
+      case "values": return !p.values.length ? "Not set yet · start here" : `${p.values.length} values · ${p.mission ? "mission set" : "no mission yet"} · ${p.actAs ? "Compass set" : "no standing Compass"}`;
+      case "goals": { const nd = p.midGoals.filter((g) => g.done).length;
+        return !p.longGoals.length && !p.midGoals.length ? "No goals yet · tap to add one"
+          : `${p.longGoals.length} goal${p.longGoals.length === 1 ? "" : "s"} · ${p.midGoals.length} milestone${p.midGoals.length === 1 ? "" : "s"}` + (nd ? ` (${nd} done)` : ""); }
       case "roles": return !p.roles.length ? "No roles yet" : `${p.roles.length} roles · ${week(p).rocks.length} Big Rocks this week`;
       case "matrix": {
         const open = openTodos(), sorted = open.filter((t) => t.fc.quadrant != null), q2 = sorted.filter((t) => t.fc.quadrant === 2).length;
@@ -766,15 +772,15 @@
       + section("Governing values", (p.values.length ? "" : '<p class="t15 muted">None yet. Add one, or tap an idea below.</p>')
         + p.values.map((v) => `<div class="org-rrow top"><div class="v g4 grow">
             <textarea id="org-v-${v.id}" class="input org-fb w6" rows="1" data-grow="3" placeholder="Value" aria-label="Value" data-change="org-gf" data-path="values.${v.id}.title">${esc(v.title)}</textarea>
-            <input id="org-vd-${v.id}" class="input org-fb ink2" value="${esc(v.detail || "")}" placeholder="What it means to you (optional)" aria-label="What it means to you" data-change="org-gf" data-path="values.${v.id}.detail" autocomplete="off"></div>
+            <input id="org-vd-${v.id}" class="input org-fb ink2" value="${esc(v.detail || "")}" placeholder="What it means to you" aria-label="What it means to you" data-change="org-gf" data-path="values.${v.id}.detail" autocomplete="off"></div>
           <button type="button" class="btn icon org-trash" data-act="org-del-value" data-id="${v.id}" aria-label="${esc("Delete " + v.title)}">${icon("trash")}</button></div>`).join("")
         + addField("org-add-value", "Add a value", "value")
         + `<div class="flow">${VALUE_IDEAS.filter((i) => !p.values.some((v) => v.title === i)).map((i) => ui.btn({ label: i, icon: "plus", kind: "small", act: "org-idea", data: { v: i } })).join("")}</div>`,
         "Two to five things you'd never trade away. When a day gets crowded, these decide what stays.")
-      + section("Standing Act As card", `<textarea id="org-actas" class="input org-fb actas" rows="2" data-grow="4" data-change="org-field" data-f="actAs" placeholder="I act as…" aria-label="Standing Act As card">${esc(p.actAs)}</textarea>`,
-        "Shows at the top of every day unless you write a different one that morning.")
+      + section("Standing Compass", `<textarea id="org-actas" class="input org-fb actas" rows="2" data-grow="4" data-change="org-field" data-f="actAs" placeholder="I act as…" aria-label="Standing Compass">${esc(p.actAs)}</textarea>`,
+        "Your Compass for every week you don't write a new one. Leave it empty and Friday writes one each week from your roles, values and the week ahead.")
       + `<button type="button" class="plain card org-mcard press" data-act="org-module" data-m="goals"><span class="org-tile">${icon("flag")}</span>
-          <span class="v g4 grow"><span class="t-card-title">Goals</span><span class="t13 muted">${p.longGoals.length} goals · ${p.midGoals.length} milestones</span></span>${icon("chevron.right", 'class="chev"')}</button>`;
+          <span class="v g4 grow"><span class="t-card-title">Goals</span><span class="t13 muted">${esc(status({ key: "goals" }, p))}</span></span>${icon("chevron.right", 'class="chev"')}</button>`;
   }
   /** Goals: long-range goals + milestones. Every line is a field (tap and type); link, target, done, delete. */
   function goalsModule() {
@@ -836,7 +842,13 @@
               <span class="t15 grow ${k.done ? "muted strike" : "ink"}">${esc(k.title)}</span>
               ${k.scheduled ? ui.tag("Scheduled", "done") : ui.btn({ label: "Block time", kind: "small", act: "org-block-time", data: { id: k.id } })}</div>`).join("")}
             ${rocks.length < 2 ? addField(`org-add-rock-${role.id}`, `Big Rock for ${role.name}`, "rock", { role: role.id }) : ""}</div>`;
-        }).join("") + (p.roles.length ? "" : '<p class="t15 muted">Add a role first; each role gets its own Big Rocks.</p>'),
+        }).join("") + (() => {
+          // Big Rocks whose role was removed (or never had one) still show, so nothing disappears
+          const loose = w.rocks.filter((k) => !p.roles.some((r) => r.id === k.roleID));
+          return loose.length ? `<div class="v g4"><span class="t13 w6 muted">Unassigned</span>${loose.map((k) => `<div class="h g8 org-rock"><button type="button" class="check ${k.done ? "on" : ""}" data-act="org-rock-done" data-id="${k.id}" aria-label="${esc((k.done ? "Done: " : "Mark done: ") + k.title)}"><i></i></button>
+              <span class="t15 grow ${k.done ? "muted strike" : "ink"}">${esc(k.title)}</span>
+              ${k.scheduled ? ui.tag("Scheduled", "done") : ui.btn({ label: "Block time", kind: "small", act: "org-block-time", data: { id: k.id } })}</div>`).join("")}</div>` : "";
+        })() + (p.roles.length ? "" : '<p class="t15 muted">Add a role first; each role gets its own Big Rocks.</p>'),
         "One or two per role. Block time for them first, before the week fills up.")
       + section("Sharpen the saw", SAW.map((dim, i) => `<div class="v g4"><label class="t13 w6 muted" for="org-saw-${i}">${esc(dim)}</label>
           <input id="org-saw-${i}" class="input org-fb" type="text" placeholder="This week's renewal" value="${esc(w.saw[dim] || "")}" data-change="org-saw" data-dim="${esc(dim)}"></div>`).join(""),
@@ -973,7 +985,7 @@
         + toggle("Batch & triage", E.batchOn, "org-e-flag", { k: "batchOn" }) + toggle("Low-energy window for C tasks", E.cOn, "org-e-flag", { k: "cOn" })
         + `<div><button type="button" class="btn primary" data-act="org-e-apply" ${E.busy ? "disabled" : ""}>${E.busy ? ui.spinner() : ""}Update my calendar</button></div>`
         + (H.saved ? `<p class="t13 c-done">${esc(H.saved)}</p>` : "")
-        + (calAccess() ? "" : '<p class="t13 c-attention">Calendar access is off; allow it to add these blocks.</p>')
+        + (calAccess() ? "" : '<p class="t13 c-attention">Calendar access is off. Blocks you save wait here and go on your calendar as soon as you allow it.</p>')
         + '<p class="t13 muted">Only the blocks Friday made are changed; your own events are never touched.</p>');
   }
   F.onChange("org-e-time", (el) => { const c = parseHM(el.value); if (c) H.energy[el.dataset.k] = c; });

@@ -165,12 +165,12 @@
         const pr = p.profile || {};
         free = (weekend ? 360 : 600) - meetings;
         if (!weekend) {
-          const buf = pr.bufferMinutes ?? 90; free -= buf; reasons.push(`${hm(buf)} crisis buffer`);
+          const buf = pr.bufferMinutes ?? 90; free -= buf; reasons.push(`${hm(buf)} kept open for the unexpected`);
           const batch = (pr.batchTimes || ["16:30"]).length * 30; if (batch > 0) { free -= batch; reasons.push(`${hm(batch)} for messages`); }
         }
         const life = p.roles.map((r) => r.name).filter((n) => LIFE.test(n));
-        if (life.length) { free -= life.length * 30; reasons.push(`${hm(life.length * 30)} for ${life.slice(0, 3).join(", ")}${life.length > 3 ? "…" : ""}`); }
-      } else { basis = "standard"; free = (weekend ? 300 : 480) - meetings - 90; reasons.push("90 min for home, family and the unexpected"); }
+        if (life.length) { free -= life.length * 30; reasons.push(`${hm(life.length * 30)} for ${life.slice(0, 3).join(", ").toLowerCase()}${life.length > 3 ? "…" : ""}`); }
+      } else { basis = "standard"; free = (weekend ? 300 : 480) - meetings - 90; reasons.push(`${hm(90)} for home, family and rest`); }
       free = Math.max(free, 60);
     }
     const weekend = [0, 6].includes(day.getDay());
@@ -301,13 +301,37 @@
     await F.cmd("forward_todos", { ids: [t.id], due: to ? D.key(to) : null, keepLetter: !!(to && isToday(to)) }, `Forwarded to ${whereTo}: ${t.title}`);
     await log(`→ ${t.title} to ${whereTo}`, day);
   }
+  /** DelegateSheet: who has it, and when to follow up (that becomes the due date; two days out unless he picks). Resolves {who, followUp} or null. */
+  function delegateSheet(title, name = "") {
+    return new Promise((resolve) => {
+      let result = null;
+      const def = D.key(D.add(today0(), 2)), minK = D.key(today0());
+      const s = F.sheet({
+        title: "Delegate", leading: { label: "Cancel" }, trailing: { label: "Save", act: "tk-sheet-primary" }, size: "pick",
+        body: `<div class="narrow v g16">
+          <div class="v g8">${ui.label2(title)}<div class="tk-card"><div class="frow"><input id="dg-who" class="bare" placeholder="Who has it?" value="${esc(name)}" autocomplete="name"></div></div></div>
+          <div class="v g8"><div class="tk-card"><label class="frow h g8"><span class="t15 ink grow">Follow up on</span><input id="dg-date" type="date" class="input" style="max-width:180px" value="${def}" min="${minK}"></label></div>
+          <p class="t13 muted">It moves to that day's page as your follow-up, marked D.</p></div></div>`,
+        onClose: () => resolve(result),
+      });
+      s.onPrimary = () => {
+        const who = trim(s.el.querySelector("#dg-who")?.value);
+        if (!who) { s.el.querySelector("#dg-who")?.focus(); return; }
+        result = { who, followUp: D.parse(s.el.querySelector("#dg-date")?.value) || D.parse(def) };
+        s.close();
+      };
+      s.el.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.id === "dg-who") { e.preventDefault(); s.onPrimary(); } });
+      setTimeout(() => s.el.querySelector("#dg-who")?.focus(), 0);
+    });
+  }
+  async function saveDelegate(t, who, followUp, toast) {
+    await F.cmd("update_todo", { todoID: t.id, hasDue: true, due: D.key(followUp), fc: fullFC({ ...t.fc, delegate: who, inProgress: false }) }, toast);
+  }
   async function delegate(t, day) {
-    const r = await F.alert({ title: "Delegated to", message: "Who has it? The due date becomes your follow-up date.", input: { placeholder: "Name", value: t.fc.delegate || "" },
-      buttons: [{ label: "Save", value: "save" }, { label: "Cancel", kind: "cancel" }] });
-    const who = trim(r?.text);
-    if (!r || !who) return;
-    await F.cmd("set_franklin", { todoID: t.id, meta: fullFC({ ...t.fc, delegate: who, inProgress: false }) }, `Delegated to ${who}: ${t.title}`);
-    await log(`D ${t.title} → ${who}`, day);
+    const r = await delegateSheet(t.title, t.fc.delegate || "");
+    if (!r) return;
+    await saveDelegate(t, r.who, r.followUp, `Delegated to ${r.who}: ${t.title}. Follow up ${D.short(r.followUp)}.`);
+    await log(`D ${t.title} → ${r.who}`, day);
   }
   async function confirmDelete(t, day) {
     const ok = await F.alert({ title: `Delete "${t.title}"?`, message: "No longer needed. It's logged in today's record.",
@@ -460,10 +484,10 @@
       ${overloadBanner(day)}
       <div class="tk-pair">
       <button type="button" class="plain card actas press" data-act="tk-actas" aria-description="Edit your Compass">
-        ${ui.compass(a, { label: pday(p, day).actAs != null ? `Compass · ${today ? "today" : dayWord(day)}` : F.compassSuggested(p, day) ? "Compass · suggested" : "Compass · this week",
+        ${ui.compass(a, { label: pday(p, day).actAs != null ? `Compass · ${today ? "today" : dayWord(day)}` : F.compassSuggested(p, day) ? "Compass · this week · suggested" : "Compass · this week",
                           placeholder: "Tap to write this week's Compass: one sentence about how you'll show up." })}</button>
       ${aMeter(list, day)}</div>
-      ${canClose ? ui.actbar([ui.btn({ label: "Close out day", icon: "checklist.checked", act: "tk-closeout" })]) : ""}
+      ${canClose ? ui.actbar([ui.btn({ label: "Close out", icon: "checklist.checked", act: "tk-closeout" })]) : ""}
     </div>`;
     const groups = ["A", "B", "C", ""].map((letter) => {
       const g = list.filter((t) => (t.fc?.letter || "") === letter);
@@ -487,9 +511,15 @@
   F.editCompass = (d) => editCompass(d || new Date());      // the Organizer's Roles & Weekly Compass page uses it too
   async function editCompass(day) {
     const sug = pweek(P(), day).suggestedCompass || "";
-    const r = await F.alert({ title: "Compass", message: "Your north star for the week, from your roles: who you're being, in the present tense." + (sug ? ` Friday's suggestion: “${sug}”` : ""),
-      input: { placeholder: "I act as…", value: actAs(P(), day) },
-      buttons: [{ label: "Save for this week", value: "week" }, { label: `Just for ${dayWord(day)}`, value: "day" }, { label: "Cancel", kind: "cancel" }] });
+    const weekLabel = (t) => (t.trim() ? "Save for this week" : "Use Friday's suggestion");
+    const start = actAs(P(), day);
+    const pending = F.alert({ title: "Compass", message: "Your north star for the week, from your roles: who you're being, in the present tense." + (sug ? ` Friday's suggestion: \u201C${sug}\u201D` : ""),
+      input: { placeholder: "I act as…", value: start },
+      buttons: [{ label: weekLabel(start), value: "week" }, { label: `Just for ${isToday(day) ? "today" : D.wd(day)}`, value: "day" }, { label: "Cancel", kind: "cancel" }] });
+    // the app's main button reads "Use Friday's suggestion" while the line is empty, "Save for this week" once he types
+    const dlg = [...document.querySelectorAll("dialog.alert")].pop(), ta = dlg?.querySelector("textarea"), wb = dlg?.querySelector('[data-i="0"]');
+    if (ta && wb) ta.addEventListener("input", () => { wb.textContent = weekLabel(ta.value); });
+    const r = await pending;
     if (!r) return;
     const text = String(r.text || "").trim();
     if (r.value === "day") { if (text) await updateDay(day, (x) => { x.actAs = text; }); }
@@ -504,7 +534,7 @@
   }
   function aMeter(list, day) {
     const as = list.filter((t) => t.fc?.letter === "A"), done = as.filter((t) => t.done).length;
-    return `<div class="tk-card tk-ameter sec-health">${meter(`A's done · ${dayWord(day)}`, done, as.length, `No A's planned for ${dayWord(day)} yet. Mark the must-dos A.`, `${done} of ${as.length} A tasks done ${dayWord(day)}`)}</div>`;
+    return `<div class="tk-card tk-ameter sec-health">${meter("A's done", done, as.length, `No A's planned for ${dayWord(day)} yet. Mark the few that matter most as A.`, `${done} of ${as.length} A tasks done ${dayWord(day)}`)}</div>`;
   }
   /** A's planned this week (open ones due this week, plus the ones finished on each day so far) and how many are done. */
   function weekAs(wk) {
@@ -521,7 +551,7 @@
     const rd = w.rocks.filter((r) => r.done).length;
     const body = w.rocks.length
       ? `<div class="tk-meter sec-health"><span class="chart-l"><span class="big">${rd} of ${w.rocks.length}</span><span class="t13 w6 ink2">done</span></span>${ui.pbar(rd, w.rocks.length, `${rd} of ${w.rocks.length} Big Rocks done this week`)}</div>` + w.rocks.map((r) => `<div class="tk-row rock">${ui.check(r.done, "tk-rock-done", { id: r.id, wk: weekKey(day) }, r.title)}
-          <div class="v g4 grow"><span class="t15 ${r.done ? "muted strike" : "ink"}">${esc(r.title)}</span>${roleName(p, r.roleID) ? `<span>${ui.roleTag(roleName(p, r.roleID))}</span>` : ""}</div>
+          <div class="v g4 grow"><span class="t15 ${r.done ? "muted strike" : "ink"}">${esc(r.title)}</span>${roleName(p, r.roleID) ? `<span>${ui.roleTag(roleName(p, r.roleID))}</span>` : '<span class="t13 muted">No role</span>'}</div>
           ${r.scheduled ? ui.tag("Scheduled", "done") : r.done ? "" : small("Block time", "tk-rock-block", { id: r.id, wk: weekKey(day) })}</div>`).join("")
       : `<div class="tk-row v g12 top pad"><p class="t-secondary">No Big Rocks yet this week. They're the one or two important things per role that you schedule first.</p>
           ${ui.actbar([ui.btn({ label: "Set this week's Big Rocks", icon: "mountain.2", kind: "small", cls: "tinted", act: "tk-goweek" })])}</div>`;
@@ -574,7 +604,10 @@
     const entries = pday(p, day).record;
     const rows = entries.map((r, i) => `<div class="tk-row top rec"><span class="t13 muted rectime">${esc(D.time(D.fromRef(r.time)))}</span><span class="t15 ink grow wrap">${esc(r.text)}</span>
       <button type="button" class="btn icon rdel" data-act="tk-rec-del" data-i="${i}" aria-label="Delete this entry">${icon("trash")}</button></div>`).join("");
-    return sec(ui.label2("Daily record of events"), rows + addRow("record:" + D.key(day), "Log a call, decision or commitment", "tk-record"));
+    const today = isToday(day);
+    return sec(ui.label2("Daily record of events"), rows + (!entries.length && !today ? textRow(`Nothing was logged on ${dayWord(day)}.`) : "")
+      + (today ? addRow("record:" + D.key(day), "Log a call, decision or commitment", "tk-record") : ""),
+      { foot: today ? "" : "The record is what happened each day. Add to it on today's page." });
   }
   F.onSubmit("tk-record", async () => { const t = takeDraft("record:" + D.key(T.day)); if (t) await log(t, T.day); });
   F.on("tk-rec-del", (el) => updateDay(T.day, (x) => { x.record.splice(+el.dataset.i, 1); }));
@@ -582,27 +615,33 @@
   // ------------------------------------------------------------ OverloadBanner + MoveTasksSheet
   function nudgeHidden() { try { return Date.now() / 1000 <= +(localStorage.getItem("friday.capacityNudgeHiddenUntil") || 0); } catch { return false; } }
   function basisLine(e) {
-    if (e.basis === "profile") return "Based on your planner profile and your calendar.";
-    if (e.basis === "pace") return e.pace ? `Based on your own pace: you finish about ${Math.round(e.pace)} a day. Setting up your planner makes this more accurate.` : "Based on your own pace. Setting up your planner makes this more accurate.";
-    return "Based on a standard day with your calendar. Setting up your planner makes this more accurate.";
+    if (e.basis === "profile") return "Based on your planner profile, your calendar and whether each to-do is work or home.";
+    if (e.basis === "pace" && e.pace) return `Based on your calendar, whether each to-do is work or home, and your pace (about ${Math.round(e.pace)} done a day). Setting up your planner makes this more accurate.`;
+    return "Based on your calendar and whether each to-do is work or home. Setting up your planner makes this more accurate.";
   }
+  let showWhy = false;   // OverloadBanner: one line up front, the full reasoning one tap away
   function overloadBanner(day) {
     if (day < today0()) return "";
     const e = estimate(day);
-    if (!e.overloaded && !e.tooManyAs) return "";
+    // over full = more minutes than the day has (the Day load ring's test), never a bare count
+    const mt = meetingMinutes(day), over = e.overloaded && (mt + e.needed) > Math.max(60, e.free + mt);
+    if (!over && !e.tooManyAs) return "";
     return `<div class="card attention p16 v g8 overload">
-      <span class="h g8 t16 w6 c-attention">${icon("exclamationmark.triangle.fill", 'style="width:18px;height:18px;flex:none"')}${esc(e.overloaded ? `${dayName(day)} looks overloaded` : "A lot of A's")}</span>
-      ${e.overloaded ? `<p class="t15 ink">${esc([
+      <span class="h g8 t16 w6 c-attention">${icon("exclamationmark.triangle.fill", 'style="width:18px;height:18px;flex:none"')}${esc(over ? `${dayName(day)} looks overloaded` : "A lot of A's")}</span>
+      <p class="t15 ink">${esc(over ? `About ${e.fits} of ${e.tasks.length} fit. Move the rest so today stays doable.` : `${e.aCount} are marked A. Make some of them B so the real A's get your best hours.`)}</p>
+      ${showWhy ? `<div class="v g4">${over ? `<p class="t15 ink2">${esc([
         e.workOver ? `Work: ${e.workCount} to-do${e.workCount === 1 ? "" : "s"}, about ${hm(e.workNeeded)}, with about ${hm(e.workFree)} open around meetings.` : "",
         e.homeOver ? `Home: ${e.homeCount} to-do${e.homeCount === 1 ? "" : "s"}, about ${hm(e.homeNeeded)}, with about ${hm(e.homeFree)} once family time is set aside.` : "",
         `About ${e.fits} of ${e.tasks.length} fit${e.reasons.length ? " around " + e.reasons.join(", ") : ""}. The rest tend to roll over.`].filter(Boolean).join(" "))}</p>` : ""}
-      ${e.tooManyAs ? `<p class="t15 ink">${esc(`${e.aCount} are marked A. A's are the few that truly must happen today; consider making some of them B.`)}</p>` : ""}
-      <p class="t13 muted">${esc(basisLine(e))}</p>
+      <p class="t13 muted">${esc(basisLine(e))}</p></div>` : ""}
+      <div>${ui.btn({ label: showWhy ? "Hide why" : "Why?", kind: "link", act: "tk-why" })}</div>
       ${ui.actbar([e.basis !== "profile" && !nudgeHidden() ? ui.btn({ label: "Not now", kind: "small", act: "tk-nudge-hide" }) : "",
         e.basis !== "profile" && !nudgeHidden() ? ui.btn({ label: "Set up my planner", kind: "small", act: "tk-setup" }) : "",
-        e.overloaded ? ui.btn({ label: "Pick what to move", kind: "small", cls: "tinted", act: "tk-move" }) : ""])}</div>`;
+        over ? ui.btn({ label: "Pick what to move", kind: "small", cls: "tinted", act: "tk-move" }) : ""])}</div>`;
   }
+  F.on("tk-why", () => { showWhy = !showWhy; F.render(); });
   F.on("tk-move", () => openMoveTasks(T.day));
+  F.openLighten = (key) => openMoveTasks(D.parse(key) || today0());   // the Brief's "Lighten my day"
   F.on("tk-setup", () => (F.openPlannerSetup ? F.openPlannerSetup() : F.openOrganizer?.()));
   F.on("tk-nudge-hide", () => { try { localStorage.setItem("friday.capacityNudgeHiddenUntil", String(Date.now() / 1000 + 7 * 86400)); } catch {} F.render(); });
 
@@ -641,7 +680,7 @@
       if (!target || !picked.size) return;
       const n = picked.size, t = target;
       s.close();
-      await F.cmd("forward_todos", { ids: [...picked], due: D.key(t) }, `Moved ${n} to ${D.wd(t)}.`);
+      await F.cmd("forward_todos", { ids: [...picked], due: D.key(t), keepLetter: true }, `Moved ${n} to-do${n === 1 ? "" : "s"} to ${D.wd(t)}.`);
     };
   }
   /** DiagnosticChip: a tappable answer chip, neutral when off, raised with a check when on. */
@@ -652,19 +691,22 @@
   function openCloseOut(dayKey) {
     const day = D.parse(dayKey) || today0();
     const tasks = dayTasks(day).filter((t) => !t.done);
-    const handled = {};
+    const handled = {}, dlg = {};
     const nextDay = max(D.add(D.start(day), 1), D.add(today0(), 1));
     const MARKS = [["✓", "Completed"], ["→", "Forward to tomorrow"], ["•", "In progress"], ["D", "Delegate"], ["✗", "Delete"]];
     const s = F.sheet({
       title: isToday(day) ? "Close out today" : `Close out ${D.md(day)}`,
-      leading: { label: "Close" }, trailing: { label: "Done", act: "tk-sheet-primary" },
+      leading: { label: "Cancel" }, trailing: { label: "Done", act: "tk-sheet-primary" },
       body: () => `<div class="narrow v g16">
         <div class="tk-card"><div class="tk-row pad"><p class="t15 ink2">Give every task a mark: ✓ done, → forward, • in progress, D delegated, ✗ deleted. Each mark saves right away.</p></div></div>
         <div class="tk-card">${tasks.map((t) => `<div class="tk-row v g8 top pad co">
             <div class="h g8 fill">${priorityBadge(t.fc)}<span class="t15 ink grow">${esc(t.title)}</span>${handled[t.id] ? `<span class="t17 w7 ${handled[t.id] === "✓" ? "c-done" : handled[t.id] === "✗" ? "c-danger" : "ink2"}">${esc(handled[t.id])}</span>` : ""}</div>
+            ${handled[t.id] === "D" && dlg[t.id] ? `<p class="t13 ink2">${esc(`With ${dlg[t.id].who} · follow up ${D.short(dlg[t.id].followUp)}`)}</p>` : ""}
             <div class="comarks">${MARKS.map(([sym, label]) => `<button type="button" class="btn ${sym === "✗" ? "destructive" : ""}" data-x="mark" data-sym="${esc(sym)}" data-id="${esc(t.id)}" aria-label="${esc(label)}">${esc(sym)}</button>`).join("")}</div></div>`).join("")
           || `<div class="tk-row"><p class="t15 c-done">Everything on this page is closed out.</p></div>`}</div></div>`,
-      foot: '<p class="t13 muted center">Anything left unmarked is forwarded to tomorrow when you tap Done.</p>',
+      foot: `<p class="t13 muted center">${esc(F.prefs().closeOutForwardRest !== "0"
+        ? `Anything left unmarked is forwarded to ${D.same(nextDay, D.add(today0(), 1)) ? "tomorrow" : D.wd(nextDay)} when you tap Done.`
+        : "Anything left unmarked stays where it is.")}</p>`,
     });
     let busy = false;
     s.el.addEventListener("click", async (ev) => {
@@ -673,9 +715,8 @@
       busy = true;
       try {
         if (sym === "D") {
-          const r = await F.alert({ title: "Delegated to", message: "Who has it? It stays on your list as a follow-up.", input: { placeholder: "Name" }, buttons: [{ label: "Save", value: "save" }, { label: "Cancel", kind: "cancel" }] });
-          const who = trim(r?.text);
-          if (r && who) { await F.cmd("set_franklin", { todoID: t.id, meta: fullFC({ ...t.fc, delegate: who }) }); handled[t.id] = "D"; s.update(); await log(`D ${t.title} → ${who}`, day); }
+          const r = await delegateSheet(t.title, dlg[t.id]?.who || t.fc.delegate || "");
+          if (r) { await saveDelegate(t, r.who, r.followUp); handled[t.id] = "D"; dlg[t.id] = r; s.update(); await log(`D ${t.title} → ${r.who}`, day); }
           return;
         }
         if (sym === "✓") await F.cmd("complete_todo", { todoID: t.id });
@@ -708,7 +749,7 @@
     const later = open.filter((t) => t.due && t.due >= tomorrow).sort((a, b) => a.due - b.due);
     const gc = (l) => open.filter((t) => t.fc?.letter === l && !t.due).length;
     const row = (t) => franklinRow(t, t.due ? D.start(t.due) : today0(), gc,
-      { trailing: !t.due || !isToday(t.due) ? ui.btn({ label: "Today", kind: "small", act: "tk-totoday", data: { id: t.id }, aria: `Put ${t.title} on today's list` }) : "" });
+      { trailing: !t.due || !isToday(t.due) ? ui.btn({ label: "Put on today", kind: "small", act: "tk-totoday", data: { id: t.id }, aria: `Put ${t.title} on today's list` }) : "" });
     return `<div class="tk-list tk-cols">
       ${sec(ui.label2("Master task list · no date yet"), undated.map(row).join("") || textRow("Nothing waiting without a date."), { foot: "Pull items onto a day when you plan. Forwarded items land here when you choose \"Master list\"." })}
       ${sec(ui.label2("Coming up"), later.map(row).join("") || textRow("Nothing scheduled after today."))}</div>`;
@@ -752,8 +793,8 @@
         ${ui.compass(F.compassFor({ ...p, days: {} }, wk), { label: String(w.compass || "").trim() ? "Compass · this week" : w.suggestedCompass ? "Compass · suggested" : "Compass",
                           placeholder: "Tap to write this week's Compass: who you're being across your roles." })}</button>
       ${(() => { const rd = w.rocks.filter((r) => r.done).length, a = weekAs(wk);
-        return `<div class="tk-card tk-meters two sec-health">${meter("Big Rocks done", rd, w.rocks.length, "No Big Rocks yet this week. Add one or two for each role below.", `${rd} of ${w.rocks.length} Big Rocks done this week`)}
-          ${meter("A's done this week", a.done, a.total, "No A tasks planned this week yet.", `${a.done} of ${a.total} A tasks done this week`)}</div>`; })()}</div>`;
+        return `<div class="tk-card tk-meters two sec-health">${meter("Big Rocks", rd, w.rocks.length, "No Big Rocks this week yet. Add one or two per role below.", `${rd} of ${w.rocks.length} Big Rocks done this week`)}
+          ${meter("A's done", a.done, a.total, "No A's planned this week yet. Plan a day and mark what matters most as A.", `${a.done} of ${a.total} A tasks done this week`)}</div>`; })()}</div>`;
     const roles = p.roles.map((role) => {
       const rocks = w.rocks.filter((r) => r.roleID === role.id);
       const rows = rocks.map((r) => `<div class="tk-row rock">${ui.check(r.done, "tk-rock-done", { id: r.id, wk: weekKey(wk) }, r.title)}
@@ -766,10 +807,16 @@
       const mini = rocks.length >= 2 ? `<span class="sp"></span><span class="rk-mini">${ui.pbar(rn, rocks.length, `${role.name}: ${rn} of ${rocks.length} Big Rocks done`, "sm", rc ? `linear-gradient(90deg, ${rc.fill}, ${rc.next})` : "")}<span class="t12 w7 ink2 num">${rn}/${rocks.length}</span></span>` : "";
       return sec(`<span class="h g8 ${F.roleClass(role.name)}"><span class="role-dot"></span>${ui.label2(role.name, "role-l")}</span>${mini}`, rows + add);
     }).join("");
+    // Big Rocks whose role was removed (or never had one) still show, so nothing disappears
+    const loose = w.rocks.filter((r) => !p.roles.some((x) => x.id === r.roleID));
+    const unassigned = loose.length ? sec(ui.label2("Unassigned"), loose.map((r) => `<div class="tk-row rock">${ui.check(r.done, "tk-rock-done", { id: r.id, wk: weekKey(wk) }, r.title)}
+        <span class="t15 grow ${r.done ? "muted strike" : "ink"}">${esc(r.title)}</span>
+        <button type="button" class="btn icon rdel" data-act="tk-rock-del" data-id="${esc(r.id)}" aria-label="${esc("Remove " + r.title)}">${icon("trash")}</button></div>`).join(""),
+      { foot: "These have no role. Delete them with the … button, or add a role and plan them again." }) : "";
     const saw = sec(ui.label2("Sharpen the saw · renew yourself", "lwrap"), SAW.map((dim) => `<div class="tk-row rock">${ui.check(!!w.sawDone[dim], "tk-saw-done", { dim }, dim)}
         <label class="v g2 grow"><span class="t13 w6 muted">${esc(dim)}</span><input id="tk-saw-${esc(dim.replace(/\W+/g, ""))}" class="bare t15" placeholder="This week's renewal" value="${esc(w.saw[dim] || "")}" data-change="tk-saw" data-dim="${esc(dim)}" autocomplete="off"></label></div>`).join(""),
       { foot: "One small thing this week for each part of you: body, mind, heart and spirit." });
-    return `<div class="tk-list tk-cols">${head}${roles}${saw}</div>`;
+    return `<div class="tk-list tk-cols">${head}${roles}${unassigned}${saw}</div>`;
   }
   F.on("tk-week", (el) => { const d = +el.dataset.dir; T.week = d === 0 ? D.weekStart(new Date()) : D.add(T.week, 7 * d); F.render(); });
   F.on("tk-roles", () => openRolesSheet());
@@ -797,18 +844,23 @@
     const del = (coll, id, what) => `<button type="button" class="btn icon rdel" data-act="tk-pf-del" data-coll="${coll}" data-id="${esc(id)}" aria-label="${esc("Delete " + what)}">${icon("trash")}</button>`;
     const values = p.values.map((v) => `<div class="tk-row top"><div class="v g4 grow">${fld(`values.${v.id}.title`, v.title, "Value", "t15 w6", 1)}${fld(`values.${v.id}.detail`, v.detail || "", "What it means to you", "t15 ink2", 1)}</div>${del("values", v.id, v.title)}</div>`).join("");
     const longs = p.longGoals.map((g) => `<div class="tk-row top"><div class="v g8 grow">${fld(`longGoals.${g.id}.title`, g.title, "Goal", "t15 w6", 1)}
-        <div class="h g8"><button type="button" class="plain linktag" data-act="tk-linkval" data-id="${esc(g.id)}">${ui.tag(valueName(p, g.valueID) ? "← " + valueName(p, g.valueID) : "Link a value")}</button>${fld(`longGoals.${g.id}.target`, g.target || "", "Target year", "t13 tk-when")}</div></div>${del("longGoals", g.id, g.title)}</div>`).join("");
+        <div class="h g8"><button type="button" class="plain linktag" data-act="tk-linkval" data-id="${esc(g.id)}">${ui.tag(valueName(p, g.valueID) ? "Serves: " + valueName(p, g.valueID) : "Link to a value")}</button>${fld(`longGoals.${g.id}.target`, g.target || "", "Target year", "t13 tk-when")}</div></div>${del("longGoals", g.id, g.title)}</div>`).join("");
     const mids = p.midGoals.map((g) => { const parent = p.longGoals.find((x) => x.id === g.parentID);
       return `<div class="tk-row top">${ui.check(!!g.done, "tk-mid-done", { id: g.id }, g.title)}<div class="v g8 grow">${fld(`midGoals.${g.id}.title`, g.title, "Milestone", "t15 w6", 1)}
-        <div class="h g8"><button type="button" class="plain linktag" data-act="tk-linkgoal" data-id="${esc(g.id)}">${ui.tag(parent ? "← " + parent.title : "Link a goal")}</button>${fld(`midGoals.${g.id}.target`, g.target || "", "By when", "t13 tk-when")}</div></div>${del("midGoals", g.id, g.title)}</div>`; }).join("");
+        <div class="h g8"><button type="button" class="plain linktag" data-act="tk-linkgoal" data-id="${esc(g.id)}">${ui.tag(parent ? "Toward: " + parent.title : "Link to a goal")}</button>${fld(`midGoals.${g.id}.target`, g.target || "", "By when", "t13 tk-when")}</div></div>${del("midGoals", g.id, g.title)}</div>`; }).join("");
     // Tasks › Goals (his word): goals first, then what they serve. Every line is a tinted field: tap and type.
     return `<div class="tk-list tk-cols">
-      ${sec(ui.label2("Long-range goals"), longs + addRow("long", "Add a goal", "tk-pfadd", { coll: "longGoals" }), { foot: "One to five years out. Tap a goal to change its words; link it to the value it serves." })}
-      ${sec(ui.label2("Milestones"), mids + addRow("mid", "Add a milestone", "tk-pfadd", { coll: "midGoals" }), { foot: "Steps this year, quarter or month toward a goal. Check one off when it's done." })}
-      ${sec(ui.label2("Mission"), `<div class="tk-row">${fld("mission", p.mission, "What matters most, in a sentence or two", "t15", true)}</div>`)}
-      ${sec(ui.label2("Governing values"), values + addRow("value", "Add a governing value", "tk-pfadd", { coll: "values" }))}
-      ${sec(ui.label2("Standing Compass"), `<div class="tk-row">${fld("actAs", p.actAs, "I act as…", "t15", true)}</div>`, { foot: "Your Compass for every week you don't write a new one. Leave it empty and Friday writes one each week from your roles, values and the week ahead." })}</div>`;
+      ${sec(ui.label2("Long-range goals"), (longs || textRow("None yet. Add your first goal below.")) + addRow("long", "Add a goal", "tk-pfadd", { coll: "longGoals" }), { foot: "One to five years out. Tap a goal to change its words; link it to the value it serves." })}
+      ${sec(ui.label2("Milestones"), (mids || textRow("None yet. Add a milestone below.")) + addRow("mid", "Add a milestone", "tk-pfadd", { coll: "midGoals" }), { foot: "Steps this year, quarter or month toward a goal. Check one off when it's done." })}
+      ${sec(ui.label2("Mission"), `<div class="tk-row">${fld("mission", p.mission, "Who you want to be", "t15", true)}</div>`, { foot: "A sentence or two about who you want to be, built from your values." })}
+      ${sec(ui.label2("Governing values"), (values || textRow("None yet. Add one, or tap an idea below.")) + addRow("value", "Add a value", "tk-pfadd", { coll: "values" })
+        + (() => { const ideas = VALUE_IDEAS.filter((i) => !p.values.some((v) => v.title === i)); return ideas.length ? `<div class="tk-row"><div class="flow">${ideas.map((i) => ui.btn({ label: i, icon: "plus", kind: "small", act: "tk-value-idea", data: { title: i } })).join("")}</div></div>` : ""; })(),
+        { foot: "Two to five things you'd never trade away. When a day gets crowded, these decide what stays." })}
+      ${sec(ui.label2("Standing Compass"), `<div class="tk-row">${fld("actAs", p.actAs, "I act as…", "t15", true)}</div>`, { foot: "Your Compass for every week you don't write a new one. Leave it empty and Friday writes one each week from your roles, values and the week ahead." })}
+      <p class="t13 muted">Daily tasks connect upward through their role and goal tags.</p></div>`;
   }
+  const VALUE_IDEAS = ["Family comes first", "Health and energy", "Integrity", "Keep learning", "Faith", "Financial security"];
+  F.on("tk-value-idea", (el) => save((p) => { if (!p.values.some((v) => v.title === el.dataset.title)) p.values.push({ id: F.uuid(), title: el.dataset.title, detail: "" }); }));
   F.onChange("tk-pf", (el) => {
     const [coll, id, field] = el.dataset.path.split(".");
     save((p) => { if (!id) p[coll] = el.value; else { const x = p[coll].find((y) => y.id === id); if (x) x[field] = el.value; } }).catch((e) => F.toast(F.friendly(e.message)));
@@ -822,13 +874,13 @@
   F.on("tk-linkval", (el) => {
     const p = P(), g = p.longGoals.find((x) => x.id === el.dataset.id); if (!g) return;
     const set = (v) => save((q) => { const x = q.longGoals.find((y) => y.id === g.id); if (x) { if (v) x.valueID = v; else delete x.valueID; } });
-    menu(el, [{ items: [...(p.values.length ? [] : [{ label: "Add a value above first", note: true }]), ...p.values.map((v) => ({ label: v.title, run: () => set(v.id) })),
+    menu(el, [{ items: [...(p.values.length ? [] : [{ label: "Add a value first", note: true }]), ...p.values.map((v) => ({ label: v.title, run: () => set(v.id) })),
       ...(g.valueID ? [{ label: "Unlink", danger: true, run: () => set(null) }] : [])] }]);
   });
   F.on("tk-linkgoal", (el) => {
     const p = P(), g = p.midGoals.find((x) => x.id === el.dataset.id); if (!g) return;
     const set = (v) => save((q) => { const x = q.midGoals.find((y) => y.id === g.id); if (x) { if (v) x.parentID = v; else delete x.parentID; } });
-    menu(el, [{ items: [...(p.longGoals.length ? [] : [{ label: "Add a long-range goal above first", note: true }]), ...p.longGoals.map((lg) => ({ label: lg.title, run: () => set(lg.id) })),
+    menu(el, [{ items: [...(p.longGoals.length ? [] : [{ label: "Add a long-range goal first", note: true }]), ...p.longGoals.map((lg) => ({ label: lg.title, run: () => set(lg.id) })),
       ...(g.parentID ? [{ label: "Unlink", danger: true, run: () => set(null) }] : [])] }]);
   });
 
@@ -954,7 +1006,8 @@
     // Esc with something typed asks first (same Keep/Discard as Compose); the Cancel button is his explicit choice and just closes
     const startTitle = d.title, startNotes = d.notes;
     s.guard = { dirty: () => d.title !== startTitle || d.notes !== startNotes || trim(newItem) !== "" || (!todo && checklist.length > 0),
-      title: todo ? "Discard your changes?" : "Discard this to-do?", message: todo ? "Your changes to this to-do aren't saved yet." : "It hasn't been added yet.", leave: todo ? "Discard changes" : "Discard", stay: "Keep editing" };
+      title: "Discard changes?", message: "You changed this but haven't saved it.", leave: "Discard changes", stay: "Keep editing",
+      save: "Save changes", onSave: () => { if (trim(d.title)) s.onPrimary?.(); } };
     s.el.addEventListener("input", (e) => {
       const f = e.target.dataset?.f; if (!f) return;
       const v = e.target.value;

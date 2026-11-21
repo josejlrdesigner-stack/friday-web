@@ -104,7 +104,7 @@
             return `<div class="card edge calgroup v g4">
               <div class="h g8">${ui.label2(src)}<span class="sp"></span>${ui.btn({ label: allOn ? "Hide all" : "Show all", kind: "small", act: "calf-all", data: { src, on: allOn ? "0" : "1" } })}</div>
               ${cals.map((c) => `<label class="h g8 calf-row"><span class="dot" style="background:${esc(c.color || "#767E8A")}"></span>
-                <span class="t16 grow ${hidden.has(c.id) ? "muted" : "ink"}">${esc(c.title)}${c.writable === false ? ' <span class="t11 muted">read-only</span>' : ""}</span>
+                <span class="t16 grow ${hidden.has(c.id) ? "muted" : "ink"}">${esc(c.title)}${c.writable === false ? " " + ui.tag("Read-only") : ""}</span>
                 <span class="switch"><input type="checkbox" role="switch" data-change="calf-one" data-id="${esc(c.id)}" ${hidden.has(c.id) ? "" : "checked"} aria-label="${esc(c.title)}"></span></label>`).join("")}
             </div>`;
           }).join("") || '<p class="t15 muted">No calendars yet. They come from your iPhone.</p>'}
@@ -163,8 +163,8 @@
     // Esc with something typed asks first (same Keep/Discard as Compose); Cancel just closes
     const start0 = { title: d.title, location: d.location, notes: d.notes };
     api.guard = { dirty: () => !readOnly && ["title", "location", "notes"].some((k) => d[k] !== start0[k]),
-      title: event ? "Discard your changes?" : "Discard this event?", message: event ? "Your changes to this event aren't saved yet." : "It hasn't been added to your calendar yet.",
-      leave: event ? "Discard changes" : "Discard", stay: "Keep editing" };
+      title: "Discard changes?", message: "You changed this but haven't saved it.", leave: "Discard changes", stay: "Keep editing",
+      save: "Save changes", onSave: () => { const b = api.el.querySelector('.sheetbar [data-act="ev-save"]'); if (b && !b.disabled) b.click(); } };
     setTimeout(() => api.el.querySelector("#ev-title")?.focus(), 30);
     return api;
   }
@@ -280,7 +280,7 @@
   let span = 30;
   let cursor = null;   // Day / Week: the day shown (Week: a day inside the range); null = today
   const VIEWS = [["agenda", "Agenda"], ["day", "Day"], ["week", "Week"]];
-  let calView = (() => { try { const v = localStorage.getItem("friday.calView"); return VIEWS.some(([k]) => k === v) ? v : "week"; } catch { return "week"; } })();
+  let calView = (() => { try { const v = localStorage.getItem("friday.calView"); return VIEWS.some(([k]) => k === v) ? v : "agenda"; } catch { return "agenda"; } })();
   const setView = (v) => { calView = v; try { localStorage.setItem("friday.calView", v); } catch {} };
   const wideWeek = () => matchMedia("(min-width: 900px)").matches;   // 7 days on the sidebar layout, 3 below
   const hourPx = () => (matchMedia("(max-width: 639px)").matches ? 56 : 64);
@@ -296,7 +296,7 @@
       </div>
       ${allDayChips(allDay)}
       ${timed.map((e) => eventRow(e, now, isToday)).join("")}
-      ${events.length ? "" : `<p class="t-meta freeday">Free day</p>`}
+      ${events.length ? "" : `<div class="h g8 freeday"><span class="t15 w5 ink2 grow">Free day</span>${ui.btn({ label: "Add", icon: "plus", kind: "small", act: "cal-add", data: { day: dk }, aria: "Add an event on " + day.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }) })}</div>`}
     </section>`;
   }
 
@@ -332,7 +332,7 @@
     flush();
     return items;
   }
-  const hhLabel = (h) => (h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "Noon" : `${h - 12} PM`);
+  const hhLabel = (h) => (h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`);
   function gridRange(now) {
     const c = D.start(cursor || now);
     if (calView === "day") return { start: c, n: 1 };
@@ -340,7 +340,8 @@
     return { start: c, n: 3 };
   }
   function rangeTitle(start, n) {
-    if (n === 1) return `<span class="only-wide">${esc(D.wide(start))}</span><span class="only-compact">${esc(D.short(start))}</span>`;
+    // CalendarGrid.rangeTitle: "Today, Nov 20" / "Thu, Nov 20"
+    if (n === 1) return esc(D.same(start, new Date()) ? "Today, " + D.md(start) : D.short(start));
     const end = D.add(start, n - 1);
     const sameMonth = start.getMonth() === end.getMonth();
     return esc(`${D.md(start)} – ${sameMonth ? end.getDate() : D.md(end)}`);
@@ -355,7 +356,8 @@
         <span class="tg-wd">${esc(D.wdShort(d))}</span><span class="tg-dn">${d.getDate()}</span></button>`; }).join("");
     const allDay = days.map((d) => {
       const evs = eventsOn(d, all).filter((e) => e.allDay);
-      return `<div class="tg-ad">${evs.map((e) => { const col = evColor(e); return `<button type="button" class="plain press tg-chip evtint" data-act="cal-open-event" data-id="${esc(e.id)}" style="--evc:${hexRGBA(col, 1)};--evt:${hexRGBA(col, 0.18)}" title="${esc(e.title)}"><span class="ell">${esc(e.title)}</span></button>`; }).join("")}</div>`;
+      const cap = n > 1 ? 2 : 6, over = evs.length > cap;
+      return `<div class="tg-ad">${evs.slice(0, over ? cap - 1 : cap).map((e) => { const col = evColor(e); return `<button type="button" class="plain press tg-chip evtint" data-act="cal-open-event" data-id="${esc(e.id)}" style="--evc:${hexRGBA(col, 1)};--evt:${hexRGBA(col, 0.18)}" title="${esc(e.title)}"><span class="ell">${esc(e.title)}</span></button>`; }).join("")}${over ? `<button type="button" class="plain tg-more" data-act="cal-pickday" data-day="${D.key(d)}">+${evs.length - cap + 1} more</button>` : ""}</div>`;
     }).join("");
     const hasAllDay = days.some((d) => eventsOn(d, all).some((e) => e.allDay));   // no empty "All day" strip eating the hours
     const lines = Array.from({ length: 24 }, (_, h) => `<i class="tg-hr" style="top:${h * H}px"></i><i class="tg-half" style="top:${h * H + H / 2}px"></i>`).join("");
@@ -398,7 +400,8 @@
   }
 
   function toolbar(now, title) {
-    const seg = ui.seg("cal-view", VIEWS, calView).replace('class="seg"', 'class="seg fit calseg" aria-label="Calendar view"');
+    // a phone-width window has room for 3 days side by side, so that view says "3 Days" there, not "Week"
+    const seg = ui.seg("cal-view", VIEWS.map(([k, l]) => [k, k === "week" && !wideWeek() ? "3 Days" : l]), calView).replace('class="seg"', 'class="seg fit calseg" aria-label="Calendar view"');
     if (calView === "agenda") {
       return `<div class="caltool">${seg}
         <div class="actbar caltool-r">${ui.btn({ label: "Earlier", icon: "chevron.up", kind: "small", act: "cal-earlier" })}${ui.btn({ label: "Go to date", icon: "calendar", kind: "small", act: "cal-goto" })}${anchor ? ui.btn({ label: "Today", kind: "small", act: "cal-today" }) : ""}</div></div>`;

@@ -689,7 +689,7 @@
       // every other mailbox (his folders as a tree, with search) lives in the mailbox picker, like Apple Mail's sidebar
       const here = !boxRole() && M.folder !== "INBOX";
       out.push(mi("All Mailboxes…", "mail-all-boxes", { icon: here ? "checkmark" : "folder" }));
-      if (one) out.push(mi("New folder…", "mail-new-folder", { icon: "folder.badge.plus", data: { acct: one.id } }));
+      if (one) out.push(mi("New Folder…", "mail-new-folder", { icon: "folder.badge.plus", data: { acct: one.id } }));
       out.push({ divider: true }, mi("Junk & Blocking", "mail-subs", { icon: "hand.raised" }));
       return out;
     }
@@ -788,7 +788,7 @@
           <span class="h g8"><span class="from ell ${unread ? "w6" : ""}">${esc(boxRole() === "sent" ? sentTo(m) : display(m.from))}</span>
             ${th.length > 1 ? `<span class="cnt">${th.length}</span>` : ""}${m.flagged ? `<span class="flag">${icon("flag.fill")}</span>` : ""}
             <span class="sp"></span><span class="time nowrap">${esc(timeLabel(m.date))}</span>${unread ? '<i class="udot"></i>' : ""}</span>
-          <span class="subj ${m.seen ? "ink2" : "ink"}">${esc(m.subject)}</span>
+          <span class="subj ${m.seen ? "ink2" : "ink"}">${esc(m.subject || "(no subject)")}</span>
           ${showWhy ? `<span class="mblocked-tag">${icon("hand.raised.fill")}<span>Blocked · ${esc(why)}</span></span>` : ""}
           ${(showAccount && a) || th.some((x) => x.pending) ? `<span class="flow g4">${showAccount && a ? accountTag(a) : ""}${th.some((x) => x.pending) ? pendingTag() : ""}</span>` : ""}
         </span>
@@ -1018,7 +1018,7 @@
       <div class="h g8 mtop">${ui.btn({ label: "Mail", icon: "chevron.left", act: "mail-close" })}<span class="sp"></span>${m.pending ? pendingTag() : ""}${a ? accountTag(a) : ""}</div>
       <div class="mact">${actions}</div>
       <div class="mhdr v g8">
-        <h2 class="t20 w6 ink wrap msubj">${esc(m.subject)}</h2>
+        <h2 class="t20 w6 ink wrap msubj">${esc(m.subject || "(no subject)")}</h2>
         <div class="meta mfromrow"><span class="k">From</span>${trigger("sender", `<span class="v2">${esc(formatAddress(m.from))}</span>`, "msender", `From ${formatAddress(m.from)}. Sender actions`)}</div>${meta("To", m.to.map(display).join(", "))}${m.cc.length ? meta("Cc", m.cc.map(display).join(", ")) : ""}
         ${meta("Date", `${m.date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })} at ${D.time(m.date)}`)}
         ${blockedBanner(X, m)}${unsubscribeBanner(X, m)}
@@ -1038,7 +1038,7 @@
       const menuEl = menu.length ? `<div class="mmenu" role="menu" data-for="${esc(M.menu)}">${menuHTML(menu)}</div>` : "";
       if (wide()) {
         const pane = m ? messageHTML(X, m)
-          : `<div class="mplace v g16">${selId && X ? `<p class="t15 muted">That email isn't here anymore.</p>` : `<canvas data-core width="120" height="120" style="width:120px;height:120px"></canvas><p class="t15 muted">Select a message</p>`}</div>`;
+          : `<div class="mplace v g16">${selId && X ? `<p class="t15 muted">That email isn't here anymore.</p>` : `<canvas data-core width="120" height="120" style="width:120px;height:120px"></canvas><p class="t15 muted">Select a message to read it here</p>`}</div>`;
         return `<div class="split msplit"><div class="split-col mcol" id="mail-col">${streamHTML(X)}</div><div class="split-col mpane" id="mail-pane">${pane}</div></div>${menuEl}`;
       }
       if (selId && X) return (m ? messageHTML(X, m) : `<div class="mview"><div class="h g8 mtop">${ui.btn({ label: "Mail", icon: "chevron.left", act: "mail-close" })}</div><p class="t15 muted px16">That email isn't here anymore.</p></div>`) + menuEl;
@@ -1481,7 +1481,7 @@
 
   // ------------------------------------------------------------ Email → Task (styled like the app's TodoEditSheet)
   // F.openTodoEdit(null, opts) only takes a title and due date, so mail has its own sheet with the email's notes prefilled.
-  const QUADS = { 1: "Q1 · Urgent & important", 2: "Q2 · Important, not urgent", 3: "Q3 · Urgent, not important", 4: "Q4 · Neither" };
+  const QUADS = { 1: "Q1 · Urgent & important (necessity)", 2: "Q2 · Important, not urgent (Big Rocks)", 3: "Q3 · Urgent, not important (deception)", 4: "Q4 · Neither (waste)" };
   const taskNotes = (m) => `Email from ${senderName(m)} — ${m.subject || "(no subject)"}\n${m.messageID || ""}`.trim();
   /** rows: [{m, archive:[messages]}] — one task per row; archive = what "Archive the email after" archives. */
   function openTaskSheet(rows) {
@@ -1489,7 +1489,7 @@
     if (!rows.length) return;
     const many = rows.length > 1, m0 = rows[0].m;
     const ls = F.lists(), roles = (F.planner()?.roles || []).map((r) => r.name).filter(Boolean);
-    const d = { title: m0.subject || "(no subject)", list: F.defaultList(), hasDue: true, due: D.key(new Date()), letter: null, number: 1, quadrant: null, role: null,
+    const d = { title: !m0.subject || m0.subject === "(no subject)" ? `Reply to ${m0.from?.name || m0.from?.email || ""}` : m0.subject, list: F.defaultList(), hasDue: true, due: D.key(new Date()), letter: null, number: 1, quadrant: null, role: null,
       bigRock: false, status: "Open", delegate: "", notes: taskNotes(m0), archive: false };
     if (ls.length && !ls.some((l) => l.title === d.list)) d.list = ls[0].title;
     const trim = (x) => String(x || "").trim();
@@ -1504,9 +1504,9 @@
         ${d.letter ? `<div class="frow"><span class="lbl">Order: ${esc(d.letter + d.number)}${many ? ` to ${esc(d.letter + (d.number + rows.length - 1))}` : ""}</span><div class="stepper"><button type="button" data-x="num" data-d="-1" aria-label="Decrease" ${d.number <= 1 ? "disabled" : ""}>${icon("minus")}</button><span></span><button type="button" data-x="num" data-d="1" aria-label="Increase" ${d.number >= 30 ? "disabled" : ""}>${icon("plus")}</button></div></div>` : ""}
         <div class="frow"><label class="lbl" for="mt-q">Quadrant</label><select id="mt-q" class="bare" data-f="quadrant"><option value="0">Not set</option>${[1, 2, 3, 4].map((q) => `<option value="${q}" ${d.quadrant === q ? "selected" : ""}>${esc(QUADS[q])}</option>`).join("")}</select></div>
         <div class="frow"><label class="lbl" for="mt-role">Role</label><select id="mt-role" class="bare" data-f="role"><option value="">None</option>${roles.map((r) => `<option ${d.role === r ? "selected" : ""}>${esc(r)}</option>`).join("")}</select></div>
-        <div class="frow"><label class="lbl" for="mt-rock">Big Rock</label>${sw("mt-rock", "bigRock", d.bigRock)}</div></div>
+        <div class="frow"><label class="lbl" for="mt-rock">Big Rock this week</label>${sw("mt-rock", "bigRock", d.bigRock)}</div></div>
         <p class="ffoot">A = vital, must do today · B = important, should do · C = optional.</p></div>
-      <div class="fsec"><div class="fgroup">
+      <div class="fsec"><div class="fhead">When</div><div class="fgroup">
         <div class="frow"><label class="lbl" for="mt-hasdue">Due date</label>${sw("mt-hasdue", "hasDue", d.hasDue)}</div>
         ${d.hasDue ? `<div class="frow"><label class="lbl" for="mt-due">Date</label><input id="mt-due" class="bare right" type="date" value="${esc(d.due)}" data-f="due" required></div>` : ""}
         <div class="frow"><label class="lbl" for="mt-list">List</label><select id="mt-list" class="bare" data-f="list">${(ls.length ? ls : [{ title: d.list }]).map((l) => `<option ${l.title === d.list ? "selected" : ""}>${esc(l.title)}</option>`).join("")}</select></div></div></div>
@@ -1702,7 +1702,7 @@
   /** Move: the picker in moving mode. The toast names the folder the way he sees it ("Moved … to Follow Up"). */
   function openMove(messages, done) {
     if (!messages.length) return;
-    openPicker({ title: messages.length === 1 ? "Move email" : `Move ${messages.length} emails`, moving: messages,
+    openPicker({ title: messages.length === 1 ? "Move to…" : `Move ${messages.length} to…`, moving: messages,
       pick: async (a, folder, sh, st) => {
         st.working = true; sh.update();
         const same = messages.every((m) => m.accountID === a.id);
@@ -1958,7 +1958,7 @@
       async run() {
         const n = st.picked.size;
         const ok = await F.alert({ title: `Unsubscribe from ${n} sender${n === 1 ? "" : "s"}?`,
-          message: "F.R.I.D.A.Y. asks each one to stop sending you email." + (st.alsoJunk ? " Their mail moves to Junk." : "") + (st.alsoBlock ? " Anything they send later goes to Trash." : ""),
+          message: "F.R.I.D.A.Y. asks each one to stop sending you email." + (st.alsoJunk ? " Their mail moves to Junk." : "") + (st.alsoBlock ? " Anything they send later goes straight to Trash." : ""),
           buttons: [{ label: "Unsubscribe", value: true }, { label: "Cancel", kind: "cancel" }] });
         if (ok) await runAll();
       },

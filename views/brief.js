@@ -54,12 +54,14 @@
   function header(now) {
     const h = now.getHours();
     const greet = h < 5 ? "Late night" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : h < 21 ? "Good evening" : "Late night";
-    const label = now.toLocaleDateString([], { weekday: "long" }) + " · " + now.toLocaleDateString([], { month: "long" });
+    // planned today: the app's "Planned · Thursday, November" (BriefHeroLight)
+    const wdName = now.toLocaleDateString([], { weekday: "long" }), moName = now.toLocaleDateString([], { month: "long" });
+    const label = todayPlanned(now) ? `Planned · ${wdName}, ${moName}` : wdName + " · " + moName;
     // Planning streak: a number, not a chart (spec). Shown once the planner exists.
     let streak = "";
     if (F.snap() && F.planner() && F.ritualKit) {
       const d = F.ritualKit.streakDays();
-      streak = `<span class="streak-pill" role="img" aria-label="${esc(`Planning streak: ${d} day${d === 1 ? "" : "s"} in a row`)}">${F.icon("flame")}<b>${d}</b><span>${d === 1 ? "day" : "days"}</span></span>`;
+      streak = `<span class="streak-pill" role="img" aria-label="${esc(`${d} day${d === 1 ? "" : "s"} planned in a row`)}">${F.icon("flame")}<b>${d}</b><span>-day planning streak</span></span>`;
     }
     const act = actAsLine(now);
     return `<section class="band">
@@ -87,6 +89,12 @@
       : { title: "Plan tomorrow", detail: "Today is closed out. Take 10 minutes: list tomorrow, mark A, B or C, and pick your A1.", button: "Plan tomorrow", go: "day", day: k };
   }
   const todayClosed = (now) => !!(F.planner() || {}).days?.[D.key(now)]?.closed;
+  /** GuideViews.todayPlanned: "Mark planned" was tapped, or today's page already has an A, B or C on it */
+  function todayPlanned(now) {
+    if ((F.planner() || {}).days?.[D.key(now)]?.planned) return true;
+    const d0 = D.start(now);
+    return F.todos().some((t) => !t.done && t.fc?.letter && t.due && D.start(t.due) <= d0);
+  }
   function firstThing() {
     if (!K().remindersAccess()) return `<section class="card p16 v g8 first sec-brief">${ui.cardHead("brief", "First thing")}${K().accessOffRow("Reminders")}</section>`;
     if (todayClosed(new Date())) {
@@ -113,16 +121,19 @@
   }
 
   // ------------------------------------------------------------ Inbox (big unread count)
-  function inboxCard(ms) {
+  function inboxCard(ms, wide = false) {
     const head = ui.cardHead("mail", "Inbox");
     if (!ms) return `<section class="card p16 v g12 inbox sec-mail">${head}<p class="invite">No email connected. Connect an account in F.R.I.D.A.Y. on the iPhone and it shows up here.</p></section>`;
     const unread = ms.inbox.filter((m) => !m.seen);
-    const top = unread[0] || ms.inbox[0];
-    const from = top ? (top.from?.name || top.from?.email || "") : "";
-    return `<button type="button" class="plain card p16 v g12 inbox sec-mail press" data-act="brief-mail" aria-label="${esc(`Inbox: ${unread.length} unread. Open Mail`)}">
+    const people = unread.filter((m) => !m.isUpdate).length;
+    const line = !unread.length ? "All caught up" : people === 0 ? "All updates" : `${people} from people`;
+    // wide: the first three senders, like the app's wide InboxCard
+    const names = [];
+    for (const m of unread) { const n = m.from?.name || m.from?.email || ""; if (n && !names.includes(n)) names.push(n); if (names.length === 3) break; }
+    return `<button type="button" class="plain card p16 v g12 inbox sec-mail press" data-act="brief-mail" aria-label="${esc(`Inbox: ${unread.length} unread, ${people} from people`)}">
       ${head}
-      <span class="stat"><span class="h g8 base"><span class="t-stat">${unread.length}</span><span class="t15 w6 ink2">unread</span></span><span class="t-meta">${ms.inbox.length} in inbox</span></span>
-      ${top ? `<span class="t-meta ell">${esc(`${unread.length ? "Newest" : "Latest"}: ${from} · ${top.subject || ""}`)}</span>` : '<span class="t13 muted">Your inbox is empty.</span>'}
+      <span class="stat"><span class="t-stat">${unread.length} new</span><span class="t-card-title wrap">${esc(line)}</span>
+      ${wide && names.length ? `<span class="t-meta ell">${esc(names.join(" · "))}</span>` : ""}</span>
     </button>`;
   }
 
@@ -136,8 +147,8 @@
     }
     const rocks = p.weeks?.[D.key(D.weekStart(now))]?.rocks || [];
     if (!rocks.length) {
-      return `<section class="card p16 v g12 rockscard sec-health">${head}<p class="t-secondary">No Big Rocks yet this week. They're the one or two important things per role that you schedule first.</p>
-        ${ui.actbar([ui.btn({ label: "Set this week's Big Rocks", kind: "small", cls: "tinted", act: "brief-go", data: { go: "week" } })])}</section>`;
+      return `<section class="card p16 v g12 rockscard sec-health">${head}<p class="t-secondary">No Big Rocks picked for this week yet. One or two per role, and block time for them first.</p>
+        ${ui.actbar([ui.btn({ label: "Pick this week's Big Rocks", icon: "plus", kind: "small", cls: "tinted", act: "brief-go", data: { go: "week" } })])}</section>`;
     }
     const done = rocks.filter((r) => r.done).length;
     const byRole = new Map();
@@ -174,10 +185,22 @@
     if (today.closed) return afterClose(now);
     if (hour >= 17 && !today.closed)
       return { title: "Close out your day", detail: "Two minutes: mark each task done, forward, in progress, delegated or deleted, so tomorrow starts clean.", button: "Close out", go: "closeout" };
-    if (!today.planned && hour < 17)
+    const planned = todayPlanned(now);
+    if (!planned && hour < 17)
       return { title: "Plan your day", detail: "About 15 minutes: list everything, mark A, B or C, and block time for your A's at your best hours.", button: "Plan my day", go: "day" };
-    return { title: "You're on track", detail: today.planned ? "Today is planned. Work your A's first; your deep-work block is for A1." : "Planning tomorrow tonight makes the morning easier.",
-             button: "See my A's", go: "day" };
+    // never "on track" on a day that can't hold its list (GuideViews): say so from the real day, and offer the fix
+    if (hour < 17 && F.capacity) {
+      const load = F.capacity(D.start(now));
+      const avail = Math.max(60, load.free + load.meetings);
+      if (load.overloaded && (load.meetings + load.needed) > avail)
+        return { title: "Today is over full", detail: `About ${load.fits} of ${load.tasks.length} to-dos fit around your day. Move the rest now so today stays doable.`, button: "Lighten my day", go: "lighten" };
+      const d0 = D.start(now);
+      const lateAs = F.todos().filter((t) => !t.done && t.fc?.letter === "A" && t.due && D.start(t.due) < d0).length;
+      if (lateAs > 0)
+        return { title: lateAs === 1 ? "One A is running late" : `${lateAs} A's are running late`, detail: "Do it today, or move it to a day with room so it stops rolling over.", button: "Lighten my day", go: "lighten" };
+    }
+    return { title: "You're on track", detail: planned ? "Today is planned. Work your A's first; your deep-work block is for A1." : "Planning tomorrow tonight makes the morning easier.",
+             button: "Open today's list", go: "day" };
   }
   // the phone's own sync problem (it travels in the mail file, which gets through when the main file doesn't)
   function phoneSyncBanner() {
@@ -195,14 +218,13 @@
         ${ui.cardHead("friday", "Start here")}
         <div class="v g4"><h2 class="t-card-title">Set up your planner</h2>
         <p class="t-secondary">Six quick questions, about three minutes. Tap or type. You'll get your values, roles, a 90-day goal, this week's Big Rocks and protected time on your calendar.</p></div>
-        ${ui.actbar([ui.btn({ label: "Pick a starter profile", icon: "person.crop.rectangle.stack", act: "brief-setup", data: { mode: "starter" } }), ui.btn({ label: "Start the 6 questions", icon: "arrow.right", kind: "primary", act: "brief-setup", data: { mode: "diagnostic" } })])}
+        ${ui.actbar([ui.btn({ label: "Starter profile", act: "brief-setup", data: { mode: "starter" } }), ui.btn({ label: "Start the 6 questions", icon: "arrow.right", kind: "primary", act: "brief-setup", data: { mode: "diagnostic" } })])}
       </section>`;
     }
     const s = nextStep(now);
     return `<section class="card p16 guide v g12 sec-friday">
       ${ui.cardHead("friday", "Your next step")}
-      <div class="v g4"><h2 class="t-card-title">${esc(s.title)}</h2>
-      <p class="t-secondary">${esc(s.detail)}</p></div>
+      <div class="v g4"><h2 class="t-card-title" title="${esc(s.detail)}">${esc(s.title)}</h2><span class="sr">${esc(s.detail)}</span></div>
       ${ui.actbar([ui.btn({ label: "Organizer", icon: "target", act: "brief-organizer" }), ui.btn({ label: s.button, icon: "arrow.right", kind: "primary", act: "brief-go", data: s.day ? { go: s.go, day: s.day } : { go: s.go } })])}
     </section>`;
   }
@@ -273,15 +295,15 @@
     }
     const e = F.capacity(day);
     const meetings = cal ? e.meetings : 0, todo = rem ? e.needed : 0, avail = Math.max(60, e.free + meetings);
-    const pct = Math.round((meetings + todo) / avail * 100), word = loadWord(pct);
+    const pct = Math.round((meetings + todo) / avail * 100), word = loadWord(pct), pctText = pct > 999 ? "999+" : String(pct);
     const numbers = `${hm(meetings)} of meetings + about ${hm(todo)} for ${plural(e.tasks.length, "to-do")}, in ${hm(avail)} available`;
     const wordCls = word === "Overloaded" ? "c-danger" : word === "Busy" ? "c-attention" : "ink";
     return `<section class="card p16 v g12 dayload sec-friday" role="group" aria-label="${esc(`Day load: ${pct} percent, ${word}. ${numbers}.`)}">
       ${head}<div class="h g16">
-      ${loadRing(Math.min(1, pct / 100), pct, word, ringSize)}
-      <div class="v g4 grow"><p class="t-card-title ${wordCls}">${esc(word)} · ${pct}%</p>
+      ${loadRing(Math.min(1, pct / 100), pctText, word, ringSize)}
+      <div class="v g4 grow"><p class="t-card-title ${wordCls}">${esc(word)} · ${pctText}%</p>
         <p class="t13 ink2">${esc(numbers)}.</p>
-        ${!cal ? '<p class="invite">Calendar access is off, so meetings aren’t counted.</p>' : ""}${!rem ? '<p class="invite">Reminders access is off, so to-dos aren’t counted.</p>' : ""}
+        ${!cal ? `<p class="invite">Calendar access is off, so meetings aren't counted.</p>` : ""}${!rem ? `<p class="invite">Reminders access is off, so to-dos aren't counted.</p>` : ""}
         <p class="t-meta">${esc(summary)}</p></div></div>
     </section>`;
   }
@@ -307,14 +329,14 @@
     if (mins <= 0) return "Happening now";
     if (mins < 60) return `in ${mins} min`;
     if (days === 0) return `in ${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
-    return dayWord;   // the big time sits right beside this chip
+    return dayWord + " " + D.time(e.start);   // ScheduleViews.countdown: "Thursday 4:00 PM"
   }
   function nextUpCard(now) {
     const n = nextUp(now);
     const head = (extra = "") => ui.cardHead("calendar", "Next up", extra);
     if (!n) {
       return `<section class="card p16 v g12 nextup sec-calendar">${head()}
-        <p class="invite">${K().calendarAccess() ? "Nothing else on the calendar this week." : "Waiting for calendar access."}</p></section>`;
+        <span class="stat"><span class="t-stat">Free</span><span class="t-card-title wrap">${K().calendarAccess() ? "Nothing else this week" : "Waiting for calendar access"}</span></span></section>`;
     }
     const { e, also } = n;
     const big = e.allDay ? "All day" : D.time(e.start);
@@ -364,10 +386,10 @@
       </button>
     </div>`;
   }
-  function briefDay(title, date, items, strong, empty, extra) {
+  function briefDay(title, date, items, strong, empty, extra, late = 0) {
     const shown = items.slice(0, 5);
     return `<div class="h g8 bday">
-        <div class="bday-name"><span class="t15 w6 ink">${esc(title)}</span><span class="h g8 nowrap"><span class="t13 muted">${esc(date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }))}</span>${items.length ? ui.tag(`${items.length} due`, strong ? "ink" : "") : ""}</span></div>
+        <div class="bday-name"><span class="t15 w6 ink">${esc(title)}</span><span class="h g8 nowrap"><span class="t13 muted">${esc(date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }))}</span>${items.length ? ui.tag(`${items.length} due` + (late > 0 ? ` · ${late} late` : ""), strong ? "ink" : "") : ""}</span></div>
         <span class="sp"></span>
         ${ui.btn({ icon: "plus", kind: "icon", cls: "small filled", act: "brief-add-todo", data: { day: D.key(date) }, aria: `Add a to-do for ${title.toLowerCase()}` })}
       </div>
@@ -384,7 +406,7 @@
     else {
       const today = [...b.overdue, ...b.today].sort(fcSort);
       const t0 = D.start(new Date());
-      body = briefDay("Today", t0, today, true, "Nothing due today.", b.overdue.length + b.today.length)
+      body = briefDay("Today", t0, today, true, "Nothing due today.", b.overdue.length + b.today.length, b.overdue.length)
         + '<div class="divider"></div>'
         + briefDay("Tomorrow", D.add(t0, 1), b.tomorrow, false, "Nothing on the docket yet.", b.tomorrow.length);
     }
@@ -466,7 +488,7 @@
         </div>`;
       // non-compact branch: First thing | Next up | Inbox, then Day load | Big Rocks, then (Today + Week) | (To-dos + Email)
       const wide = `<div class="v cgap only-wide">
-          <div class="bgrid">${firstThing()}${nextUpCard(now)}${inboxCard(ms)}</div>
+          <div class="bgrid">${firstThing()}${nextUpCard(now)}${inboxCard(ms, true)}</div>
           <div class="cols two eq">${dayLoadCard(now, 120, b, ms)}${bigRocksCard(now)}</div>
           ${guideCard(now)}
           <div class="cols two">
@@ -485,6 +507,7 @@
   F.on("brief-go", (el) => {
     const go = el.dataset.go, today = F.D.key(new Date()), day = el.dataset.day || today;
     if (go === "closeout") return F.openCloseOut?.(today);
+    if (go === "lighten") return F.openLighten ? F.openLighten(today) : F.openTasks?.("day", today);
     F.openTasks?.(go === "week" ? "week" : "day", day);
   });
   F.on("brief-organizer", () => F.openOrganizer?.());

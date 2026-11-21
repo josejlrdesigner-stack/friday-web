@@ -16,6 +16,7 @@
   background: rgba(255, 255, 255, .12); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22); font-size: 13px; color: var(--band-sub); --spark: #FF9F43; }
 .streak-pill svg { width: 18px; height: 18px; color: #FFD700; }
 .streak-pill b { color: #fff; font-size: 15px; font-weight: 700; }
+.streak-pill b + span { margin-left: -4px; color: #fff; font-weight: 600; }
 /* phones: flame + number only (the app's compact streak), so the gear never drops to a second row (QA 11-19) */
 @media (max-width: 419px) { .streak-pill > span { display: none; } .streak-pill { padding: 0 10px 0 8px; } }
 .band-main { display: flex; align-items: center; gap: 16px; min-width: 0; }

@@ -8,7 +8,8 @@
 @media (min-width: 1200px) { .caldays { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .calday-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; flex: 1; }
 .btn.small.plusbtn { min-width: 44px; padding: 0 12px; }
-.freeday { min-height: 24px; }
+.freeday { min-height: 44px; padding: 0 4px 0 16px; border-radius: var(--r-control, 10px); background: var(--secondary, rgba(118,126,138,.08)); }
+.tg-more { display: flex; align-items: center; min-height: 24px; padding-left: 4px; font-size: 12px; font-weight: 600; color: var(--action); cursor: pointer; }
 
 /* EventRow */
 .evrow, button.plain.evrow { border-radius: var(--r-control); padding: 8px 8px 8px 16px; container-type: inline-size; }   /* button.plain zeroed it */

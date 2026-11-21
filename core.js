@@ -82,7 +82,7 @@ const F = (() => {
 
   // ------------------------------------------------------------ session + sign-in
   function saveSession(remember) {
-    const s = JSON.stringify({ creds: S.creds, dataKey: S.dataKey && FCrypto.b64(S.dataKey), salt: S.salt && FCrypto.b64(S.salt) });
+    const s = JSON.stringify({ creds: S.creds, user: S.user || null, dataKey: S.dataKey && FCrypto.b64(S.dataKey), salt: S.salt && FCrypto.b64(S.salt) });
     try { (remember ? localStorage : sessionStorage).setItem("friday.session", s); } catch {}
   }
   function loadSession() {
@@ -90,13 +90,13 @@ const F = (() => {
       const s = sessionStorage.getItem("friday.session") || localStorage.getItem("friday.session");
       if (!s) return false;
       const j = JSON.parse(s);
-      S.creds = j.creds; S.dataKey = j.dataKey ? FCrypto.unb64(j.dataKey) : null; S.salt = j.salt ? FCrypto.unb64(j.salt) : null;
+      S.creds = j.creds; S.user = j.user || null; S.dataKey = j.dataKey ? FCrypto.unb64(j.dataKey) : null; S.salt = j.salt ? FCrypto.unb64(j.salt) : null;
       return !!S.creds;
     } catch { return false; }
   }
   function signOut() {
     try { sessionStorage.removeItem("friday.session"); localStorage.removeItem("friday.session"); } catch {}
-    Object.assign(S, { creds: null, password: null, dataKey: null, salt: null, payload: null, sha: null, mail: null });
+    Object.assign(S, { creds: null, user: null, password: null, dataKey: null, salt: null, payload: null, sha: null, mail: null });
     location.hash = ""; boot();
   }
   async function fetchAuth() { const f = await getFile(CONFIG.webRepo, "auth.json", false); return f ? JSON.parse(f.text) : null; }
@@ -108,7 +108,7 @@ const F = (() => {
     if (!entry) throw new Error("wrong-password");
     const key = await FCrypto.deriveKey(u + "\n" + password, FCrypto.unb64(entry.salt), auth.iter || CONFIG.authIter);
     S.creds = JSON.parse(FCrypto.dec.decode(await FCrypto.open(JSON.stringify({ v: 1, salt: entry.salt, data: entry.data }), key)));
-    S.password = password;
+    S.password = password; S.user = u;
     await load();
     saveSession(remember);
   }
@@ -519,11 +519,11 @@ const F = (() => {
       const o = document.createElement("div");
       o.className = "leave-scrim";
       o.innerHTML = `<div class="leave-card" role="alertdialog" aria-modal="true" aria-labelledby="leave-t"><div class="ab"><h3 id="leave-t">${esc(g.title || "Discard this?")}</h3>${g.message ? `<p>${esc(g.message)}</p>` : ""}</div>
-        <div class="aa"><button type="button" class="destructive" data-leave="1">${esc(g.leave || "Discard")}</button><button type="button" class="cancel" data-leave="0">${esc(g.stay || "Keep editing")}</button></div></div>`;
+        <div class="aa">${g.save ? `<button type="button" data-leave="2">${esc(g.save)}</button>` : ""}<button type="button" class="destructive" data-leave="1">${esc(g.leave || "Discard")}</button><button type="button" class="cancel" data-leave="0">${esc(g.stay || "Keep editing")}</button></div></div>`;
       o.addEventListener("click", (e) => {
         const b = e.target.closest("[data-leave]"); if (!b && e.target !== o) return;
         e.stopPropagation(); o.remove();
-        if (b?.dataset.leave === "1") api.close(); else focusField();
+        if (b?.dataset.leave === "1") api.close(); else if (b?.dataset.leave === "2") { try { g.onSave?.(); } catch (ex) { console.error(ex); } } else focusField();
       });
       d.appendChild(o);
       o.querySelector("button.cancel").focus();
@@ -707,9 +707,9 @@ const F = (() => {
         aria-keyshortcuts="${mac === "⌘" ? "Meta" : "Control"}+${i + 1}" title="${label} (${mac}${i + 1})">${icon(ic)}<span class="sl">${label}</span>${tabBadge(k)}</button>`).join("")
       // the Organizer from anywhere (values, goals, roles, Compass, time matrix, rules, energy)
       + `<button type="button" class="side-row sec-settings" data-act="open-organizer">${icon("target")}<span class="sl">Organizer</span></button>`;
-    const synced = S.lastLoad ? D.time(new Date(S.lastLoad)) : "";
+    const synced = syncStatus();
     $("#sidefoot").innerHTML = `<button type="button" class="side-row sec-settings ${S.syncingNow ? "is-syncing" : ""}" data-act="sync-now" ${S.syncingNow ? "disabled" : ""}>${icon("arrow.triangle.2.circlepath")}
-        <span class="sl">${S.syncingNow ? "Syncing…" : "Sync now"}${synced && !S.syncingNow ? `<span class="sub">Updated ${esc(synced)}</span>` : ""}</span></button>
+        <span class="sl">${S.syncingNow ? "Syncing…" : "Sync now"}${!S.syncingNow ? `<span class="sub">${esc(synced)}</span>` : ""}</span></button>
       <button type="button" class="side-row sec-settings" data-act="open-settings">${icon("gearshape")}<span class="sl">Settings</span></button>`;
     v?.after?.(scr);
     for (const s of sheets) s.refresh?.();
@@ -821,6 +821,15 @@ const F = (() => {
     if (Date.now() - lastAuto >= (S.tab === "mail" ? 20000 : 90000)) { lastAuto = Date.now(); refresh(); }
   }, 5000);
 
+  /** SyncButton.status: "Synced just now" / "Synced 4 min ago" / "Synced 3:04 PM" / "Sync problem" / "Not synced yet" */
+  function syncStatus(now = Date.now()) {
+    if (S.error) return "Sync problem";
+    if (!S.lastLoad) return "Not synced yet";
+    const s = Math.floor((now - S.lastLoad) / 1000);
+    if (s < 60) return "Synced just now";
+    if (s < 3600) return `Synced ${Math.floor(s / 60)} min ago`;
+    return "Synced " + D.time(new Date(S.lastLoad));
+  }
   /** The Sync now button: reloads at once and asks the iPhone to check mail now; watches up to 2 minutes for its answer. */
   async function syncNow() {
     if (S.syncingNow) return;
@@ -834,7 +843,7 @@ const F = (() => {
       while (Date.now() - started < 120000) {
         await new Promise((r) => setTimeout(r, DEMO ? 800 : 8000));
         await load().catch(() => {});
-        if ((S.mail?.at || 0) > before || (snap()?.at || 0) > snapBefore || DEMO) { toast("Up to date"); return; }
+        if ((S.mail?.at || 0) > before || (snap()?.at || 0) > snapBefore || DEMO) { toast("Synced. Everything is up to date."); return; }
         render();
       }
       toast("Your iPhone hasn't answered yet. It catches up the next time F.R.I.D.A.Y. is open or checks in.");

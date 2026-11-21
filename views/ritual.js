@@ -82,8 +82,8 @@
     const dateLine = now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
     const actCard = act
       ? ui.compass(act)
-      : `<label class="v g8"><span class="t13 muted">Who do you want to be today? One line is enough.</span>
-          <textarea id="rit-actas" class="input rit-field" rows="2" placeholder="Today I act as a calm, focused…" maxlength="240"></textarea></label>`;
+      : `<label class="v g8"><span class="t13 muted">Who do you want to be today? One sentence, in your words.</span>
+          <textarea id="rit-actas" class="input rit-field" rows="2" placeholder="I act as a calm, focused…" maxlength="240"></textarea></label>`;
     const goalCard = nd ? `<section class="rit-card sec-friday">
         <div class="h g8">${ui.label2("90-day goal")}<span class="sp"></span>${nd.week && !nd.dated ? `<span class="t13 w7 ink2 num">Week ${nd.week} of ${WEEKS}</span>` : ""}</div>
         <p class="t-card-title wrap">${esc(nd.g.title)}</p>
@@ -92,15 +92,15 @@
           ${nd.dated ? "" : `<p class="t13 muted">${nd.milestones.filter((m) => m.done).length} of ${nd.milestones.length} milestones done</p>`}` : ""}
       </section>` : "";
     const a1Card = `<section class="rit-card sec-brief">
-        ${ui.label2("Your A1 today")}
+        ${ui.label2("First thing")}
         ${top ? `<div class="h g16"><span class="a1tile" aria-hidden="true">A${esc(top.fc.number ?? 1)}</span><p class="t-card-title wrap grow"><span class="sr">A${esc(top.fc.number ?? 1)}: </span>${esc(top.title)}</p></div>
           ${top.fc.bigRock ? `<p class="t13 c-done w6">Big Rock · it moves your week forward</p>` : ""}`
           : `<p class="t15 muted">No A1 yet. Pick the one thing that matters most when you plan your day.</p>`}
       </section>`;
     const streakCard = `<section class="rit-card rit-streak sec-brief">
         <span class="rit-flame" aria-hidden="true">${F.icon("flame")}</span>
-        <div class="v g4 grow">${ui.label2("Planning streak")}
-          <p class="t17 w7 ink">${st.n ? `<span class="rit-n">${st.n}</span> day${st.n === 1 ? "" : "s"} in a row` : "Start a streak today"}</p></div>
+        <div class="v g4 grow">
+          <p class="t15 w5 ${st.n ? "c-done" : "ink2"}">${st.n === 0 ? "Plan today to start a streak." : st.n === 1 ? "1 day planned in a row. Keep it going." : `${st.n} days planned in a row.`}</p></div>
         <div class="rit-days" role="img" aria-label="${st.last7.filter((x) => x.on).length} of the last 7 days planned">${st.last7.map((x) => `<span class="${x.on ? "on" : ""}"><i></i>${esc(D.wdShort(x.day).slice(0, 1))}</span>`).join("")}</div>
       </section>`;
     return `<div class="rit">
@@ -141,7 +141,7 @@
     if (text) {
       const k = D.key(new Date());
       await F.savePlanner((p) => { p.days ||= {}; p.days[k] = { record: [], planned: false, closed: false, ...(p.days[k] || {}), actAs: text }; });
-      F.toast("Saved today's Act As");
+      F.toast("Saved today's Compass");
     }
   });
 
