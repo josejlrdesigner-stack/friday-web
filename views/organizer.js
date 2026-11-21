@@ -110,7 +110,7 @@
   const QUESTIONS = [
     { id: 1, title: "The regret & legacy filter",
       prompt: "Think about a week that felt completely wasted versus a week where you felt deeply fulfilled. What was the single biggest difference between the two?",
-      why: "Your answer shows your governing values, what makes a week worth it. They become the top of your pyramid and your daily Act As card.",
+      why: "Your answer shows your governing values, what makes a week worth it. They become the top of your pyramid and your Compass.",
       chips: ["Uninterrupted deep focus", "Being fully present with loved ones", "Making visible progress on big goals", "Feeling calm and in control of my time"],
       placeholder: "e.g. I got to be with my kids and still finished the big stuff" },
     { id: 2, title: "The jar & sand audit",

@@ -41,7 +41,7 @@
       <hr class="set-div">
       <div class="h g16 set-toggle">
         <label class="v g2 grow" for="set-ritual"><span class="t15 w6 ink">Morning ritual</span>
-          <span class="t13 muted">Once a day, the first time you open F.R.I.D.A.Y. after 4 am: your Act As line, your 90-day goal, today's A1 and your planning streak.</span></label>
+          <span class="t13 muted">Once a day, the first time you open F.R.I.D.A.Y. after 4 am: your Compass, your 90-day goal, today's A1 and your planning streak.</span></label>
         ${ui.btn({ label: "Show now", kind: "small", act: "set-ritual-now" })}
         <span class="switch"><input id="set-ritual" type="checkbox" role="switch" data-change="set-ritual" ${F.prefs().ritualOff === "1" ? "" : "checked"}></span>
       </div>
