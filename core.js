@@ -786,6 +786,9 @@ const F = (() => {
     const fn = actions[a];
     if (!fn) return;
     e.preventDefault();
+    // every check circle (to-dos, Big Rocks, goals, Sharpen the Saw) flips the moment it's tapped; the save and the
+    // redraw follow. Without it a check waited on the network and looked like the tap missed (Jose 11-20)
+    if (el.classList.contains("check")) el.classList.toggle("on");
     try { await fn(el, e); }
     catch (ex) { console.error(ex); toast("Couldn't do that: " + friendly(ex.message)); render(); }
   });
