@@ -101,7 +101,11 @@
         <span class="rit-flame" aria-hidden="true">${F.icon("flame")}</span>
         <div class="v g4 grow">
           <p class="t15 w5 ${st.n ? "c-done" : "ink2"}">${st.n === 0 ? "Plan today to start a streak." : st.n === 1 ? "1 day planned in a row. Keep it going." : `${st.n} days planned in a row.`}</p></div>
-        <div class="rit-days" role="img" aria-label="${st.last7.filter((x) => x.on).length} of the last 7 days planned">${st.last7.map((x) => `<span class="${x.on ? "on" : ""}"><i></i>${esc(D.wdShort(x.day).slice(0, 1))}</span>`).join("")}</div>
+        <div class="rit-week"><span class="rit-week-l">Last 7 days</span>
+          <div class="rit-days" role="img" aria-label="Last 7 days, ending today: ${st.last7.filter((x) => x.on).length} of 7 planned">${st.last7.map((x, i) => {
+            const today = i === 6;      // oldest on the left, today on the right, each with its date (11-24: "W T F…" looked jumbled)
+            return `<span class="${x.on ? "on" : ""}${today ? " today" : ""}"><i></i><b>${today ? "Today" : esc(D.wdShort(x.day).slice(0, 3))}</b><em>${x.day.getDate()}</em></span>`;
+          }).join("")}</div></div>
       </section>`;
     return `<div class="rit">
       <div class="rit-band"><div class="rit-band-in">

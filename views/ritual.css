@@ -30,10 +30,17 @@ dialog.sheet.ritual { background: var(--page); }
 .rit-flame { width: 44px; height: 44px; border-radius: var(--r-tile); background: var(--g-brief); color: var(--ink); --spark: #FFFFFF; display: grid; place-items: center; flex: none; }
 .rit-flame svg { width: 24px; height: 24px; }
 .rit-n { font-size: 30px; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
+.rit-week { display: flex; flex-direction: column; gap: 6px; }
+.rit-week-l { font-size: 11px; font-weight: 700; color: var(--muted); }
 .rit-days { display: flex; gap: 4px; }
-.rit-days span { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: var(--muted); width: 24px; }
-.rit-days i { width: 20px; height: 20px; border-radius: 50%; background: var(--soft); }
+.rit-days span { display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--muted); min-width: 32px; }
+.rit-days b { font-size: 11px; font-weight: 600; }
+.rit-days em { font-style: normal; font-size: 11px; font-variant-numeric: tabular-nums; }
+.rit-days i { width: 16px; height: 16px; border-radius: 50%; background: var(--soft); margin: 2px 0; }
 .rit-days span.on i { background: var(--done); }
+.rit-days span.today { color: var(--done-text, var(--done)); }
+.rit-days span.today b, .rit-days span.today em { font-weight: 800; }
+.rit-days span.today i { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--done); }
 /* the one button stays in view at every height */
 .rit-foot { flex: none; background: var(--panel); box-shadow: 0 -1px 0 var(--card-edge); border-radius: var(--r-card) var(--r-card) 0 0;
   padding: 16px calc(var(--gutter) + env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) calc(var(--gutter) + env(safe-area-inset-left)); }
